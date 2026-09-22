@@ -1,0 +1,25 @@
+# Secrets -- never commit. Each app's .env holds real tokens (see docs/HISTORY-GENERATOR.md,
+# docs/README.md) and is created by hand on the server, not from a committed template.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Generated/runtime data -- large and/or regenerable, not source.
+history-generator/output/
+history-generator/voice_samples/
+comfyui/data/
+jellyfin/config/
+jellyfin/cache/
+
+# Python
+__pycache__/
+*.pyc
+
+# Cron run history -- churns constantly, no value as source history.
+history-generator/sync-jellyfin-library.log
+
+# Stray pre-rewrite backup, superseded by docs/README.md.
+docs/README.md.back
+
+# OS/editor cruft
+.DS_Store

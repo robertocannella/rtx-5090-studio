@@ -1,0 +1,26 @@
+media.example.com {
+    reverse_proxy jellyfin:8096
+}
+
+docs.example.com {
+     basic_auth {
+        user $2a$14$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+    }
+    reverse_proxy docs:80
+}
+
+ai.example.com {
+    reverse_proxy open-webui:8080
+}
+
+ntfy.example.com {
+    reverse_proxy ntfy:80
+}
+
+generator.example.com {
+    basic_auth {
+        user $2a$14$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    }
+    reverse_proxy history-ui:8000
+}

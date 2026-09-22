@@ -1,0 +1,27 @@
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+
+    ports:
+      - "192.168.1.78:8096:8096"
+    volumes:
+      - ./config:/config
+      - ./cache:/cache
+      - /srv/media:/media:ro
+
+    networks:
+      - edge
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+networks:
+  edge:
+    external: true

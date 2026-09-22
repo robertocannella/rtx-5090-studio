@@ -1,0 +1,28 @@
+services:
+  comfyui:
+    image: yanwk/comfyui-boot:cu128-slim
+    container_name: comfyui
+    restart: unless-stopped
+
+    # The entrypoint copies its bundled ComfyUI install into /root on first boot and
+    # treats /root as the persistence root (models, custom nodes, pip packages, output) --
+    # bind-mounting the whole thing is this image's own convention, not something we're
+    # inventing. Keeps the multi-GB FLUX.1-schnell weights (and everything else) off the
+    # image layer and surviving container recreates.
+    volumes:
+      - ./data:/root
+
+    networks:
+      - comfyui_internal   # only history-api reaches this; never joins edge, never published
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+networks:
+  comfyui_internal:
+    external: true

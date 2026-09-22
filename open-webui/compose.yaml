@@ -1,0 +1,36 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ENABLE_SIGNUP=false
+      - AUDIO_TTS_ENGINE=openai
+      - AUDIO_TTS_OPENAI_API_BASE_URL=http://kokoro:8880/v1
+      - AUDIO_TTS_OPENAI_API_KEY=not-needed
+      - AUDIO_TTS_MODEL=kokoro
+      - AUDIO_TTS_VOICE=af_bella
+
+    volumes:
+      - open_webui_data:/app/backend/data
+
+    networks:
+      - edge
+      - ollama_internal
+      - tts_internal
+      - historygen_internal
+
+volumes:
+  open_webui_data:
+
+networks:
+  edge:
+    external: true
+  ollama_internal:
+    external: true
+  tts_internal:
+    external: true
+  historygen_internal:
+    external: true

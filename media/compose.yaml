@@ -1,0 +1,14 @@
+services:
+  caddy:
+    image: caddy:2
+    container_name: media
+    restart: unless-stopped
+    volumes:
+      - /srv/media:/srv/media:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true

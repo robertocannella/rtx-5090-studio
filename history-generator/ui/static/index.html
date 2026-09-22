@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Episode Generator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Episode Generator</h1>
+  <p>History &middot; Math &middot; Discovery narrated episodes, generated locally</p>
+</header>
+
+<main>
+  <div id="top-error" class="top-error"></div>
+
+  <section class="panel">
+    <h2>Preset</h2>
+    <div class="preset-bar">
+      <select id="preset-select">
+        <option value="">-- choose a preset --</option>
+      </select>
+      <button id="save-preset-btn" class="small" type="button">Save current as preset</button>
+      <button id="delete-preset-btn" class="small" type="button">Delete selected preset</button>
+    </div>
+    <p class="hint">Loading a preset fills in the fields below -- you can still edit anything before starting the job.</p>
+  </section>
+
+  <form id="job-form">
+    <section class="panel">
+      <h2>Topic &amp; domain</h2>
+      <div class="row">
+        <div class="field" style="flex-basis: 100%;">
+          <label for="topic">Topic *</label>
+          <input type="text" id="topic" name="topic" required placeholder="e.g. Ancient Rome, Why Prime Numbers Are Infinite, How Black Holes Form">
+          <div class="error">Topic is required.</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="domain">Domain</label>
+          <select id="domain" name="domain"></select>
+          <div class="hint" id="domain-hint"></div>
+        </div>
+        <div class="field">
+          <label for="duration">Target duration (seconds)</label>
+          <input type="number" id="duration" name="duration" min="30" step="30" value="3600">
+          <div class="hint">
+            <button type="button" class="small" data-duration="300">5 min</button>
+            <button type="button" class="small" data-duration="900">15 min</button>
+            <button type="button" class="small" data-duration="1800">30 min</button>
+            <button type="button" class="small" data-duration="3600">60 min</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Voice &amp; pacing</h2>
+      <div class="row">
+        <div class="field">
+          <label for="voice">Voice</label>
+          <select id="voice" name="voice"></select>
+          <div class="hint">
+            <button type="button" class="small" id="voice-preview-btn">&#9658; Preview voice</button>
+            <span id="voice-preview-status"></span>
+          </div>
+        </div>
+        <div class="field" id="voice-custom-field" style="display:none;">
+          <label for="voice-custom">Custom voice id</label>
+          <input type="text" id="voice-custom" placeholder="e.g. bm_atten_inno">
+        </div>
+        <div class="field">
+          <label for="speed">Speed (<span id="speed-out">0.85</span>x)</label>
+          <input type="range" id="speed" name="speed" min="0.25" max="4.0" step="0.05" value="0.85">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="pitch">Pitch (<span id="pitch-out">0.0</span> semitones)</label>
+          <input type="range" id="pitch" name="pitch_semitones" min="-4" max="4" step="0.5" value="0">
+        </div>
+        <div class="field">
+          <label for="sentence-gap">Sentence gap (<span id="sentence-gap-out">0.5</span>s)</label>
+          <input type="range" id="sentence-gap" name="sentence_gap_seconds" min="0" max="2" step="0.1" value="0.5">
+        </div>
+        <div class="field">
+          <label for="segment-gap">Segment gap (<span id="segment-gap-out">1.5</span>s)</label>
+          <input type="range" id="segment-gap" name="segment_gap_seconds" min="0" max="10" step="0.5" value="1.5">
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Background</h2>
+      <div class="row">
+        <div class="field">
+          <label class="checkbox"><input type="checkbox" id="ambient" name="ambient"> Procedural ambient bed</label>
+          <div class="hint">Mood chosen automatically by the model from the topic.</div>
+        </div>
+        <div class="field">
+          <label class="checkbox"><input type="checkbox" id="music" name="music"> Background music</label>
+          <div class="hint">Real, human-curated track from the local library.</div>
+        </div>
+      </div>
+      <div id="music-subgroup" class="subgroup">
+        <div class="row">
+          <div class="field">
+            <label for="music-mood">Music mood</label>
+            <input type="text" id="music-mood" name="music_mood" value="sleep-ambient">
+          </div>
+          <div class="field">
+            <label for="music-level">Music level (<span id="music-level-out">-12</span> dBFS)</label>
+            <input type="range" id="music-level" name="music_level_db" min="-40" max="-6" step="1" value="-12">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Visual background</h2>
+      <div class="row">
+        <div class="field">
+          <label for="visual-style">Style</label>
+          <select id="visual-style" name="visual_style"></select>
+          <div class="hint">'math' picks one animated visualization at random, fixed for the whole episode.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Advanced</h2>
+      <div class="row">
+        <div class="field">
+          <label class="checkbox"><input type="checkbox" id="force" name="force"> Force (wipe and regenerate from scratch)</label>
+          <div class="hint">Only relevant if an episode with this topic already exists.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Review</h2>
+      <div id="summary" class="summary-box">Fill in a topic to see the request that will be submitted.</div>
+    </section>
+
+    <button type="submit" class="primary" id="submit-btn">Start generation</button>
+  </form>
+
+  <section class="panel">
+    <h2>Tracked jobs</h2>
+    <div id="jobs-list"><p class="hint">Jobs you start will appear here, with live progress.</p></div>
+  </section>
+
+  <section class="panel">
+    <details id="episodes-details">
+      <summary>All episodes on this server</summary>
+      <div id="episodes-list"><p class="hint">Loading...</p></div>
+      <button type="button" class="small" id="refresh-episodes-btn">Refresh</button>
+    </details>
+  </section>
+</main>
+
+<audio id="voice-preview-audio" preload="none" style="display:none;"></audio>
+
+<footer>
+  Talks only to this server's private history-api. No credentials are stored client-side beyond your browser's own basic-auth prompt.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+services:
+  history-generator:
+    build: .
+    image: history-generator:local
+    user: "1000:1000"
+
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen3:32b
+      - KOKORO_URL=http://kokoro:8880
+      - KOKORO_VOICE=af_heart
+      - COMFYUI_URL=http://comfyui:8188
+      - AMBIENT_ENABLED=true
+      - MUSIC_ENABLED=false
+      - MUSIC_MOOD=sleep-ambient
+      - MUSIC_LEVEL_DB=-25
+      - MUSIC_FADE_IN_SECONDS=8
+      - MUSIC_FADE_OUT_SECONDS=20
+      - MUSIC_LIBRARY_DIR=/app/audio-library/music
+      - OUTPUT_DIR=/app/output
+
+    volumes:
+      - ./output:/app/output
+      - /srv/media/audio/music:/app/audio-library/music:ro
+
+    networks:
+      - ollama_internal
+      - tts_internal
+      - comfyui_internal
+
+  music-scan:
+    build: .
+    image: history-generator:local
+    user: "1000:1000"
+    entrypoint: ["python3", "scan_music.py"]
+
+    environment:
+      - MUSIC_LIBRARY_DIR=/app/audio-library/music
+
+    volumes:
+      # read-write here only -- catalog.json needs to be writable to scan; the
+      # generation services above mount the same host path read-only.
+      - /srv/media/audio/music:/app/audio-library/music
+
+  history-api:
+    build: .
+    image: history-generator:local
+    container_name: history-api
+    restart: unless-stopped
+    user: "1000:1000"
+    entrypoint: ["python3", "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen3:32b
+      - KOKORO_URL=http://kokoro:8880
+      - KOKORO_VOICE=af_heart
+      - COMFYUI_URL=http://comfyui:8188
+      - AMBIENT_ENABLED=true
+      - MUSIC_ENABLED=false
+      - MUSIC_MOOD=sleep-ambient
+      - MUSIC_LEVEL_DB=-25
+      - MUSIC_FADE_IN_SECONDS=8
+      - MUSIC_FADE_OUT_SECONDS=20
+      - MUSIC_LIBRARY_DIR=/app/audio-library/music
+      - OUTPUT_DIR=/app/output
+      - HOST_OUTPUT_DIR=/srv/apps/history-generator/output
+      - VOICE_SAMPLES_DIR=/app/voice_samples
+      - NTFY_URL=http://ntfy:80
+      - NTFY_TOPIC=history-generator
+      - NTFY_TOKEN=${NTFY_TOKEN}
+
+    volumes:
+      - ./output:/app/output
+      - /srv/media/audio/music:/app/audio-library/music:ro
+      # cached <=10s voice-preview clips (see voice_samples.py) -- bind-mounted, not
+      # baked into the image or left container-local, so they survive redeploys instead
+      # of every rebuild re-synthesizing every voice from scratch.
+      - ./voice_samples:/app/voice_samples
+
+    networks:
+      - ollama_internal
+      - tts_internal
+      - historygen_internal
+      - comfyui_internal
+
+  history-ui:
+    build: ./ui
+    image: history-generator-ui:local
+    container_name: history-ui
+    restart: unless-stopped
+    user: "1000:1000"
+
+    environment:
+      - HISTORY_API_URL=http://history-api:8000
+      - KOKORO_URL=http://kokoro:8880
+
+    networks:
+      - historygen_internal   # reaches history-api (the only thing it proxies generation through)
+      - tts_internal           # reaches kokoro directly, read-only, just to list voices
+      - edge                   # the only piece of this whole app meant to be reachable from a browser
+
+networks:
+  ollama_internal:
+    external: true
+  tts_internal:
+    external: true
+  historygen_internal:
+    external: true
+  comfyui_internal:
+    external: true
+  edge:
+    external: true

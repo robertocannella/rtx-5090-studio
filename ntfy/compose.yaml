@@ -1,0 +1,29 @@
+services:
+  ntfy:
+    image: binwiederhier/ntfy:v2.28.0
+    container_name: ntfy
+    restart: unless-stopped
+    command: serve
+
+    environment:
+      - NTFY_BASE_URL=https://ntfy.example.com
+      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
+      - NTFY_AUTH_DEFAULT_ACCESS=deny-all
+      - NTFY_BEHIND_PROXY=true
+      - NTFY_CACHE_FILE=/var/lib/ntfy/cache.db
+
+    volumes:
+      - ntfy_data:/var/lib/ntfy
+
+    networks:
+      - edge
+      - historygen_internal
+
+volumes:
+  ntfy_data:
+
+networks:
+  edge:
+    external: true
+  historygen_internal:
+    external: true

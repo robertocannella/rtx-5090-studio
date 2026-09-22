@@ -1,0 +1,19 @@
+services:
+  docs:
+    image: nginx:alpine
+    container_name: docs
+    restart: unless-stopped
+    
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./README.md:/usr/share/nginx/html/README.md:ro
+      - ./SERVER.md:/usr/share/nginx/html/SERVER.md:ro
+      - ./JELLYFIN.md:/usr/share/nginx/html/JELLYFIN.md:ro
+      - ./OLLAMA.md:/usr/share/nginx/html/OLLAMA.md:ro
+      - ./HISTORY-GENERATOR.md:/usr/share/nginx/html/HISTORY-GENERATOR.md:ro
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true
