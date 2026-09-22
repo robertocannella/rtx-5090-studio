@@ -40,7 +40,7 @@ header p {
 }
 
 main {
-  max-width: 760px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 16px;
 }
@@ -295,17 +295,47 @@ details summary {
   margin-bottom: 8px;
 }
 
+.episode-table-header,
 .episode-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(180px, 1.3fr) minmax(200px, auto);
+  gap: 16px;
+  align-items: center;
+}
+
+.episode-table-header {
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+
+.episode-row {
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.85rem;
-  flex-wrap: wrap;
 }
 
 .episode-row-wrap:last-child .episode-row { border-bottom: none; }
+
+.ep-col-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Below ~600px there isn't room for three columns -- fall back to stacked rows like the
+   layout before this, rather than truncating/overlapping content. */
+@media (max-width: 600px) {
+  .episode-table-header { display: none; }
+  .episode-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
 
 .yt-panel {
   margin: 4px 0 10px;
@@ -335,8 +365,13 @@ details summary {
   min-width: 160px;
 }
 
-.yt-publish-status { font-size: 0.8rem; }
-.yt-publish-status.error { color: var(--danger); }
+.yt-publish-status,
+.yt-generate-status,
+.yt-regenerate-status { font-size: 0.8rem; }
+
+.yt-publish-status.error,
+.yt-generate-status.error,
+.yt-regenerate-status.error { color: var(--danger); }
 
 .tag {
   display: inline-block;

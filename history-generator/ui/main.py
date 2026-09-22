@@ -99,6 +99,12 @@ async def get_youtube_metadata(slug: str):
     return await _proxy("GET", f"{HISTORY_API_URL}/episodes/{slug}/youtube")
 
 
+@app.post("/api/episodes/{slug}/youtube/generate")
+async def generate_youtube_metadata(slug: str, request: Request):
+    body = await request.json() if await request.body() else {}
+    return await _proxy("POST", f"{HISTORY_API_URL}/episodes/{slug}/youtube/generate", json=body)
+
+
 @app.post("/api/episodes/{slug}/youtube/publish")
 async def publish_youtube_metadata(slug: str, request: Request):
     body = await request.json()

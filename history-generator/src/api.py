@@ -30,6 +30,7 @@ import prompts
 import sentence_gap as sentence_gap_mod
 import video as video_mod
 import voice_samples
+import youtube_metadata
 import youtube_publish
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
@@ -457,6 +458,39 @@ def get_youtube_metadata(slug: str):
     if not youtube:
         raise HTTPException(status_code=404, detail="YouTube metadata not generated yet for this episode")
     return youtube
+
+
+class GenerateYoutubeRequest(BaseModel):
+    force: bool = False
+
+
+@app.post("/episodes/{slug}/youtube/generate")
+def generate_youtube_metadata(slug: str, req: GenerateYoutubeRequest = GenerateYoutubeRequest()):
+    """Generate (or, with force, regenerate) this episode's YouTube metadata on demand,
+    independent of running the full pipeline -- for an episode that predates this
+    feature, had it disabled, or whose one Ollama call failed the first time. Uses the
+    same youtube_metadata.generate() the pipeline itself calls (see
+    pipeline.py:apply_youtube_metadata), just triggered directly instead of as part of a
+    job run, the same way voice_samples.get_or_create() is called directly for the voice
+    preview endpoint rather than through a job.
+    """
+    paths = manifest_mod.episode_paths(OUTPUT_DIR, slug)
+    m = manifest_mod.load_manifest(paths["manifest"])
+    if not m:
+        raise HTTPException(status_code=404, detail="episode not found")
+
+    domain = m.get("domain", prompts.DEFAULT_DOMAIN)
+    model = m.get("model") or OLLAMA_MODEL
+    result = youtube_metadata.generate(OLLAMA_URL, model, domain, m, paths, force=req.force)
+    if not result:
+        raise HTTPException(
+            status_code=502,
+            detail="Generation failed or there are no completed segments yet -- check history-api's logs for the underlying Ollama error.",
+        )
+
+    m["youtube"] = result
+    manifest_mod.save_manifest(paths["manifest"], m)
+    return result
 
 
 class PublishYoutubeRequest(BaseModel):

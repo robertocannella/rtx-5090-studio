@@ -59,6 +59,38 @@ def test_create_job_proxies_to_history_api(client, monkeypatch):
     assert captured["url"] == f"{main.HISTORY_API_URL}/jobs"
 
 
+def test_generate_youtube_metadata_proxies_to_history_api(client, monkeypatch):
+    captured = {}
+
+    async def fake_request(self, method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        return _FakeResponse(200, {"title": "T"})
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", fake_request)
+
+    resp = client.post("/api/episodes/some-slug/youtube/generate", json={"force": True})
+    assert resp.status_code == 200
+    assert captured["method"] == "POST"
+    assert captured["url"] == f"{main.HISTORY_API_URL}/episodes/some-slug/youtube/generate"
+    assert captured["json"] == {"force": True}
+
+
+def test_generate_youtube_metadata_proxies_with_empty_body(client, monkeypatch):
+    captured = {}
+
+    async def fake_request(self, method, url, **kwargs):
+        captured["json"] = kwargs.get("json")
+        return _FakeResponse(200, {"title": "T"})
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", fake_request)
+
+    resp = client.post("/api/episodes/some-slug/youtube/generate")
+    assert resp.status_code == 200
+    assert captured["json"] == {}
+
+
 def test_publish_youtube_metadata_proxies_to_history_api(client, monkeypatch):
     captured = {}
 

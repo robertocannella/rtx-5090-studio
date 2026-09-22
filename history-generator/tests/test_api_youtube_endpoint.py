@@ -44,6 +44,56 @@ def test_get_youtube_metadata_404_when_episode_missing(tmp_path, monkeypatch):
     assert exc_info.value.status_code == 404
 
 
+def test_generate_youtube_metadata_success(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    _make_episode(tmp_path)
+    fake_result = {"title": "T", "description": "D", "tags": [], "tags_joined": "", "category": "Education", "chapters": "", "generated_for_segment_count": 1}
+    calls = []
+    monkeypatch.setattr(
+        api.youtube_metadata, "generate",
+        lambda *a, **k: calls.append((a, k)) or fake_result,
+    )
+
+    result = api.generate_youtube_metadata("test-episode", api.GenerateYoutubeRequest())
+
+    assert result == fake_result
+    saved = manifest_mod.load_manifest(manifest_mod.episode_paths(str(tmp_path), "test-episode")["manifest"])
+    assert saved["youtube"] == fake_result
+    assert calls[0][1]["force"] is False
+
+
+def test_generate_youtube_metadata_force_is_threaded_through(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    _make_episode(tmp_path)
+    calls = []
+    monkeypatch.setattr(
+        api.youtube_metadata, "generate",
+        lambda *a, **k: calls.append(k) or {"title": "T", "description": "D", "tags": [], "category": "Education", "chapters": "", "generated_for_segment_count": 1},
+    )
+
+    api.generate_youtube_metadata("test-episode", api.GenerateYoutubeRequest(force=True))
+
+    assert calls[0]["force"] is True
+
+
+def test_generate_youtube_metadata_404_when_episode_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+
+    with pytest.raises(HTTPException) as exc_info:
+        api.generate_youtube_metadata("does-not-exist", api.GenerateYoutubeRequest())
+    assert exc_info.value.status_code == 404
+
+
+def test_generate_youtube_metadata_502_when_generation_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    _make_episode(tmp_path)
+    monkeypatch.setattr(api.youtube_metadata, "generate", lambda *a, **k: None)
+
+    with pytest.raises(HTTPException) as exc_info:
+        api.generate_youtube_metadata("test-episode", api.GenerateYoutubeRequest())
+    assert exc_info.value.status_code == 502
+
+
 def _configure_youtube_env(monkeypatch, configured=True):
     monkeypatch.setattr(api, "YOUTUBE_CLIENT_ID", "cid" if configured else "")
     monkeypatch.setattr(api, "YOUTUBE_CLIENT_SECRET", "secret" if configured else "")
