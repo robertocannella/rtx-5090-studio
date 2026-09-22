@@ -236,3 +236,67 @@ def build_image_prompts_user(segment_title, segment_summary, script_text):
         f"Narration script for this segment:\n{script_text}\n\n"
         "Propose the requested number of visual scenes illustrating this narration, in order."
     )
+
+
+def build_youtube_metadata_tool():
+    return {
+        "type": "function",
+        "function": {
+            "name": "propose_youtube_metadata",
+            "description": "Propose YouTube upload metadata for an educational video based on its script.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Engaging YouTube title, under 100 characters, accurately reflecting the content.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": (
+                            "A 2-4 paragraph YouTube description summarizing what the video covers, "
+                            "written to hook viewers and aid search discovery. No timestamps/chapters "
+                            "-- those are added separately."
+                        ),
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 10,
+                        "maxItems": 15,
+                        "description": "10-15 relevant search tags/keywords, short words or short phrases, most important first.",
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": ["Education", "Science & Technology", "Entertainment"],
+                        "description": "Best-fit YouTube video category.",
+                    },
+                },
+                "required": ["title", "description", "tags", "category"],
+            },
+        },
+    }
+
+
+def build_youtube_metadata_system(domain=DEFAULT_DOMAIN):
+    d = DOMAINS[domain]
+    return (
+        f"You are a YouTube metadata specialist for an educational {d['label']} video "
+        "channel. Given the full narration script of a long-form video, propose upload "
+        "metadata that accurately represents its content, is engaging, and helps it get "
+        "discovered in search. Do not invent facts that aren't in the script. Do not "
+        "include timestamps or chapter markers in the description -- those are added "
+        "separately, computed directly from segment durations. You must call "
+        "propose_youtube_metadata."
+    )
+
+
+def build_youtube_metadata_user(topic, title, domain, total_duration_seconds, full_script):
+    d = DOMAINS[domain]
+    return (
+        f"Episode title: {title}\n"
+        f"Topic: {topic}\n"
+        f"Domain: {d['label']}\n"
+        f"Total video length: ~{round(total_duration_seconds / 60)} minutes\n\n"
+        f"Full narration script, in order:\n\n{full_script}"
+    )

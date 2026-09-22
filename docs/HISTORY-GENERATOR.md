@@ -79,6 +79,8 @@ A third, separate service and image, **`history-ui`** (own `Dockerfile`, `ui/`),
                      (animated mathematical backgrounds, also owns the shared visual_style
                      enum), segment_images.py (per-segment AI image generation/caching, see
                      AI-Generated Segment Images), image_client.py (ComfyUI HTTP client),
+                     youtube_metadata.py (title/description/tags/category/chapters from
+                     the finished script, see YouTube Metadata),
                      gpu_lock.py (process-wide mutex serializing Ollama/ComfyUI GPU calls),
                      voice_samples.py (cached <=10s voice-preview clips, see Configuration
                      UI -> Voice Preview), kokoro_client.py (Kokoro HTTP client, incl.
@@ -125,7 +127,8 @@ Each episode gets its own directory under `output/<episode-slug>/`:
 
 ```text
 output/<episode-slug>/
-    manifest.json       # source of truth: outline, per-segment status/duration, chosen ambient/music params
+    manifest.json       # source of truth: outline, per-segment status/duration, chosen ambient/music params,
+                          # and (under "youtube") generated YouTube upload metadata -- see YouTube Metadata
     scripts/NNN.txt      # narration text per segment
     audio/NNN.mp3         # synthesized narration per segment -- one Kokoro call, or several joined
                             # with sentence_gap_seconds of silence if that's > 0 (see Sentence Gaps);
@@ -512,6 +515,23 @@ Check `crontab -l` to see it, and `sync-jellyfin-library.log` for its run histor
 **One-time Jellyfin-side setup** (can't be scripted from here — needs your Jellyfin admin login): Dashboard → Libraries → Add Media Library → content type "Movies" (or "Home Videos") → folder `/media/generated-episodes` → Save.
 
 **Known limitation**: if an episode is deleted entirely from `output/` (not just regenerated), its hardlink in `/srv/media/generated-episodes/` is *not* automatically removed — the script only adds/updates links for episodes that currently exist, it never deletes. Clean up manually (`rm /srv/media/generated-episodes/<slug>.mp4`) if that ever matters.
+
+## YouTube Metadata
+
+`youtube_metadata` (`--youtube-metadata`/`--no-youtube-metadata` CLI, `"youtube_metadata"` API/chat tool, default **on**) generates YouTube upload metadata -- title, description, tags, category, and chapter timestamps -- from an episode's own finished script, once narration completes. It runs automatically; there's no separate command to trigger it.
+
+**Two very different sources feed the result**:
+
+- **Chapters** are pure arithmetic, not an LLM call: `youtube_metadata.py:compute_chapters()` walks the complete segments in order, accumulating each one's actual `duration` plus `segment_gap_seconds`, and formats a `"<timestamp> <title>"` line per segment (`M:SS` under an hour, `H:MM:SS` at or past it). This is exactly the timeline `video.py`'s own assembly follows (see [Video](#video)), so a chapter timestamp always lands on that segment's real start time in the finished file -- never approximate, never re-derived from a duration estimate.
+- **Title, description, tags, and category** come from a single Ollama tool call (`propose_youtube_metadata`, see `prompts.py:build_youtube_metadata_system/tool/user`) over the *entire* concatenated script, in order -- one call per episode, not per segment, since (unlike image prompts) there's no natural per-item split to divide a shared budget across. The system prompt is domain-aware (reuses each domain's `label`, see [Content Domains](#content-domains)) and explicitly told not to invent facts beyond the script or include timestamps in the description (chapters are appended separately, verbatim).
+
+**Caching/invalidation**: `pipeline.py:apply_youtube_metadata()` stores the result in `manifest.json` under `"youtube"`, keyed on `generated_for_segment_count` -- the number of complete segments at generation time. A resume that doesn't add segments reuses it untouched (no re-ask); one that does (e.g. after an outline extension) is treated as the content having grown enough to regenerate. `--force` always regenerates. Because scripts are immutable once written (see [Resumability](#resumability)) and this only reads from them, there's no other invalidation trigger to track.
+
+**Best-effort**: a failed Ollama call is logged (`[warn] YouTube metadata generation failed, skipping: ...`) and `generate()` returns `None` -- the episode's video still gets built normally either way. This also means it's entirely retroactive: resubmitting the same topic for an already-finished episode that predates this feature (no `"youtube"` key yet) generates it on that resume alone, without `--force` and without regenerating anything else -- confirmed live against a previously-completed 62-minute episode, where every narration/image/video-build step was a pure cache hit except this one new call.
+
+**Access**: `GET /episodes/{slug}/youtube` (404 until generated) returns the stored dict as-is; `_episode_progress()`'s `youtube_metadata_ready` boolean (on `/episodes` and `/episodes/{slug}`) is what the Configuration UI checks before showing a "YouTube metadata" button on that episode's row -- clicking it fetches and expands title/category/tags/description/chapters inline (cached client-side per slug so the panel survives the episode list's own auto-refresh, see [Configuration UI](#configuration-ui)).
+
+**Tests**: `tests/test_youtube_metadata.py` (timestamp formatting, chapter arithmetic against a hand-checked timeline, generate/cache/force/no-segments/Ollama-failure behavior), `tests/test_prompts_youtube.py` (system/tool/user builders), `tests/test_pipeline_youtube.py` (the enable/disable and caching-integration lifecycle above), and `tests/test_api_youtube_endpoint.py` plus the `youtube_metadata_ready` cases in `tests/test_api_episode_progress.py` (API-level). Run the same way as the pitch tests (see [Narrator Pitch](#narrator-pitch)).
 
 ## Resumability
 

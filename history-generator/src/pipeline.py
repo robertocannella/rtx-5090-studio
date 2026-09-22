@@ -16,6 +16,7 @@ import segment_images
 import sentence_gap
 import textutil
 import video
+import youtube_metadata
 
 SECONDS_PER_SEGMENT_ESTIMATE = 75
 MAX_OUTLINE_EXTENSIONS = 8
@@ -248,6 +249,22 @@ def apply_images_to_segments(args, paths, m, topic, domain, slug):
             if os.path.exists(video_path):
                 os.remove(video_path)
             image_client.free_memory(args.comfyui_url)
+        manifest_mod.save_manifest(paths["manifest"], m)
+
+
+def apply_youtube_metadata(args, paths, m, domain):
+    """Generate (or reuse the cached) YouTube upload metadata once narration is done --
+    see youtube_metadata.py. Enabled by default (--no-youtube-metadata to disable, like
+    --no-ambient). Best-effort: a failure here is logged and skipped by
+    youtube_metadata.generate() itself, never aborts the episode -- the video still gets
+    built either way.
+    """
+    if not getattr(args, "youtube_metadata", True):
+        return
+    print("Generating YouTube metadata...")
+    result = youtube_metadata.generate(args.ollama_url, args.model, domain, m, paths, force=args.force)
+    if result:
+        m["youtube"] = result
         manifest_mod.save_manifest(paths["manifest"], m)
 
 
@@ -543,6 +560,8 @@ def run(args):
     except segment_images.SegmentImagesError as e:
         print(f"[error] segment image generation failed: {e}")
         return None
+
+    apply_youtube_metadata(args, paths, m, domain)
 
     # Gaps are inserted between segments (never within one), so N complete segments
     # contribute N-1 gaps. Background beds are prepared/rendered to this full length --

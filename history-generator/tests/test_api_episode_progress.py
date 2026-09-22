@@ -146,6 +146,24 @@ def test_stage_is_finalizing_once_all_segment_videos_built_but_no_final(tmp_path
     assert progress["segment_videos_built"] == 1
 
 
+def test_youtube_metadata_ready_reflects_manifest_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    paths = manifest_mod.episode_paths(str(tmp_path), "test-episode")
+    manifest_mod.ensure_dirs(paths)
+    manifest_mod.save_manifest(paths["manifest"], {
+        "title": "Test Episode", "topic": "Test Episode", "target_duration_seconds": 60,
+        "segments": [{"number": 1, "title": "A", "duration": 60.0, "status": "complete"}],
+    })
+
+    assert api._episode_progress("test-episode")["youtube_metadata_ready"] is False
+
+    manifest_data = manifest_mod.load_manifest(paths["manifest"])
+    manifest_data["youtube"] = {"title": "T", "description": "D", "tags": [], "category": "Education", "chapters": ""}
+    manifest_mod.save_manifest(paths["manifest"], manifest_data)
+
+    assert api._episode_progress("test-episode")["youtube_metadata_ready"] is True
+
+
 def test_stage_is_complete_once_final_video_exists(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     root = str(tmp_path)

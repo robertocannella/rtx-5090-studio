@@ -252,6 +252,7 @@
       voice: currentVoice(),
       speed: parseFloat($("speed").value),
       ambient: $("ambient").checked,
+      youtube_metadata: $("youtube-metadata").checked,
       pitch_semitones: parseFloat($("pitch").value),
       music: $("music").checked,
       music_mood: $("music-mood").value.trim() || "sleep-ambient",
@@ -274,6 +275,7 @@
     if (preset.music_mood) $("music-mood").value = preset.music_mood;
     if (preset.music_level_db !== undefined) $("music-level").value = preset.music_level_db;
     if (preset.ambient !== undefined) $("ambient").checked = preset.ambient;
+    if (preset.youtube_metadata !== undefined) $("youtube-metadata").checked = preset.youtube_metadata;
     if (preset.visual_style) $("visual-style").value = preset.visual_style;
     if (preset.domain) $("domain").value = preset.domain;
     if (preset.duration) $("duration").value = preset.duration;
@@ -368,6 +370,7 @@
       `Voice: ${payload.voice || "(required)"}  Speed: ${payload.speed}x  Pitch: ${payload.pitch_semitones >= 0 ? "+" : ""}${payload.pitch_semitones}`,
       `Sentence gap: ${payload.sentence_gap_seconds}s  Segment gap: ${payload.segment_gap_seconds}s`,
       `Ambient: ${payload.ambient ? "on" : "off"}`,
+      `YouTube metadata: ${payload.youtube_metadata ? "on" : "off"}`,
       payload.music
         ? `Music: on (${payload.music_mood}, ${payload.music_level_db} dBFS)`
         : "Music: off",
@@ -520,6 +523,48 @@
 
   // ---- all episodes -------------------------------------------------------
 
+  // The episodes list re-renders its whole innerHTML on every auto-refresh tick (see
+  // loadEpisodes below), which would otherwise silently collapse an open YouTube-metadata
+  // panel every ~8s. Tracking which slugs are expanded (and caching what was fetched for
+  // them) lets each refresh restore that state instead of losing it.
+  const expandedYoutube = new Set();
+  const youtubeCache = {};
+
+  function youtubePanelHtml(y) {
+    return `
+      <div class="yt-meta">
+        <div><strong>Title:</strong> ${escapeHtml(y.title)}</div>
+        <div><strong>Category:</strong> ${escapeHtml(y.category)}</div>
+        <div><strong>Tags:</strong> ${escapeHtml(y.tags_joined)}</div>
+        <details><summary>Description</summary><pre>${escapeHtml(y.description)}</pre></details>
+        <details><summary>Chapters</summary><pre>${escapeHtml(y.chapters)}</pre></details>
+      </div>`;
+  }
+
+  async function toggleYoutubePanel(slug) {
+    const panel = document.getElementById(`yt-panel-${slug}`);
+    if (!panel) return;
+    if (expandedYoutube.has(slug)) {
+      expandedYoutube.delete(slug);
+      panel.style.display = "none";
+      return;
+    }
+    expandedYoutube.add(slug);
+    panel.style.display = "";
+    if (youtubeCache[slug]) {
+      panel.innerHTML = youtubePanelHtml(youtubeCache[slug]);
+      return;
+    }
+    panel.innerHTML = '<p class="hint">Loading...</p>';
+    try {
+      const y = await apiGet(`/api/episodes/${encodeURIComponent(slug)}/youtube`);
+      youtubeCache[slug] = y;
+      panel.innerHTML = youtubePanelHtml(y);
+    } catch (e) {
+      panel.innerHTML = `<p class="hint">Could not load: ${escapeHtml(e.message)}</p>`;
+    }
+  }
+
   async function loadEpisodes() {
     const list = $("episodes-list");
     list.innerHTML = '<p class="hint">Loading...</p>';
@@ -544,12 +589,28 @@
           ? `${ep.segments_complete} segments narrated`
           : `${ep.segments_complete}/${ep.segments_total} segments`;
         const domainTag = ep.domain ? `<span class="tag">${escapeHtml(ep.domain)}</span>` : "";
-        return `<div class="episode-row">
-          <span>${escapeHtml(ep.title || ep.topic)} ${domainTag}</span>
-          <span>${segmentsLabel} &middot; ${status}</span>
+        const ytButton = ep.youtube_metadata_ready
+          ? ` <button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube metadata</button>`
+          : "";
+        return `<div class="episode-row-wrap">
+          <div class="episode-row">
+            <span>${escapeHtml(ep.title || ep.topic)} ${domainTag}</span>
+            <span>${segmentsLabel} &middot; ${status}${ytButton}</span>
+          </div>
+          <div class="yt-panel" id="yt-panel-${escapeHtml(ep.slug)}" style="display:none"></div>
         </div>`;
       })
       .join("");
+    list.querySelectorAll(".yt-toggle-btn").forEach((btn) => {
+      btn.addEventListener("click", () => toggleYoutubePanel(btn.dataset.slug));
+    });
+    expandedYoutube.forEach((slug) => {
+      const panel = document.getElementById(`yt-panel-${slug}`);
+      if (panel && youtubeCache[slug]) {
+        panel.style.display = "";
+        panel.innerHTML = youtubePanelHtml(youtubeCache[slug]);
+      }
+    });
   }
 
   // ---- wiring ---------------------------------------------------------

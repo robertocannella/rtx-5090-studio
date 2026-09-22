@@ -39,6 +39,19 @@ def parse_args(argv):
     )
     p.add_argument("--no-ambient", dest="ambient", action="store_false", help="Disable the ambient background bed")
     p.add_argument(
+        "--youtube-metadata", dest="youtube_metadata", action="store_true",
+        default=_env_bool("YOUTUBE_METADATA_ENABLED", True),
+        help=(
+            "Generate YouTube upload metadata (title, description, tags, category, and "
+            "chapter timestamps computed from segment durations) from the finished "
+            "script once narration completes (default: on)"
+        ),
+    )
+    p.add_argument(
+        "--no-youtube-metadata", dest="youtube_metadata", action="store_false",
+        help="Disable YouTube metadata generation",
+    )
+    p.add_argument(
         "--pitch", dest="pitch_semitones", type=float,
         default=float(os.environ.get("PITCH_SEMITONES", 0.0)),
         help=(
@@ -151,6 +164,10 @@ def main(argv=None):
     visual = result["manifest"].get("visual")
     if result["manifest"].get("visual_style") == "math" and visual:
         print(f"Visual: {visual['family']}")
+    youtube = result["manifest"].get("youtube")
+    if youtube:
+        print(f"YouTube title: {youtube['title']}")
+        print(f"YouTube metadata: {result['paths']['manifest']} (\"youtube\" key)")
     print(f"Final MP4: {result['final_path']}")
 
 

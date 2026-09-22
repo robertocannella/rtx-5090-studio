@@ -38,6 +38,7 @@ COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://comfyui:8188")
 KOKORO_VOICE = os.environ.get("KOKORO_VOICE", "af_heart")
 KOKORO_SPEED = float(os.environ.get("KOKORO_SPEED", 1.0))
 AMBIENT_ENABLED = os.environ.get("AMBIENT_ENABLED", "true").strip().lower() not in ("0", "false", "no", "")
+YOUTUBE_METADATA_ENABLED = os.environ.get("YOUTUBE_METADATA_ENABLED", "true").strip().lower() not in ("0", "false", "no", "")
 MUSIC_ENABLED = os.environ.get("MUSIC_ENABLED", "false").strip().lower() not in ("0", "false", "no", "")
 MUSIC_MOOD = os.environ.get("MUSIC_MOOD", "sleep-ambient")
 MUSIC_LEVEL_DB = float(os.environ.get("MUSIC_LEVEL_DB", -25.0))
@@ -100,6 +101,7 @@ class JobRequest(BaseModel):
     voice: str = Field(default=KOKORO_VOICE)
     speed: float = Field(default=KOKORO_SPEED, ge=0.25, le=4.0)
     ambient: bool = Field(default=AMBIENT_ENABLED)
+    youtube_metadata: bool = Field(default=YOUTUBE_METADATA_ENABLED)
     pitch_semitones: float = Field(default=0.0, ge=pitch_mod.MIN_SEMITONES, le=pitch_mod.MAX_SEMITONES)
     music: bool = Field(default=MUSIC_ENABLED)
     music_mood: str | None = Field(default=MUSIC_MOOD)
@@ -220,6 +222,7 @@ def _episode_progress(slug):
         "final_video_exists": final_exists,
         "final_video_path": final_path if final_exists else None,
         "final_video_host_path": final_host_path,
+        "youtube_metadata_ready": bool(m.get("youtube")),
     }
 
 
@@ -278,6 +281,7 @@ def get_metadata():
             "speed": KOKORO_SPEED,
             "duration": 3600,
             "ambient": AMBIENT_ENABLED,
+            "youtube_metadata": YOUTUBE_METADATA_ENABLED,
             "music": MUSIC_ENABLED,
             "music_mood": MUSIC_MOOD,
             "music_level_db": MUSIC_LEVEL_DB,
@@ -344,6 +348,7 @@ def create_job(req: JobRequest):
             voice=req.voice,
             speed=req.speed,
             ambient=req.ambient,
+            youtube_metadata=req.youtube_metadata,
             pitch_semitones=req.pitch_semitones,
             music=req.music,
             music_mood=req.music_mood,
@@ -371,6 +376,7 @@ def create_job(req: JobRequest):
             "voice": req.voice,
             "speed": req.speed,
             "ambient": req.ambient,
+            "youtube_metadata": req.youtube_metadata,
             "pitch_semitones": req.pitch_semitones,
             "music": req.music,
             "music_mood": req.music_mood,
@@ -429,3 +435,21 @@ def get_episode(slug: str):
     if not progress:
         raise HTTPException(status_code=404, detail="episode not found")
     return progress
+
+
+@app.get("/episodes/{slug}/youtube")
+def get_youtube_metadata(slug: str):
+    """The cached YouTube upload metadata (title, description, tags, category,
+    chapters) generated for this episode -- see youtube_metadata.py. 404 until
+    generation has actually run and succeeded (it's best-effort, so a completed episode
+    with youtube_metadata disabled, or whose one Ollama call failed, legitimately has
+    none yet).
+    """
+    paths = manifest_mod.episode_paths(OUTPUT_DIR, slug)
+    m = manifest_mod.load_manifest(paths["manifest"])
+    if not m:
+        raise HTTPException(status_code=404, detail="episode not found")
+    youtube = m.get("youtube")
+    if not youtube:
+        raise HTTPException(status_code=404, detail="YouTube metadata not generated yet for this episode")
+    return youtube

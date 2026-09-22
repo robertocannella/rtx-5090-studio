@@ -94,6 +94,11 @@ async def get_episode(slug: str):
     return await _proxy("GET", f"{HISTORY_API_URL}/episodes/{slug}")
 
 
+@app.get("/api/episodes/{slug}/youtube")
+async def get_youtube_metadata(slug: str):
+    return await _proxy("GET", f"{HISTORY_API_URL}/episodes/{slug}/youtube")
+
+
 @app.get("/api/voices/{voice_id}/sample")
 async def voice_sample(voice_id: str):
     """Binary audio passthrough, not JSON -- _proxy() always wraps the response as JSON,

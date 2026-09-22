@@ -94,10 +94,12 @@ def test_list_jobs_and_episodes_proxy_to_the_right_paths(client, monkeypatch):
     client.get("/api/jobs")
     client.get("/api/episodes")
     client.get("/api/episodes/some-slug")
+    client.get("/api/episodes/some-slug/youtube")
     assert seen_urls == [
         f"{main.HISTORY_API_URL}/jobs",
         f"{main.HISTORY_API_URL}/episodes",
         f"{main.HISTORY_API_URL}/episodes/some-slug",
+        f"{main.HISTORY_API_URL}/episodes/some-slug/youtube",
     ]
 
 
