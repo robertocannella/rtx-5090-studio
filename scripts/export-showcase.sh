@@ -50,6 +50,8 @@ credential_re = re.compile(r"[^\s]+(\s+)\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}")
 
 changed = []
 for path in Path(dest).rglob("*"):
+    if ".git" in path.relative_to(dest).parts:
+        continue  # never touch DEST's own git internals (config, refs, objects, logs)
     if not path.is_file() or path.is_symlink():
         continue
     try:
