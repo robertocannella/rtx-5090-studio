@@ -419,17 +419,49 @@
     }[c]));
   }
 
+  // Once narration hits its target, the pipeline still has to work through further
+  // per-segment stages (image generation, then per-segment video encoding, then a final
+  // mix/encode pass) that can each take as long as narration did -- this turns "target
+  // reached" from a dead end into a real "video 28/54"-style readout of what's actually
+  // happening next.
+  function stageLabel(progress) {
+    const total = progress.segments_complete || 0;
+    switch (progress.stage) {
+      case "generating_images":
+        return `Generating images: ${progress.images_ready || 0}/${total} segments`;
+      case "building_segment_videos":
+        return `Building segment videos: ${progress.segment_videos_built || 0}/${total}`;
+      case "finalizing":
+        return "Finalizing: mixing audio and encoding the final video...";
+      default:
+        return null;
+    }
+  }
+
   function jobCardHtml(job) {
     const progress = job.progress || {};
     const total = progress.segments_total || 0;
     const complete = progress.segments_complete || 0;
-    const pct = total > 0 ? Math.round((complete / total) * 100) : (job.status === "complete" ? 100 : 0);
+    // The outline is deliberately over-provisioned (a buffer against under-shooting the
+    // target), so a healthy finished episode routinely ends with segments_complete a
+    // little short of segments_total -- one or more outlined segments were never
+    // needed, not left half-done. target_reached (from the API) is what actually
+    // distinguishes "done, buffer unused" from "still working, catching up" -- so it
+    // drives both the bar and the label here, not the raw fraction.
+    const pct = progress.target_reached || job.status === "complete" ? 100
+      : total > 0 ? Math.round((complete / total) * 100) : 0;
 
     const bits = [`Status: ${job.status}`];
-    if (total) bits.push(`${complete}/${total} segments`);
+    if (progress.target_reached) {
+      bits.push(`${complete} segment${complete === 1 ? "" : "s"} narrated (target reached)`);
+    } else if (total) {
+      bits.push(`${complete}/${total} segments`);
+    }
     if (progress.narration_seconds !== undefined && progress.target_duration_seconds) {
       bits.push(`${Math.round(progress.narration_seconds)}s / ${progress.target_duration_seconds}s narration`);
     }
+    const stageText = stageLabel(progress);
+    if (stageText) bits.push(stageText);
     if (progress.domain) bits.push(`domain: ${progress.domain}`);
     if (progress.visual_family) bits.push(`visual: ${progress.visual_family}`);
 
@@ -504,11 +536,17 @@
     }
     list.innerHTML = episodes
       .map((ep) => {
-        const status = ep.final_video_exists ? "done" : "in progress";
+        // See the target_reached comment in jobCardHtml -- segments_complete a bit
+        // below segments_total is normal for a finished episode (outline buffer left
+        // unused), not a sign it's still catching up.
+        const status = ep.final_video_exists ? "done" : (stageLabel(ep) || (ep.target_reached ? "finalizing" : "in progress"));
+        const segmentsLabel = ep.target_reached
+          ? `${ep.segments_complete} segments narrated`
+          : `${ep.segments_complete}/${ep.segments_total} segments`;
         const domainTag = ep.domain ? `<span class="tag">${escapeHtml(ep.domain)}</span>` : "";
         return `<div class="episode-row">
           <span>${escapeHtml(ep.title || ep.topic)} ${domainTag}</span>
-          <span>${ep.segments_complete}/${ep.segments_total} segments &middot; ${status}</span>
+          <span>${segmentsLabel} &middot; ${status}</span>
         </div>`;
       })
       .join("");

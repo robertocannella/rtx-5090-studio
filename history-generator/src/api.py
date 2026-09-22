@@ -155,12 +155,45 @@ def _episode_progress(slug):
     complete = [s for s in segs if s.get("status") == "complete"]
     failed = [s for s in segs if s.get("status") == "failed"]
     narration_seconds = sum(s.get("duration") or 0 for s in complete)
+    target_duration_seconds = m.get("target_duration_seconds")
+    # The outline is deliberately over-provisioned (see pipeline.py's SECONDS_PER_SEGMENT_ESTIMATE
+    # buffer and outline-extension logic) and generation stops the instant narration crosses the
+    # target -- so a healthy, fully-finished episode routinely ends with one or more outlined
+    # segments left "pending", never attempted. segments_complete < segments_total alone doesn't
+    # mean "still working, catching up"; this flag disambiguates that from genuine in-progress work.
+    target_reached = bool(target_duration_seconds) and narration_seconds >= target_duration_seconds
     final_path = os.path.join(paths["final"], f"{slug}.mp4")
     final_exists = os.path.exists(final_path) and os.path.getsize(final_path) > 0
     final_host_path = (
         os.path.join(HOST_OUTPUT_DIR, os.path.relpath(final_path, OUTPUT_DIR))
         if final_exists and HOST_OUTPUT_DIR else None
     )
+
+    visual_style = m.get("visual_style", math_visual_mod.DEFAULT_VISUAL_STYLE)
+    # Narration finishing (target_reached) does not mean the episode is nearly done --
+    # per-segment video encoding (and, for visual_style="images", image generation before
+    # it) each run once per segment same as narration did, and for a long images-style
+    # episode can each take just as long or longer. Surfacing how far each of those later
+    # stages has actually gotten (not just "narration: 54/55") is what lets the UI show a
+    # real "video 28/54" readout instead of looking stuck once narration hits 100%.
+    images_ready = sum(1 for s in complete if s.get("images")) if visual_style == "images" else None
+    segment_videos_built = sum(
+        1 for s in complete
+        if s.get("video") and os.path.exists(os.path.join(paths["root"], s["video"]))
+        and os.path.getsize(os.path.join(paths["root"], s["video"])) > 0
+    )
+    total_complete = len(complete)
+    if not target_reached:
+        stage = "narrating"
+    elif images_ready is not None and images_ready < total_complete:
+        stage = "generating_images"
+    elif total_complete > 0 and segment_videos_built < total_complete:
+        stage = "building_segment_videos"
+    elif not final_exists:
+        stage = "finalizing"
+    else:
+        stage = "complete"
+
     return {
         "slug": slug,
         "title": m.get("title"),
@@ -168,11 +201,15 @@ def _episode_progress(slug):
         "target_duration_seconds": m.get("target_duration_seconds"),
         "domain": m.get("domain", prompts.DEFAULT_DOMAIN),
         "narration_seconds": narration_seconds,
+        "target_reached": target_reached,
+        "stage": stage,
+        "images_ready": images_ready,
+        "segment_videos_built": segment_videos_built,
         "ambient_mood": (m.get("ambient") or {}).get("mood"),
         "pitch_semitones": m.get("pitch_semitones", 0.0),
         "segment_gap_seconds": m.get("segment_gap_seconds", 0.0),
         "sentence_gap_seconds": m.get("sentence_gap_seconds", 0.0),
-        "visual_style": m.get("visual_style", math_visual_mod.DEFAULT_VISUAL_STYLE),
+        "visual_style": visual_style,
         "visual_family": (m.get("visual") or {}).get("family"),
         "music_enabled": (m.get("music") or {}).get("enabled", False),
         "music_track_id": (m.get("music") or {}).get("track_id"),
