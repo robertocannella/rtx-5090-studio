@@ -491,6 +491,10 @@
       </div>`;
   }
 
+  // Same reasoning as loadEpisodes's lastEpisodesJson: skip touching the DOM entirely
+  // when a refresh comes back identical to what's already rendered.
+  let lastJobsJson = null;
+
   async function pollAllJobs() {
     const list = $("jobs-list");
     let jobs;
@@ -509,6 +513,12 @@
       .filter((j) => !dismissed.has(j.job_id))
       .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
       .slice(0, MAX_JOBS_SHOWN);
+
+    const jobsJson = JSON.stringify(jobs);
+    if (jobsJson === lastJobsJson) {
+      return;
+    }
+    lastJobsJson = jobsJson;
 
     if (jobs.length === 0) {
       list.innerHTML = '<p class="hint">No jobs yet -- start one above, or ask the Ollama chat tool to.</p>';
@@ -664,6 +674,14 @@
   // "flickering" and open panels "collapsing" every few seconds even though the
   // restoration logic below did put them back a moment later.
   let episodesLoadedOnce = false;
+  // The full episode list's last-rendered JSON -- if a refresh comes back byte-identical
+  // to what's already on screen (the common case once an episode is finished and
+  // nothing about it is changing tick to tick), the DOM is left completely untouched.
+  // Rebuilding it anyway on every 8s tick regardless of whether anything changed was
+  // still resetting in-progress typing in the video-ID input, clearing text selection,
+  // and generally disrupting an open panel even after the "Loading..." flash (above) was
+  // fixed, since the rebuild+restore both happened, just without a visible gap between them.
+  let lastEpisodesJson = null;
 
   async function loadEpisodes() {
     const list = $("episodes-list");
@@ -682,6 +700,13 @@
       return;
     }
     episodesLoadedOnce = true;
+
+    const episodesJson = JSON.stringify(episodes);
+    if (episodesJson === lastEpisodesJson) {
+      return;
+    }
+    lastEpisodesJson = episodesJson;
+
     if (!episodes.length) {
       list.innerHTML = '<p class="hint">No episodes yet.</p>';
       return;
