@@ -98,6 +98,7 @@ app = FastAPI(title="History Generator API", lifespan=_lifespan)
 _lock = threading.Lock()
 _jobs = {}  # job_id -> job dict
 _active_slugs = {}  # slug -> job_id, only while queued/running
+_youtube_publish_status = {}  # slug -> {"status": "uploading"/"complete"/"error", ...}, in-memory only
 
 
 class JobRequest(BaseModel):
@@ -494,17 +495,55 @@ def generate_youtube_metadata(slug: str, req: GenerateYoutubeRequest = GenerateY
 
 
 class PublishYoutubeRequest(BaseModel):
-    video_id: str
+    # Given: push metadata onto that already-uploaded video (videos.update, fast,
+    # synchronous). Omitted: upload the episode's own final MP4 as a brand-new video
+    # with this metadata attached (videos.insert, can take minutes -- see
+    # _run_youtube_upload).
+    video_id: str | None = None
+    privacy_status: str = youtube_publish.DEFAULT_PRIVACY_STATUS
+
+
+def _run_youtube_upload(slug, manifest_path, video_path, metadata, privacy_status):
+    """Runs in a background thread -- videos.insert streams a whole video file (hundreds
+    of MB for a long episode) to Google and can take minutes on a modest home uplink;
+    doing this inline in the request handler would block history-api's single worker for
+    that whole span, so it's fire-and-poll instead, the same shape as episode generation
+    jobs. Status lives only in _youtube_publish_status (lost on a server restart mid-
+    upload, same tradeoff _jobs already makes) until it finishes, at which point the
+    result is also persisted into the manifest so it survives afterward.
+    """
+    try:
+        result = youtube_publish.upload_video(
+            YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN,
+            video_path, metadata, privacy_status=privacy_status,
+        )
+    except youtube_publish.YoutubePublishError as e:
+        _youtube_publish_status[slug] = {"status": "error", "error": str(e)}
+        return
+    except Exception as e:  # noqa: BLE001 - a background thread's exception must not vanish silently
+        _youtube_publish_status[slug] = {"status": "error", "error": f"unexpected error: {e}"}
+        return
+
+    video_id = result.get("id")
+    _youtube_publish_status[slug] = {"status": "complete", "video_id": video_id}
+
+    m = manifest_mod.load_manifest(manifest_path)
+    if m:
+        youtube = m.get("youtube") or {}
+        youtube["video_id"] = video_id
+        youtube["published_at"] = time.time()
+        m["youtube"] = youtube
+        manifest_mod.save_manifest(manifest_path, m)
 
 
 @app.post("/episodes/{slug}/youtube/publish")
 def publish_youtube_metadata(slug: str, req: PublishYoutubeRequest):
     """Push this episode's cached YouTube metadata (see get_youtube_metadata above) to
-    an already-uploaded video via the YouTube Data API's videos.update -- see
-    youtube_publish.py. Requires a one-time OAuth setup (youtube_oauth_setup.py) whose
-    output populates YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN; a clear 503 (not a stack
-    trace) if that hasn't been done, since it's an operator-side setup gap, not a bad
-    request.
+    YouTube -- either onto a video that's already there (req.video_id given) or by
+    uploading the episode's own finished MP4 as a brand-new video (req.video_id
+    omitted). Requires a one-time OAuth setup (youtube_oauth_setup.py) whose output
+    populates YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN; a clear 503 (not a stack trace) if
+    that hasn't been done, since it's an operator-side setup gap, not a bad request.
     """
     if not (YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET and YOUTUBE_REFRESH_TOKEN):
         raise HTTPException(
@@ -520,16 +559,49 @@ def publish_youtube_metadata(slug: str, req: PublishYoutubeRequest):
     if not youtube:
         raise HTTPException(status_code=404, detail="YouTube metadata not generated yet for this episode")
 
-    try:
-        youtube_publish.update_video_metadata(
-            YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN, req.video_id, youtube,
+    if req.video_id:
+        try:
+            youtube_publish.update_video_metadata(
+                YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN, req.video_id, youtube,
+            )
+        except youtube_publish.YoutubePublishError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
+
+        youtube["video_id"] = req.video_id
+        youtube["published_at"] = time.time()
+        m["youtube"] = youtube
+        manifest_mod.save_manifest(paths["manifest"], m)
+        return {"status": "published", "video_id": req.video_id}
+
+    if req.privacy_status not in youtube_publish.VALID_PRIVACY_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"privacy_status must be one of {youtube_publish.VALID_PRIVACY_STATUSES}",
         )
-    except youtube_publish.YoutubePublishError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
 
-    youtube["video_id"] = req.video_id
-    youtube["published_at"] = time.time()
-    m["youtube"] = youtube
-    manifest_mod.save_manifest(paths["manifest"], m)
+    video_path = os.path.join(paths["final"], f"{slug}.mp4")
+    if not (os.path.exists(video_path) and os.path.getsize(video_path) > 0):
+        raise HTTPException(status_code=400, detail="final video does not exist yet for this episode")
 
-    return {"status": "published", "video_id": req.video_id}
+    if _youtube_publish_status.get(slug, {}).get("status") == "uploading":
+        return {"status": "uploading"}  # already in flight -- don't start a second upload
+
+    _youtube_publish_status[slug] = {"status": "uploading"}
+    thread = threading.Thread(
+        target=_run_youtube_upload, args=(slug, paths["manifest"], video_path, youtube, req.privacy_status), daemon=True,
+    )
+    thread.start()
+    return {"status": "uploading"}
+
+
+@app.get("/episodes/{slug}/youtube/publish/status")
+def get_youtube_publish_status(slug: str):
+    """Poll target for the background upload kicked off by publish_youtube_metadata
+    when no video_id was given. 404 means no upload is currently tracked for this slug
+    -- either none was ever started, or it finished before a server restart (check
+    GET /episodes/{slug}/youtube for the last-known video_id in that case).
+    """
+    status = _youtube_publish_status.get(slug)
+    if not status:
+        raise HTTPException(status_code=404, detail="no publish operation tracked for this episode")
+    return status

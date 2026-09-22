@@ -562,10 +562,16 @@
         <details><summary>Chapters</summary><pre>${escapeHtml(y.chapters)}</pre></details>
         ${publishedNote}
         <div class="yt-publish-row">
-          <input type="text" class="yt-video-id" placeholder="YouTube video ID" value="${escapeHtml(y.video_id || "")}">
+          <input type="text" class="yt-video-id" placeholder="YouTube video ID (leave blank to upload as new)" value="${escapeHtml(y.video_id || "")}">
+          <select class="yt-privacy-status">
+            <option value="private" selected>Private</option>
+            <option value="unlisted">Unlisted</option>
+            <option value="public">Public</option>
+          </select>
           <button type="button" class="small yt-publish-btn" data-slug="${escapeHtml(slug)}">Publish to YouTube</button>
           <span class="yt-publish-status"></span>
         </div>
+        <div class="hint">With a video ID: pushes this metadata onto that existing video. Blank: uploads this episode's finished video as a brand-new one, with this metadata attached -- can take several minutes for a long episode.</div>
         <div class="yt-publish-row">
           <button type="button" class="small yt-regenerate-btn" data-slug="${escapeHtml(slug)}">Regenerate metadata</button>
           <span class="yt-regenerate-status"></span>
@@ -573,20 +579,63 @@
       </div>`;
   }
 
+  function pollYoutubePublishStatus(slug, panel, status, publishBtn) {
+    const tick = async () => {
+      // The panel may have been replaced (list refresh, or collapsed+reopened) since
+      // this poll started -- stop rather than keep updating detached DOM nodes forever.
+      if (!document.body.contains(panel)) return;
+      let s;
+      try {
+        s = await apiGet(`/api/episodes/${encodeURIComponent(slug)}/youtube/publish/status`);
+      } catch (e) {
+        status.textContent = "Lost track of the upload: " + e.message;
+        status.className = "yt-publish-status error";
+        publishBtn.disabled = false;
+        return;
+      }
+      if (s.status === "uploading") {
+        status.textContent = "Uploading to YouTube (this can take several minutes for a long episode)...";
+        setTimeout(tick, 5000);
+      } else if (s.status === "complete") {
+        status.innerHTML = `Published: ${youtubeWatchLinkHtml(s.video_id)}`;
+        if (youtubeCache[slug]) youtubeCache[slug] = { ...youtubeCache[slug], video_id: s.video_id };
+        const input = panel.querySelector(".yt-video-id");
+        if (input) input.value = s.video_id;
+        publishBtn.disabled = false;
+      } else {
+        status.textContent = "Upload failed: " + (s.error || "unknown error");
+        status.className = "yt-publish-status error";
+        publishBtn.disabled = false;
+      }
+    };
+    tick();
+  }
+
   function wireYoutubePanelButtons(panel, slug) {
     const publishBtn = panel.querySelector(".yt-publish-btn");
     if (publishBtn) {
       publishBtn.addEventListener("click", async () => {
         const input = panel.querySelector(".yt-video-id");
+        const privacySelect = panel.querySelector(".yt-privacy-status");
         const status = panel.querySelector(".yt-publish-status");
         const videoId = input.value.trim();
-        if (!videoId) {
-          status.textContent = "Enter a video ID first.";
-          status.className = "yt-publish-status error";
-          return;
-        }
+
         publishBtn.disabled = true;
         status.className = "yt-publish-status";
+
+        if (!videoId) {
+          status.textContent = "Starting upload...";
+          try {
+            await apiPost(`/api/episodes/${encodeURIComponent(slug)}/youtube/publish`, { privacy_status: privacySelect.value });
+            pollYoutubePublishStatus(slug, panel, status, publishBtn);
+          } catch (e) {
+            status.textContent = "Failed: " + e.message;
+            status.className = "yt-publish-status error";
+            publishBtn.disabled = false;
+          }
+          return;
+        }
+
         status.textContent = "Publishing...";
         try {
           const result = await apiPost(`/api/episodes/${encodeURIComponent(slug)}/youtube/publish`, { video_id: videoId });

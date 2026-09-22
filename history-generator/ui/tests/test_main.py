@@ -59,6 +59,23 @@ def test_create_job_proxies_to_history_api(client, monkeypatch):
     assert captured["url"] == f"{main.HISTORY_API_URL}/jobs"
 
 
+def test_get_youtube_publish_status_proxies_to_history_api(client, monkeypatch):
+    captured = {}
+
+    async def fake_request(self, method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        return _FakeResponse(200, {"status": "uploading"})
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", fake_request)
+
+    resp = client.get("/api/episodes/some-slug/youtube/publish/status")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "uploading"
+    assert captured["method"] == "GET"
+    assert captured["url"] == f"{main.HISTORY_API_URL}/episodes/some-slug/youtube/publish/status"
+
+
 def test_generate_youtube_metadata_proxies_to_history_api(client, monkeypatch):
     captured = {}
 
