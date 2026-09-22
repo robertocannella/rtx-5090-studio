@@ -69,7 +69,8 @@ A third, separate service and image, **`history-ui`** (own `Dockerfile`, `ui/`),
     compose.yaml
     Dockerfile
     generate.sh
-    .env            # NTFY_TOKEN — chmod 600, not committed anywhere
+    youtube_oauth_setup.py   # one-time interactive OAuth consent flow, see YouTube Metadata -> Publishing
+    .env            # NTFY_TOKEN, YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN — chmod 600, not committed anywhere
     src/            application code (Python): main.py (CLI), api.py (HTTP API), pipeline.py,
                      prompts.py (per-domain outline/segment prompts, see Content Domains),
                      ambient.py (procedural ambient audio design/render), pitch.py (narrator
@@ -80,7 +81,9 @@ A third, separate service and image, **`history-ui`** (own `Dockerfile`, `ui/`),
                      enum), segment_images.py (per-segment AI image generation/caching, see
                      AI-Generated Segment Images), image_client.py (ComfyUI HTTP client),
                      youtube_metadata.py (title/description/tags/category/chapters from
-                     the finished script, see YouTube Metadata),
+                     the finished script, see YouTube Metadata), youtube_publish.py
+                     (pushes that metadata to a real uploaded video via the YouTube Data
+                     API v3, see Publishing metadata to a real YouTube video),
                      gpu_lock.py (process-wide mutex serializing Ollama/ComfyUI GPU calls),
                      voice_samples.py (cached <=10s voice-preview clips, see Configuration
                      UI -> Voice Preview), kokoro_client.py (Kokoro HTTP client, incl.
@@ -532,6 +535,28 @@ Check `crontab -l` to see it, and `sync-jellyfin-library.log` for its run histor
 **Access**: `GET /episodes/{slug}/youtube` (404 until generated) returns the stored dict as-is; `_episode_progress()`'s `youtube_metadata_ready` boolean (on `/episodes` and `/episodes/{slug}`) is what the Configuration UI checks before showing a "YouTube metadata" button on that episode's row -- clicking it fetches and expands title/category/tags/description/chapters inline (cached client-side per slug so the panel survives the episode list's own auto-refresh, see [Configuration UI](#configuration-ui)).
 
 **Tests**: `tests/test_youtube_metadata.py` (timestamp formatting, chapter arithmetic against a hand-checked timeline, generate/cache/force/no-segments/Ollama-failure behavior), `tests/test_prompts_youtube.py` (system/tool/user builders), `tests/test_pipeline_youtube.py` (the enable/disable and caching-integration lifecycle above), and `tests/test_api_youtube_endpoint.py` plus the `youtube_metadata_ready` cases in `tests/test_api_episode_progress.py` (API-level). Run the same way as the pitch tests (see [Narrator Pitch](#narrator-pitch)).
+
+### Publishing metadata to a real YouTube video
+
+Generating metadata (above) and pushing it to an actual uploaded video are separate steps -- this app never uploads video files to YouTube itself, only updates a video's title/description/tags/category once it already exists there (via the YouTube Data API v3's `videos.update`), given that video's ID.
+
+**One-time OAuth setup** (per Google account/channel, not per episode):
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), enable the **YouTube Data API v3** on a project, then create an OAuth 2.0 Client ID of type **Desktop app** under APIs & Services -> Credentials. (A **Web application** type client will fail with `redirect_uri_mismatch` unless `http://localhost:8090` is added to its Authorized redirect URIs by hand -- Desktop-app clients accept any localhost loopback port automatically, which is what the script below assumes.)
+2. If the OAuth consent screen is in **Testing** mode (the default until you publish it), add your own Google account under **Test users** first, or the consent step fails with "Access blocked."
+3. Put the client ID/secret in `/srv/apps/history-generator/.env` (`chmod 600`, never committed):
+   ```
+   YOUTUBE_CLIENT_ID=....apps.googleusercontent.com
+   YOUTUBE_CLIENT_SECRET=GOCSPX-...
+   ```
+4. Run `python3 youtube_oauth_setup.py` from `/srv/apps/history-generator` on the server. It starts a temporary listener on `http://127.0.0.1:8090` and prints a Google consent URL. Since the server is headless, open an SSH tunnel from your own machine first (`ssh -L 8090:localhost:8090 <user>@<server>`), then open the printed URL in a browser on your machine and approve access. The script captures the redirect, exchanges the code for a refresh token, and appends `YOUTUBE_REFRESH_TOKEN=...` to the same `.env` file. This is the only interactive step -- the refresh token doesn't expire (as long as the consent screen stays in Testing mode with this account as a test user, or is later published) and the pipeline never re-runs this script on its own.
+5. `docker compose up -d --build history-api` to pick up the three new env vars (`compose.yaml` reads them via `${YOUTUBE_CLIENT_ID}` etc., the same `.env`-substitution mechanism already used for `NTFY_TOKEN`).
+
+**Publishing**: `POST /episodes/{slug}/youtube/publish` with `{"video_id": "<youtube-video-id>"}` (the string after `v=` in the video's URL) -- `src/youtube_publish.py:update_video_metadata()` mints a short-lived access token from the refresh token, fetches the video's *current* snippet first and merges in the new title/description/tags/categoryId (rather than replacing the whole snippet from scratch, since `videos.update` overwrites the entire object -- this avoids silently wiping fields like `defaultLanguage` that this app never touches), and appends the chapters block to the description verbatim (YouTube parses chapter markers straight out of description text, there's no separate API field for them). On success, `video_id` and a `published_at` timestamp are saved back into the manifest's `"youtube"` block. Category names map to YouTube's stable US numeric category IDs (`Education` -> 27, `Science & Technology` -> 28, `Entertainment` -> 24 -- the only three `propose_youtube_metadata`'s tool schema can produce), falling back to Education if something unexpected comes back. A 503 (not a stack trace) means the three env vars above aren't configured yet; a 502 means the YouTube API call itself failed (bad video ID, revoked consent, quota exceeded, ...) -- the response body is Google's own error text.
+
+The Configuration UI's "YouTube metadata" panel (see [Access](#youtube-metadata) above) includes a video-ID field and "Publish to YouTube" button that calls this endpoint directly.
+
+**Tests**: `tests/test_youtube_publish.py` (access-token refresh, snippet fetch/merge, chapter-appending, category mapping and its fallback, and both HTTP-failure paths, all against a fake `requests` module -- no live Google API calls in the test suite) and the publish-endpoint cases in `tests/test_api_youtube_endpoint.py` (503 when unconfigured, 404s, success storing `video_id`/`published_at`, 502 passthrough).
 
 ## Resumability
 

@@ -69,6 +69,9 @@ services:
       - NTFY_URL=http://ntfy:80
       - NTFY_TOPIC=history-generator
       - NTFY_TOKEN=${NTFY_TOKEN}
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
+      - YOUTUBE_REFRESH_TOKEN=${YOUTUBE_REFRESH_TOKEN}
 
     volumes:
       - ./output:/app/output

@@ -30,6 +30,7 @@ import prompts
 import sentence_gap as sentence_gap_mod
 import video as video_mod
 import voice_samples
+import youtube_publish
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3:32b")
@@ -57,6 +58,9 @@ OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/app/output")
 # default (no host path reported) so this is opt-in per deployment.
 HOST_OUTPUT_DIR = os.environ.get("HOST_OUTPUT_DIR", "")
 VOICE_SAMPLES_DIR = os.environ.get("VOICE_SAMPLES_DIR", "/app/voice_samples")
+YOUTUBE_CLIENT_ID = os.environ.get("YOUTUBE_CLIENT_ID", "")
+YOUTUBE_CLIENT_SECRET = os.environ.get("YOUTUBE_CLIENT_SECRET", "")
+YOUTUBE_REFRESH_TOKEN = os.environ.get("YOUTUBE_REFRESH_TOKEN", "")
 
 
 def _prewarm_voice_samples():
@@ -453,3 +457,45 @@ def get_youtube_metadata(slug: str):
     if not youtube:
         raise HTTPException(status_code=404, detail="YouTube metadata not generated yet for this episode")
     return youtube
+
+
+class PublishYoutubeRequest(BaseModel):
+    video_id: str
+
+
+@app.post("/episodes/{slug}/youtube/publish")
+def publish_youtube_metadata(slug: str, req: PublishYoutubeRequest):
+    """Push this episode's cached YouTube metadata (see get_youtube_metadata above) to
+    an already-uploaded video via the YouTube Data API's videos.update -- see
+    youtube_publish.py. Requires a one-time OAuth setup (youtube_oauth_setup.py) whose
+    output populates YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN; a clear 503 (not a stack
+    trace) if that hasn't been done, since it's an operator-side setup gap, not a bad
+    request.
+    """
+    if not (YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET and YOUTUBE_REFRESH_TOKEN):
+        raise HTTPException(
+            status_code=503,
+            detail="YouTube publishing is not configured on this server (missing OAuth credentials)",
+        )
+
+    paths = manifest_mod.episode_paths(OUTPUT_DIR, slug)
+    m = manifest_mod.load_manifest(paths["manifest"])
+    if not m:
+        raise HTTPException(status_code=404, detail="episode not found")
+    youtube = m.get("youtube")
+    if not youtube:
+        raise HTTPException(status_code=404, detail="YouTube metadata not generated yet for this episode")
+
+    try:
+        youtube_publish.update_video_metadata(
+            YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN, req.video_id, youtube,
+        )
+    except youtube_publish.YoutubePublishError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    youtube["video_id"] = req.video_id
+    youtube["published_at"] = time.time()
+    m["youtube"] = youtube
+    manifest_mod.save_manifest(paths["manifest"], m)
+
+    return {"status": "published", "video_id": req.video_id}

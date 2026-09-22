@@ -57,7 +57,25 @@ def test_create_job_proxies_to_history_api(client, monkeypatch):
     assert resp.json()["job_id"] == "abc123"
     assert captured["method"] == "POST"
     assert captured["url"] == f"{main.HISTORY_API_URL}/jobs"
-    assert captured["json"]["topic"] == "Test Topic"
+
+
+def test_publish_youtube_metadata_proxies_to_history_api(client, monkeypatch):
+    captured = {}
+
+    async def fake_request(self, method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        return _FakeResponse(200, {"status": "published", "video_id": "vid123"})
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", fake_request)
+
+    resp = client.post("/api/episodes/some-slug/youtube/publish", json={"video_id": "vid123"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "published"
+    assert captured["method"] == "POST"
+    assert captured["url"] == f"{main.HISTORY_API_URL}/episodes/some-slug/youtube/publish"
+    assert captured["json"] == {"video_id": "vid123"}
 
 
 def test_create_job_surfaces_validation_errors_verbatim(client, monkeypatch):

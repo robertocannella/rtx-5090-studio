@@ -530,7 +530,10 @@
   const expandedYoutube = new Set();
   const youtubeCache = {};
 
-  function youtubePanelHtml(y) {
+  function youtubePanelHtml(slug, y) {
+    const publishedNote = y.video_id
+      ? `<div class="hint">Last published to video ID <code>${escapeHtml(y.video_id)}</code>.</div>`
+      : "";
     return `
       <div class="yt-meta">
         <div><strong>Title:</strong> ${escapeHtml(y.title)}</div>
@@ -538,7 +541,41 @@
         <div><strong>Tags:</strong> ${escapeHtml(y.tags_joined)}</div>
         <details><summary>Description</summary><pre>${escapeHtml(y.description)}</pre></details>
         <details><summary>Chapters</summary><pre>${escapeHtml(y.chapters)}</pre></details>
+        ${publishedNote}
+        <div class="yt-publish-row">
+          <input type="text" class="yt-video-id" placeholder="YouTube video ID" value="${escapeHtml(y.video_id || "")}">
+          <button type="button" class="small yt-publish-btn" data-slug="${escapeHtml(slug)}">Publish to YouTube</button>
+          <span class="yt-publish-status"></span>
+        </div>
       </div>`;
+  }
+
+  function wireYoutubePublishButton(panel, slug) {
+    const btn = panel.querySelector(".yt-publish-btn");
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const input = panel.querySelector(".yt-video-id");
+      const status = panel.querySelector(".yt-publish-status");
+      const videoId = input.value.trim();
+      if (!videoId) {
+        status.textContent = "Enter a video ID first.";
+        status.className = "yt-publish-status error";
+        return;
+      }
+      btn.disabled = true;
+      status.className = "yt-publish-status";
+      status.textContent = "Publishing...";
+      try {
+        const result = await apiPost(`/api/episodes/${encodeURIComponent(slug)}/youtube/publish`, { video_id: videoId });
+        status.textContent = `Published to ${result.video_id}.`;
+        if (youtubeCache[slug]) youtubeCache[slug] = { ...youtubeCache[slug], video_id: result.video_id };
+      } catch (e) {
+        status.textContent = "Failed: " + e.message;
+        status.className = "yt-publish-status error";
+      } finally {
+        btn.disabled = false;
+      }
+    });
   }
 
   async function toggleYoutubePanel(slug) {
@@ -552,14 +589,16 @@
     expandedYoutube.add(slug);
     panel.style.display = "";
     if (youtubeCache[slug]) {
-      panel.innerHTML = youtubePanelHtml(youtubeCache[slug]);
+      panel.innerHTML = youtubePanelHtml(slug, youtubeCache[slug]);
+      wireYoutubePublishButton(panel, slug);
       return;
     }
     panel.innerHTML = '<p class="hint">Loading...</p>';
     try {
       const y = await apiGet(`/api/episodes/${encodeURIComponent(slug)}/youtube`);
       youtubeCache[slug] = y;
-      panel.innerHTML = youtubePanelHtml(y);
+      panel.innerHTML = youtubePanelHtml(slug, y);
+      wireYoutubePublishButton(panel, slug);
     } catch (e) {
       panel.innerHTML = `<p class="hint">Could not load: ${escapeHtml(e.message)}</p>`;
     }
@@ -608,7 +647,8 @@
       const panel = document.getElementById(`yt-panel-${slug}`);
       if (panel && youtubeCache[slug]) {
         panel.style.display = "";
-        panel.innerHTML = youtubePanelHtml(youtubeCache[slug]);
+        panel.innerHTML = youtubePanelHtml(slug, youtubeCache[slug]);
+        wireYoutubePublishButton(panel, slug);
       }
     });
   }

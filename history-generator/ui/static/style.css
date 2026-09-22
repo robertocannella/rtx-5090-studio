@@ -301,6 +301,22 @@ details summary {
   margin: 4px 0 0;
 }
 
+.yt-publish-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.yt-video-id {
+  flex: 1;
+  min-width: 160px;
+}
+
+.yt-publish-status { font-size: 0.8rem; }
+.yt-publish-status.error { color: var(--danger); }
+
 .tag {
   display: inline-block;
   font-size: 0.7rem;
