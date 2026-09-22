@@ -613,16 +613,32 @@
     }
   }
 
+  // Set once the episodes list has rendered real content -- after that, refreshes
+  // (the 8s auto-refresh tick, or the manual Refresh button) update the list's content
+  // directly instead of first wiping it to "Loading...". Without this, every refresh
+  // briefly removed the whole list -- including any open YouTube-metadata panel -- and
+  // only restored it after the network round-trip completed, which reads as the list
+  // "flickering" and open panels "collapsing" every few seconds even though the
+  // restoration logic below did put them back a moment later.
+  let episodesLoadedOnce = false;
+
   async function loadEpisodes() {
     const list = $("episodes-list");
-    list.innerHTML = '<p class="hint">Loading...</p>';
+    if (!episodesLoadedOnce) {
+      list.innerHTML = '<p class="hint">Loading...</p>';
+    }
     let episodes;
     try {
       episodes = await apiGet("/api/episodes");
     } catch (e) {
-      list.innerHTML = `<p class="hint">Could not load episodes: ${escapeHtml(e.message)}</p>`;
+      // Same reasoning as pollAllJobs's catch: don't blow away a list that's already
+      // showing useful data over one flaky poll.
+      if (!episodesLoadedOnce) {
+        list.innerHTML = `<p class="hint">Could not load episodes: ${escapeHtml(e.message)}</p>`;
+      }
       return;
     }
+    episodesLoadedOnce = true;
     if (!episodes.length) {
       list.innerHTML = '<p class="hint">No episodes yet.</p>';
       return;
