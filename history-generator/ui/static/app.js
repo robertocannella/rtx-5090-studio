@@ -2,8 +2,9 @@
   "use strict";
 
   const PRESETS_KEY = "episodeGeneratorPresets";
-  const JOBS_KEY = "episodeGeneratorJobs";
+  const DISMISSED_JOBS_KEY = "episodeGeneratorDismissedJobs";
   const POLL_INTERVAL_MS = 8000;
+  const MAX_JOBS_SHOWN = 30;
 
   const BUILTIN_PRESETS = {
     "Relaxed Documentary": {
@@ -20,7 +21,6 @@
   };
 
   let metadata = null;
-  const pollers = {};
 
   // ---- small DOM helpers -----------------------------------------------
 
@@ -383,48 +383,34 @@
   }
 
   // ---- job tracking + polling -------------------------------------------
+  //
+  // The jobs list is driven entirely by GET /api/jobs -- history-api's own in-memory
+  // record of every job it knows about, regardless of which client started it (this
+  // page, the Ollama chat tool, another browser, a direct API call). That's what makes
+  // this "live": there is no per-browser localStorage source of truth to go stale when
+  // a job fails and gets resubmitted under a new job_id, or to miss a job someone else
+  // started. localStorage is used only for "dismissed" job ids -- a purely cosmetic,
+  // per-browser preference for hiding a finished/errored job you've already seen; the
+  // server keeps remembering it (until its own restart) regardless.
 
-  function loadTrackedJobs() {
+  function loadDismissedJobs() {
     try {
-      return JSON.parse(localStorage.getItem(JOBS_KEY) || "[]");
+      return new Set(JSON.parse(localStorage.getItem(DISMISSED_JOBS_KEY) || "[]"));
     } catch {
-      return [];
+      return new Set();
     }
   }
 
-  function saveTrackedJobs(jobs) {
+  function dismissJob(jobId) {
+    const dismissed = loadDismissedJobs();
+    dismissed.add(jobId);
     try {
-      localStorage.setItem(JOBS_KEY, JSON.stringify(jobs));
+      localStorage.setItem(DISMISSED_JOBS_KEY, JSON.stringify([...dismissed]));
     } catch {
-      /* ignore */
+      /* localStorage unavailable -- the job will just keep reappearing until it is */
     }
-  }
-
-  function addTrackedJob(job) {
-    const jobs = loadTrackedJobs();
-    jobs.unshift(job);
-    saveTrackedJobs(jobs.slice(0, 20)); // keep the list from growing unbounded
-  }
-
-  function removeTrackedJob(jobId) {
-    saveTrackedJobs(loadTrackedJobs().filter((j) => j.job_id !== jobId));
     const card = document.getElementById(`job-${jobId}`);
     if (card) card.remove();
-    if (pollers[jobId]) {
-      clearInterval(pollers[jobId]);
-      delete pollers[jobId];
-    }
-  }
-
-  function jobCardHtml(job) {
-    return `
-      <div class="job-card" id="job-${job.job_id}">
-        <div class="job-title">${escapeHtml(job.topic)}</div>
-        <div class="job-meta">slug: ${escapeHtml(job.slug)} &middot; job: ${escapeHtml(job.job_id)}</div>
-        <div class="progress-bar"><div style="width:0%"></div></div>
-        <div class="job-status-line">Checking status...</div>
-        <button type="button" class="small remove-job-btn" data-job-id="${escapeHtml(job.job_id)}">Remove from list</button>
-      </div>`;
   }
 
   function escapeHtml(s) {
@@ -433,53 +419,13 @@
     }[c]));
   }
 
-  function renderJobs() {
-    const jobs = loadTrackedJobs();
-    const list = $("jobs-list");
-    if (jobs.length === 0) {
-      list.innerHTML = '<p class="hint">Jobs you start will appear here, with live progress.</p>';
-      return;
-    }
-    list.innerHTML = jobs.map(jobCardHtml).join("");
-    list.querySelectorAll(".remove-job-btn").forEach((btn) => {
-      btn.addEventListener("click", () => removeTrackedJob(btn.dataset.jobId));
-    });
-    jobs.forEach((job) => pollJob(job.job_id));
-  }
-
-  function pollJob(jobId) {
-    if (pollers[jobId]) return;
-    const tick = async () => {
-      const card = document.getElementById(`job-${jobId}`);
-      if (!card) { clearInterval(pollers[jobId]); delete pollers[jobId]; return; }
-      let data;
-      try {
-        data = await apiGet(`/api/jobs/${jobId}`);
-      } catch (e) {
-        card.querySelector(".job-status-line").textContent = "Could not reach history-api: " + e.message;
-        return;
-      }
-      renderJobCard(card, data);
-      if (data.status !== "queued" && data.status !== "running") {
-        clearInterval(pollers[jobId]);
-        delete pollers[jobId];
-      }
-    };
-    tick();
-    pollers[jobId] = setInterval(tick, POLL_INTERVAL_MS);
-  }
-
-  function renderJobCard(card, data) {
-    const progress = data.progress || {};
+  function jobCardHtml(job) {
+    const progress = job.progress || {};
     const total = progress.segments_total || 0;
     const complete = progress.segments_complete || 0;
-    const pct = total > 0 ? Math.round((complete / total) * 100) : (data.status === "complete" ? 100 : 0);
-    card.querySelector(".progress-bar > div").style.width = pct + "%";
+    const pct = total > 0 ? Math.round((complete / total) * 100) : (job.status === "complete" ? 100 : 0);
 
-    const statusLine = card.querySelector(".job-status-line");
-    statusLine.className = "job-status-line status-" + data.status;
-
-    const bits = [`Status: ${data.status}`];
+    const bits = [`Status: ${job.status}`];
     if (total) bits.push(`${complete}/${total} segments`);
     if (progress.narration_seconds !== undefined && progress.target_duration_seconds) {
       bits.push(`${Math.round(progress.narration_seconds)}s / ${progress.target_duration_seconds}s narration`);
@@ -487,19 +433,57 @@
     if (progress.domain) bits.push(`domain: ${progress.domain}`);
     if (progress.visual_family) bits.push(`visual: ${progress.visual_family}`);
 
-    let html = bits.join(" &middot; ");
-    if (data.status === "error" && data.error) {
-      html += `<br>Error: ${escapeHtml(data.error)}`;
+    let statusHtml = bits.join(" &middot; ");
+    if (job.status === "error" && job.error) {
+      statusHtml += `<br>Error: ${escapeHtml(job.error)}`;
     }
-    if (data.status === "complete") {
+    if (job.status === "complete") {
       const hostPath = progress.final_video_host_path;
       if (hostPath) {
-        html += `<br>Final video: <span class="host-path">${escapeHtml(hostPath)}</span>`;
+        statusHtml += `<br>Final video: <span class="host-path">${escapeHtml(hostPath)}</span>`;
       } else if (progress.final_video_path) {
-        html += `<br>Final video (container path -- open directly on the server): <span class="host-path">${escapeHtml(progress.final_video_path)}</span>`;
+        statusHtml += `<br>Final video (container path -- open directly on the server): <span class="host-path">${escapeHtml(progress.final_video_path)}</span>`;
       }
     }
-    statusLine.innerHTML = html;
+
+    return `
+      <div class="job-card" id="job-${job.job_id}">
+        <div class="job-title">${escapeHtml(job.topic)}</div>
+        <div class="job-meta">slug: ${escapeHtml(job.slug)} &middot; job: ${escapeHtml(job.job_id)}</div>
+        <div class="progress-bar"><div style="width:${pct}%"></div></div>
+        <div class="job-status-line status-${job.status}">${statusHtml}</div>
+        <button type="button" class="small remove-job-btn" data-job-id="${escapeHtml(job.job_id)}">Dismiss</button>
+      </div>`;
+  }
+
+  async function pollAllJobs() {
+    const list = $("jobs-list");
+    let jobs;
+    try {
+      jobs = await apiGet("/api/jobs");
+    } catch (e) {
+      // Don't blow away a list that's already showing useful data over one flaky poll.
+      if (!list.querySelector(".job-card")) {
+        list.innerHTML = `<p class="hint">Could not reach history-api: ${escapeHtml(e.message)}</p>`;
+      }
+      return;
+    }
+
+    const dismissed = loadDismissedJobs();
+    jobs = jobs
+      .filter((j) => !dismissed.has(j.job_id))
+      .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+      .slice(0, MAX_JOBS_SHOWN);
+
+    if (jobs.length === 0) {
+      list.innerHTML = '<p class="hint">No jobs yet -- start one above, or ask the Ollama chat tool to.</p>';
+      return;
+    }
+
+    list.innerHTML = jobs.map(jobCardHtml).join("");
+    list.querySelectorAll(".remove-job-btn").forEach((btn) => {
+      btn.addEventListener("click", () => dismissJob(btn.dataset.jobId));
+    });
   }
 
   // ---- all episodes -------------------------------------------------------
@@ -603,13 +587,7 @@
       if (data.status === "already_running") {
         showTopError(data.detail || "A job for this topic is already running.");
       } else {
-        addTrackedJob({
-          job_id: data.job_id,
-          slug: data.slug,
-          topic: payload.topic,
-          started_at: Date.now(),
-        });
-        renderJobs();
+        await pollAllJobs(); // server already knows about it -- refresh immediately, don't wait for the next interval tick
       }
     } catch (e) {
       showTopError("Could not start the job:\n" + e.message);
@@ -626,10 +604,18 @@
     await loadVoices();
     applyPreset(BUILTIN_PRESETS["Relaxed Documentary"]);
     wirePresets();
-    renderJobs();
+    pollAllJobs();
     loadEpisodes();
     $("refresh-episodes-btn").addEventListener("click", loadEpisodes);
     updateSummary();
+
+    // One shared interval refreshes both panels from server truth -- this is what makes
+    // a job started elsewhere (another browser, the chat tool) show up here without a
+    // manual reload, and keeps this page's own submitted jobs live too.
+    setInterval(() => {
+      pollAllJobs();
+      loadEpisodes();
+    }, POLL_INTERVAL_MS);
   }
 
   document.addEventListener("DOMContentLoaded", init);

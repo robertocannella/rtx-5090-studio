@@ -357,7 +357,13 @@ def create_job(req: JobRequest):
 
 @app.get("/jobs")
 def list_jobs():
-    return list(_jobs.values())
+    """Every job this server process knows about (in-memory, cleared on restart),
+    regardless of which client submitted it -- the Configuration UI polls this (not
+    per-browser localStorage) so a job started from one browser, the Ollama chat tool,
+    or a direct API call is equally visible everywhere. Progress is embedded per job
+    (same shape /jobs/{job_id} returns) so the UI can render full status from one call.
+    """
+    return [{**job, "progress": _episode_progress(job["slug"])} for job in _jobs.values()]
 
 
 @app.get("/jobs/{job_id}")
