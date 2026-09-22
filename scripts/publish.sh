@@ -55,6 +55,7 @@ else
   gh pr merge "$BRANCH" --squash --delete-branch >/dev/null
   git checkout -q master
   git pull -q origin master
+  git fetch -q --prune origin  # gh's --delete-branch removes it on GitHub; this clears our now-stale local tracking ref for it
   echo "   opened PR, squash-merged into master, deleted $BRANCH"
 fi
 
