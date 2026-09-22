@@ -739,13 +739,28 @@
   async function init() {
     wireForm();
     syncMusicVisibility();
-    await loadMetadata();
-    await loadVoices();
-    applyPreset(BUILTIN_PRESETS["Relaxed Documentary"]);
-    wirePresets();
+
+    // Jobs/episodes don't depend on metadata or voices at all, so they're kicked off
+    // immediately rather than waiting behind them -- previously loadVoices() (which
+    // hits Kokoro directly, and Kokoro can be slow to respond mid-synthesis for a
+    // running job) was awaited before the jobs/episodes lists even started loading,
+    // making a slow Kokoro response stall the entire page rather than just the voice
+    // dropdown. The loading bar covers only the genuinely dependent part -- filling in
+    // the domain/visual-style/voice dropdowns and the preset that picks values from them.
     pollAllJobs();
     loadEpisodes();
     $("refresh-episodes-btn").addEventListener("click", loadEpisodes);
+
+    const loadingBar = $("init-loading-bar");
+    loadingBar.classList.add("show");
+    try {
+      await Promise.all([loadMetadata(), loadVoices()]);
+    } finally {
+      loadingBar.classList.remove("show");
+    }
+
+    applyPreset(BUILTIN_PRESETS["Relaxed Documentary"]);
+    wirePresets();
     updateSummary();
 
     // One shared interval refreshes both panels from server truth -- this is what makes

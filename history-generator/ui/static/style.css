@@ -45,6 +45,27 @@ main {
   padding: 16px;
 }
 
+/* Shown while the form's own dropdowns (domain/visual-style/voice) are still waiting on
+   /api/metadata and /api/voices -- the latter hits Kokoro directly and can be slow if
+   it's mid-synthesis for a running job, which used to silently stall the whole page
+   since those two calls were awaited before anything else on it started. */
+.loading-bar {
+  display: none;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 200% 100%;
+}
+
+.loading-bar.show {
+  display: block;
+  animation: loading-bar-sweep 1.1s linear infinite;
+}
+
+@keyframes loading-bar-sweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
