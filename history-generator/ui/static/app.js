@@ -530,9 +530,18 @@
   const expandedYoutube = new Set();
   const youtubeCache = {};
 
+  function youtubeWatchUrl(videoId) {
+    return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+  }
+
+  function youtubeWatchLinkHtml(videoId) {
+    const url = youtubeWatchUrl(videoId);
+    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`;
+  }
+
   function youtubePanelHtml(slug, y) {
     const publishedNote = y.video_id
-      ? `<div class="hint">Last published to video ID <code>${escapeHtml(y.video_id)}</code>.</div>`
+      ? `<div class="hint">Last published: ${youtubeWatchLinkHtml(y.video_id)}</div>`
       : "";
     return `
       <div class="yt-meta">
@@ -567,7 +576,7 @@
       status.textContent = "Publishing...";
       try {
         const result = await apiPost(`/api/episodes/${encodeURIComponent(slug)}/youtube/publish`, { video_id: videoId });
-        status.textContent = `Published to ${result.video_id}.`;
+        status.innerHTML = `Published: ${youtubeWatchLinkHtml(result.video_id)}`;
         if (youtubeCache[slug]) youtubeCache[slug] = { ...youtubeCache[slug], video_id: result.video_id };
       } catch (e) {
         status.textContent = "Failed: " + e.message;
