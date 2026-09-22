@@ -120,3 +120,26 @@ def test_generate_image_times_out_when_job_never_completes(monkeypatch):
 
     with pytest.raises(image_client.ImageError):
         image_client.generate_image("http://comfyui:8188", "x", retries=1, timeout=0.01, poll_interval=0.001)
+
+
+def test_free_memory_posts_expected_payload(monkeypatch):
+    fake = FakeRequests(post_responses=[FakeResponse({})])
+    monkeypatch.setattr(image_client, "requests", fake)
+
+    image_client.free_memory("http://comfyui:8188")
+
+    assert fake.post_calls == [
+        ("http://comfyui:8188/free", {"unload_models": True, "free_memory": True}),
+    ]
+
+
+def test_free_memory_never_raises_on_failure(monkeypatch, capsys):
+    class FailingRequests:
+        def post(self, url, json=None, timeout=None):
+            raise RuntimeError("comfyui unreachable")
+
+    monkeypatch.setattr(image_client, "requests", FailingRequests())
+
+    image_client.free_memory("http://comfyui:8188")  # must not raise
+
+    assert "non-fatal" in capsys.readouterr().out

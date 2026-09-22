@@ -109,6 +109,32 @@ def _wait_and_fetch(base_url, prompt_id, timeout, poll_interval):
     raise ImageError(f"ComfyUI job {prompt_id} did not complete within {timeout}s")
 
 
+def free_memory(base_url, timeout=30):
+    """Ask ComfyUI to unload its models and release VRAM.
+
+    ComfyUI keeps a generation's model weights resident in VRAM afterward by default
+    (fast for a burst of back-to-back generations, but FLUX's ~16GB sitting parked
+    indefinitely starves Ollama's qwen3:32b of the VRAM it needs, forcing it to spill
+    onto CPU and become slow enough to blow past its own request timeout -- this is
+    exactly what happened in practice: ComfyUI left ~16.6GB resident from an earlier
+    episode, Ollama fell back to a ~50/50 CPU/GPU split, and its next large outline
+    call then exceeded ollama_client's 180s timeout on every retry). Called once per
+    segment after that segment's images are generated (see
+    pipeline.py:apply_images_to_segments) -- frequent enough that Ollama is never
+    starved for more than one segment's worth of image generation, infrequent enough
+    that the reload cost isn't paid per-image. Best-effort: a failed call here must not
+    abort the episode, it just means ComfyUI stays loaded a bit longer than ideal.
+    """
+    try:
+        with gpu_lock:
+            resp = requests.post(
+                f"{base_url}/free", json={"unload_models": True, "free_memory": True}, timeout=timeout,
+            )
+            resp.raise_for_status()
+    except Exception as e:  # noqa: BLE001 - best-effort cleanup must not fail the episode
+        print(f"     [warn] ComfyUI free-memory call failed (non-fatal): {e}")
+
+
 def _fetch_image(base_url, filename, subfolder, image_type):
     resp = requests.get(
         f"{base_url}/view", params={"filename": filename, "subfolder": subfolder, "type": image_type}, timeout=30,

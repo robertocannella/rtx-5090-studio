@@ -5,6 +5,7 @@ import shutil
 import subprocess
 
 import ambient
+import image_client
 import manifest as manifest_mod
 import math_visual
 import music
@@ -215,6 +216,14 @@ def apply_images_to_segments(args, paths, m, topic, domain, slug):
     images (and the prompts that produced them) is left untouched on resume, regenerated
     only when missing, incomplete, or --force'd. Whenever a segment's images actually
     change, its now-stale per-segment video is deleted so build_episode_video rebuilds it.
+
+    Also frees ComfyUI's VRAM (image_client.free_memory) after any segment that actually
+    triggered generation -- ComfyUI otherwise keeps FLUX's ~16GB of weights resident
+    indefinitely, which starves Ollama of VRAM for as long as this loop runs (see
+    image_client.free_memory's docstring for the concrete failure this caused). Doing it
+    per-segment rather than once at the end of the whole episode bounds how long another
+    job's Ollama calls can be starved to "at most one segment's worth of images," not the
+    entire episode's image-generation phase.
     """
     if args.visual_style != "images":
         return
@@ -238,6 +247,7 @@ def apply_images_to_segments(args, paths, m, topic, domain, slug):
             video_path = os.path.join(paths["root"], seg["video"])
             if os.path.exists(video_path):
                 os.remove(video_path)
+            image_client.free_memory(args.comfyui_url)
         manifest_mod.save_manifest(paths["manifest"], m)
 
 

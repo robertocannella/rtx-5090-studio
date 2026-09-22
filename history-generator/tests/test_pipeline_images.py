@@ -68,11 +68,18 @@ def test_noop_when_visual_style_is_not_images(tmp_path, monkeypatch):
     assert "images" not in m["segments"][0]
 
 
+def _fake_free_memory(monkeypatch):
+    calls = []
+    monkeypatch.setattr(pipeline.image_client, "free_memory", lambda base_url: calls.append(base_url))
+    return calls
+
+
 def test_images_style_generates_and_invalidates_stale_video(tmp_path, monkeypatch):
     paths, m = _episode(tmp_path)
     video_path = os.path.join(paths["root"], m["segments"][0]["video"])
     _touch(video_path)
     _fake_generate_for_segment(monkeypatch, changed=True)
+    free_calls = _fake_free_memory(monkeypatch)
 
     pipeline.apply_images_to_segments(_ns("images"), paths, m, "Topic", "history", "images-pipeline-test")
 
@@ -80,6 +87,10 @@ def test_images_style_generates_and_invalidates_stale_video(tmp_path, monkeypatc
     assert seg["images"] == ["images/001_00.png", "images/001_01.png"]
     assert seg["image_prompts"] == ["a", "b"]
     assert not os.path.exists(video_path)  # invalidated since images changed
+    # ComfyUI's VRAM is freed after any segment that actually triggered generation, so
+    # its resident FLUX weights don't starve Ollama between segments/jobs -- see
+    # image_client.free_memory's docstring.
+    assert free_calls == ["http://comfyui"]
 
 
 def test_images_style_does_not_invalidate_video_when_nothing_changed(tmp_path, monkeypatch):
@@ -87,10 +98,14 @@ def test_images_style_does_not_invalidate_video_when_nothing_changed(tmp_path, m
     video_path = os.path.join(paths["root"], m["segments"][0]["video"])
     _touch(video_path)
     _fake_generate_for_segment(monkeypatch, changed=False)
+    free_calls = _fake_free_memory(monkeypatch)
 
     pipeline.apply_images_to_segments(_ns("images"), paths, m, "Topic", "history", "images-pipeline-test")
 
     assert os.path.exists(video_path)  # left untouched -- cache reused, nothing changed
+    # Nothing was generated (cache hit), so there's nothing to free -- and no reason to
+    # pay ComfyUI a network round-trip for it.
+    assert free_calls == []
 
 
 def test_images_style_skips_incomplete_segments(tmp_path, monkeypatch):
