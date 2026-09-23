@@ -101,6 +101,66 @@ def test_snippet_from_metadata_appends_chapters_and_maps_category():
     assert snippet["categoryId"] == "28"
 
 
+def test_build_description_returns_combination_unchanged_when_under_limit():
+    result = youtube_publish._build_description("Short desc.", "0:00 A\n1:00 B")
+    assert result == "Short desc.\n\n0:00 A\n1:00 B"
+
+
+def test_build_description_no_chapters_just_truncates_description():
+    long_desc = "x" * 6000
+    result = youtube_publish._build_description(long_desc, "")
+    assert len(result) == youtube_publish.YOUTUBE_DESCRIPTION_MAX_CHARS
+
+
+def test_build_description_truncates_chapters_on_whole_lines_when_over_limit():
+    # Regression test for a real failure: a 112-segment (123-minute) episode's chapters
+    # list alone was 5403 characters, and YouTube's videos.insert/update reject the
+    # whole request with "invalidDescription" once snippet.description exceeds 5000
+    # characters -- nothing here truncated it before this fix.
+    base_description = "A summary. " * 20  # ~220 chars, leaves plenty of budget to inspect
+    chapter_lines = [f"{i}:00 Chapter number {i} with a reasonably descriptive title" for i in range(200)]
+    chapters = "\n".join(chapter_lines)
+    assert len(base_description) + len(chapters) > youtube_publish.YOUTUBE_DESCRIPTION_MAX_CHARS
+
+    result = youtube_publish._build_description(base_description, chapters)
+
+    assert len(result) <= youtube_publish.YOUTUBE_DESCRIPTION_MAX_CHARS
+    assert result.startswith(base_description)
+    assert result.endswith(youtube_publish._DESCRIPTION_TRUNCATION_NOTE)
+    # Only whole lines were kept -- no line fragment sitting between the last kept
+    # chapter and the truncation note.
+    body = result[len(base_description) + 2 : -len(youtube_publish._DESCRIPTION_TRUNCATION_NOTE)]
+    for line in body.split("\n"):
+        assert line in chapter_lines
+    # Early chapters are kept, not dropped in favor of later ones.
+    assert chapter_lines[0] in body
+    assert chapter_lines[-1] not in body
+
+
+def test_build_description_extremely_long_base_description_drops_chapters_entirely():
+    huge_description = "x" * (youtube_publish.YOUTUBE_DESCRIPTION_MAX_CHARS - 10)
+    result = youtube_publish._build_description(huge_description, "0:00 A\n1:00 B")
+    assert len(result) <= youtube_publish.YOUTUBE_DESCRIPTION_MAX_CHARS
+    assert "0:00 A" not in result
+
+
+def test_update_video_metadata_and_upload_video_stay_under_description_limit(monkeypatch, tmp_path):
+    # End-to-end check through both public entry points, not just _build_description
+    # directly, since that's what actually protects a real publish call.
+    chapters = "\n".join(f"{i}:00 Segment {i}" for i in range(200))
+    metadata = {"title": "T", "description": "Summary.", "tags": [], "category": "Education", "chapters": chapters}
+
+    fake = FakeRequests(
+        post_responses=[FakeResponse(200, {"access_token": "tok"})],
+        get_responses=[FakeResponse(200, {"items": [{"snippet": {}}]})],
+        put_responses=[FakeResponse(200, {"id": "vid123"})],
+    )
+    monkeypatch.setattr(youtube_publish, "requests", fake)
+    youtube_publish.update_video_metadata("cid", "secret", "refresh", "vid123", metadata)
+    sent_description = fake.put_calls[0][1]["json"]["snippet"]["description"]
+    assert len(sent_description) <= youtube_publish.YOUTUBE_DESCRIPTION_MAX_CHARS
+
+
 def test_snippet_from_metadata_preserves_base_snippet_fields():
     base = {"title": "Old", "description": "Old desc", "defaultLanguage": "en"}
     metadata = {"title": "New", "description": "New", "tags": [], "category": "Education"}

@@ -34,9 +34,49 @@ CATEGORY_IDS = {
 }
 DEFAULT_CATEGORY_ID = CATEGORY_IDS["Education"]
 
+# YouTube hard-rejects videos.update/insert with "invalidDescription" once
+# snippet.description exceeds 5000 characters -- found the hard way on a real 112-segment,
+# 123-minute episode whose chapters list alone (one line per segment) was already 5403
+# characters, before even adding the summary description. A small margin below the real
+# limit leaves room for _DESCRIPTION_TRUNCATION_NOTE itself.
+YOUTUBE_DESCRIPTION_MAX_CHARS = 5000
+_DESCRIPTION_TRUNCATION_NOTE = "\n\n... (remaining chapters omitted -- description length limit)"
+
 
 class YoutubePublishError(Exception):
     pass
+
+
+def _build_description(base_description, chapters):
+    """Combine the summary description with the chapters block, truncating chapters
+    (never the summary) to fit YouTube's real character limit if the combination would
+    exceed it. Truncates on whole chapter lines only, never mid-line, and only drops
+    from the end of the list -- a long episode's early chapters are kept intact even if
+    its later ones don't fit.
+    """
+    if not chapters:
+        return base_description[:YOUTUBE_DESCRIPTION_MAX_CHARS]
+
+    full = f"{base_description}\n\n{chapters}"
+    if len(full) <= YOUTUBE_DESCRIPTION_MAX_CHARS:
+        return full
+
+    budget = YOUTUBE_DESCRIPTION_MAX_CHARS - len(base_description) - len("\n\n") - len(_DESCRIPTION_TRUNCATION_NOTE)
+    if budget <= 0:
+        # Even the description alone (plus the note) doesn't leave room for a single
+        # chapter line -- keep the description, drop chapters entirely.
+        return base_description[:YOUTUBE_DESCRIPTION_MAX_CHARS]
+
+    kept = []
+    used = 0
+    for line in chapters.split("\n"):
+        needed = len(line) + (1 if kept else 0)  # +1 for the joining "\n" after the first line
+        if used + needed > budget:
+            break
+        kept.append(line)
+        used += needed
+
+    return f"{base_description}\n\n{chr(10).join(kept)}{_DESCRIPTION_TRUNCATION_NOTE}"
 
 
 def get_access_token(client_id, client_secret, refresh_token, timeout=30):
@@ -87,13 +127,8 @@ def _snippet_from_metadata(metadata, base_snippet=None):
     """
     snippet = dict(base_snippet) if base_snippet else {}
 
-    description = metadata.get("description", "")
-    chapters = metadata.get("chapters")
-    if chapters:
-        description = f"{description}\n\n{chapters}"
-
     snippet["title"] = metadata["title"]
-    snippet["description"] = description
+    snippet["description"] = _build_description(metadata.get("description", ""), metadata.get("chapters"))
     snippet["tags"] = metadata.get("tags") or []
     snippet["categoryId"] = CATEGORY_IDS.get(metadata.get("category"), DEFAULT_CATEGORY_ID)
     return snippet
