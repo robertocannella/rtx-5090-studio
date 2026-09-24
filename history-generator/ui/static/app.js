@@ -800,6 +800,40 @@
     $("youtube-modal-content").innerHTML = "";
   }
 
+  function youtubeNotGeneratedHtml(slug) {
+    return `
+      <p class="hint">No YouTube metadata yet for this episode.</p>
+      <div class="yt-publish-row">
+        <button type="button" class="small yt-generate-btn" data-slug="${escapeHtml(slug)}">Generate YouTube metadata</button>
+        <span class="yt-generate-status"></span>
+      </div>`;
+  }
+
+  function wireYoutubeGenerateButton(content, slug) {
+    const btn = content.querySelector(".yt-generate-btn");
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const status = content.querySelector(".yt-generate-status");
+      btn.disabled = true;
+      status.className = "yt-generate-status";
+      status.textContent = "Generating (asks Ollama for title/description/tags, can take a little while)...";
+      try {
+        const y = await apiPost(`/api/episodes/${encodeURIComponent(slug)}/youtube/generate`, {});
+        youtubeCache[slug] = y;
+        // youtube_metadata_ready flips server-side too, but that only shows up on the
+        // list's next 8s poll -- force it to resync rather than skip as "unchanged".
+        lastEpisodesJson = null;
+        if (currentYoutubeModalSlug !== slug) return;
+        content.innerHTML = youtubePanelHtml(slug, y);
+        wireYoutubePanelButtons(content, slug);
+      } catch (e) {
+        status.textContent = "Failed: " + e.message;
+        status.className = "yt-generate-status error";
+        btn.disabled = false;
+      }
+    });
+  }
+
   async function openYoutubeModal(slug) {
     currentYoutubeModalSlug = slug;
     const overlay = $("youtube-modal");
@@ -819,7 +853,12 @@
       wireYoutubePanelButtons(content, slug);
     } catch (e) {
       if (currentYoutubeModalSlug !== slug) return;
-      content.innerHTML = `<p class="hint">Could not load: ${escapeHtml(e.message)}</p>`;
+      if (e.status === 404) {
+        content.innerHTML = youtubeNotGeneratedHtml(slug);
+        wireYoutubeGenerateButton(content, slug);
+      } else {
+        content.innerHTML = `<p class="hint">Could not load: ${escapeHtml(e.message)}</p>`;
+      }
     }
   }
 
@@ -831,24 +870,6 @@
     document.addEventListener("keydown", (evt) => {
       if (evt.key === "Escape" && currentYoutubeModalSlug) closeYoutubeModal();
     });
-  }
-
-  async function generateYoutubeMetadata(slug, row) {
-    const btn = row.querySelector(".yt-generate-btn");
-    const status = row.querySelector(".yt-generate-status");
-    btn.disabled = true;
-    status.className = "yt-generate-status";
-    status.textContent = "Generating (asks Ollama for title/description/tags, can take a little while)...";
-    try {
-      const y = await apiPost(`/api/episodes/${encodeURIComponent(slug)}/youtube/generate`, {});
-      youtubeCache[slug] = y;
-      status.textContent = "Done.";
-      loadEpisodes(); // swap this row's button for the normal "YouTube metadata" toggle
-    } catch (e) {
-      status.textContent = "Failed: " + e.message;
-      status.className = "yt-generate-status error";
-      btn.disabled = false;
-    }
   }
 
   // Set once the episodes list has rendered real content -- after that, refreshes
@@ -1000,10 +1021,6 @@
       ? `${ep.segments_complete} narrated`
       : `${ep.segments_complete}/${ep.segments_total}`;
     const status = episodeStatusLabel(ep);
-    const ytActions = ep.youtube_metadata_ready
-      ? `<button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube</button>`
-      : `<button type="button" class="small yt-generate-btn" data-slug="${escapeHtml(ep.slug)}">Generate YouTube metadata</button>
-         <span class="yt-generate-status"></span>`;
     return `<div class="episode-row-wrap" data-slug="${escapeHtml(ep.slug)}">
       <div class="episode-row">
         <div class="ep-col-title">
@@ -1013,7 +1030,7 @@
         <div class="ep-col-segments" data-label="Segments">${segmentsLabel}</div>
         <div class="ep-col-status" data-label="Status">${status}</div>
         <div class="ep-col-actions">
-          ${ytActions}
+          <button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube</button>
           <button type="button" class="small ep-edit-title-btn" data-slug="${escapeHtml(ep.slug)}">Edit</button>
           <button type="button" class="small btn-danger ep-delete-btn" data-slug="${escapeHtml(ep.slug)}">Delete</button>
         </div>
@@ -1052,9 +1069,6 @@
     wireSortHeaders();
     list.querySelectorAll(".yt-toggle-btn").forEach((btn) => {
       btn.addEventListener("click", () => openYoutubeModal(btn.dataset.slug));
-    });
-    list.querySelectorAll(".yt-generate-btn").forEach((btn) => {
-      btn.addEventListener("click", () => generateYoutubeMetadata(btn.dataset.slug, btn.closest(".episode-row")));
     });
     list.querySelectorAll(".ep-edit-title-btn").forEach((btn) => {
       btn.addEventListener("click", () => startEditEpisodeTitle(btn.dataset.slug));
