@@ -574,11 +574,8 @@
 
   // ---- all episodes -------------------------------------------------------
 
-  // The episodes list re-renders its whole innerHTML on every auto-refresh tick (see
-  // loadEpisodes below), which would otherwise silently collapse an open YouTube-metadata
-  // panel every ~8s. Tracking which slugs are expanded (and caching what was fetched for
-  // them) lets each refresh restore that state instead of losing it.
-  const expandedYoutube = new Set();
+  // Fetched YouTube metadata, cached per slug -- the modal (below) reuses this instead of
+  // re-fetching every time it's opened, and edits/regenerates/publishes update it in place.
   const youtubeCache = {};
 
   function youtubeWatchUrl(videoId) {
@@ -661,9 +658,9 @@
 
   function pollYoutubePublishStatus(slug, panel, status, publishBtn) {
     const tick = async () => {
-      // The panel may have been replaced (list refresh, or collapsed+reopened) since
-      // this poll started -- stop rather than keep updating detached DOM nodes forever.
-      if (!document.body.contains(panel)) return;
+      // The modal may have been closed, or reopened for a different episode, since this
+      // poll started -- stop rather than keep updating a panel nobody's looking at.
+      if (currentYoutubeModalSlug !== slug) return;
       let s;
       try {
         s = await apiGet(`/api/episodes/${encodeURIComponent(slug)}/youtube/publish/status`);
@@ -791,30 +788,49 @@
     });
   }
 
-  async function toggleYoutubePanel(slug) {
-    const panel = document.getElementById(`yt-panel-${slug}`);
-    if (!panel) return;
-    if (expandedYoutube.has(slug)) {
-      expandedYoutube.delete(slug);
-      panel.style.display = "none";
-      return;
-    }
-    expandedYoutube.add(slug);
-    panel.style.display = "";
+  // Which episode's YouTube modal is currently open, if any -- null when closed. Used to
+  // stop a stale pollYoutubePublishStatus tick from updating a panel nobody's looking at
+  // anymore (modal closed, or reopened for a different episode) instead of relying on
+  // DOM-attachment checks the way the old inline panel did.
+  let currentYoutubeModalSlug = null;
+
+  function closeYoutubeModal() {
+    currentYoutubeModalSlug = null;
+    $("youtube-modal").style.display = "none";
+    $("youtube-modal-content").innerHTML = "";
+  }
+
+  async function openYoutubeModal(slug) {
+    currentYoutubeModalSlug = slug;
+    const overlay = $("youtube-modal");
+    const content = $("youtube-modal-content");
+    overlay.style.display = "flex";
     if (youtubeCache[slug]) {
-      panel.innerHTML = youtubePanelHtml(slug, youtubeCache[slug]);
-      wireYoutubePanelButtons(panel, slug);
+      content.innerHTML = youtubePanelHtml(slug, youtubeCache[slug]);
+      wireYoutubePanelButtons(content, slug);
       return;
     }
-    panel.innerHTML = '<p class="hint">Loading...</p>';
+    content.innerHTML = '<p class="hint">Loading...</p>';
     try {
       const y = await apiGet(`/api/episodes/${encodeURIComponent(slug)}/youtube`);
       youtubeCache[slug] = y;
-      panel.innerHTML = youtubePanelHtml(slug, y);
-      wireYoutubePanelButtons(panel, slug);
+      if (currentYoutubeModalSlug !== slug) return; // closed, or switched to another episode, while this was in flight
+      content.innerHTML = youtubePanelHtml(slug, y);
+      wireYoutubePanelButtons(content, slug);
     } catch (e) {
-      panel.innerHTML = `<p class="hint">Could not load: ${escapeHtml(e.message)}</p>`;
+      if (currentYoutubeModalSlug !== slug) return;
+      content.innerHTML = `<p class="hint">Could not load: ${escapeHtml(e.message)}</p>`;
     }
+  }
+
+  function wireYoutubeModal() {
+    $("youtube-modal-close").addEventListener("click", closeYoutubeModal);
+    $("youtube-modal").addEventListener("click", (evt) => {
+      if (evt.target.id === "youtube-modal") closeYoutubeModal(); // click on the backdrop, not the box itself
+    });
+    document.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape" && currentYoutubeModalSlug) closeYoutubeModal();
+    });
   }
 
   async function generateYoutubeMetadata(slug, row) {
@@ -985,7 +1001,7 @@
       : `${ep.segments_complete}/${ep.segments_total}`;
     const status = episodeStatusLabel(ep);
     const ytActions = ep.youtube_metadata_ready
-      ? `<button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube metadata</button>`
+      ? `<button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube</button>`
       : `<button type="button" class="small yt-generate-btn" data-slug="${escapeHtml(ep.slug)}">Generate YouTube metadata</button>
          <span class="yt-generate-status"></span>`;
     return `<div class="episode-row-wrap" data-slug="${escapeHtml(ep.slug)}">
@@ -1002,7 +1018,6 @@
           <button type="button" class="small btn-danger ep-delete-btn" data-slug="${escapeHtml(ep.slug)}">Delete</button>
         </div>
       </div>
-      <div class="yt-panel" id="yt-panel-${escapeHtml(ep.slug)}" style="display:none"></div>
     </div>`;
   }
 
@@ -1036,7 +1051,7 @@
     list.innerHTML = episodeTableHeaderHtml() + episodes.map(episodeRowHtml).join("");
     wireSortHeaders();
     list.querySelectorAll(".yt-toggle-btn").forEach((btn) => {
-      btn.addEventListener("click", () => toggleYoutubePanel(btn.dataset.slug));
+      btn.addEventListener("click", () => openYoutubeModal(btn.dataset.slug));
     });
     list.querySelectorAll(".yt-generate-btn").forEach((btn) => {
       btn.addEventListener("click", () => generateYoutubeMetadata(btn.dataset.slug, btn.closest(".episode-row")));
@@ -1046,14 +1061,6 @@
     });
     list.querySelectorAll(".ep-delete-btn").forEach((btn) => {
       btn.addEventListener("click", () => startDeleteEpisode(btn.dataset.slug));
-    });
-    expandedYoutube.forEach((slug) => {
-      const panel = document.getElementById(`yt-panel-${slug}`);
-      if (panel && youtubeCache[slug]) {
-        panel.style.display = "";
-        panel.innerHTML = youtubePanelHtml(slug, youtubeCache[slug]);
-        wireYoutubePanelButtons(panel, slug);
-      }
     });
   }
 
@@ -1115,8 +1122,8 @@
       try {
         await apiDelete(`/api/episodes/${encodeURIComponent(slug)}`);
         allEpisodes = allEpisodes.filter((e) => e.slug !== slug);
-        expandedYoutube.delete(slug);
         delete youtubeCache[slug];
+        if (currentYoutubeModalSlug === slug) closeYoutubeModal();
         lastEpisodesJson = null;
         renderEpisodesList();
       } catch (e) {
@@ -1231,6 +1238,7 @@
   async function init() {
     wireTabs();
     wireForm();
+    wireYoutubeModal();
     syncMusicVisibility();
 
     // Jobs/episodes don't depend on metadata or voices at all, so they're kicked off
