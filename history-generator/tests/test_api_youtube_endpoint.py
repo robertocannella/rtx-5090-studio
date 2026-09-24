@@ -46,6 +46,78 @@ def test_get_youtube_metadata_404_when_episode_missing(tmp_path, monkeypatch):
     assert exc_info.value.status_code == 404
 
 
+def test_update_youtube_metadata_partial_update_only_changes_given_fields(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    original = {
+        "title": "Old Title", "description": "Old desc", "tags": ["a"], "tags_joined": "a",
+        "category": "Education", "chapters": "0:00 A", "generated_for_segment_count": 1,
+    }
+    _make_episode(tmp_path, youtube=original)
+
+    result = api.update_youtube_metadata("test-episode", api.UpdateYoutubeMetadataRequest(title="New Title"))
+
+    assert result["title"] == "New Title"
+    assert result["description"] == "Old desc"  # untouched
+    assert result["chapters"] == "0:00 A"  # never editable
+    assert result["generated_for_segment_count"] == 1  # untouched
+
+    saved = manifest_mod.load_manifest(manifest_mod.episode_paths(str(tmp_path), "test-episode")["manifest"])
+    assert saved["youtube"]["title"] == "New Title"
+
+
+def test_update_youtube_metadata_updates_tags_and_rejoins(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    _make_episode(tmp_path, youtube={"title": "T", "description": "D", "tags": ["old"], "tags_joined": "old", "category": "Education", "chapters": ""})
+
+    result = api.update_youtube_metadata(
+        "test-episode", api.UpdateYoutubeMetadataRequest(tags=[" space ", "cosmos", "", "  "]),
+    )
+
+    assert result["tags"] == ["space", "cosmos"]  # blank/whitespace-only entries dropped
+    assert result["tags_joined"] == "space, cosmos"
+
+
+def test_update_youtube_metadata_truncates_title_to_youtube_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    _make_episode(tmp_path, youtube={"title": "T", "description": "D", "tags": [], "category": "Education", "chapters": ""})
+
+    long_title = "x" * 150
+    result = api.update_youtube_metadata("test-episode", api.UpdateYoutubeMetadataRequest(title=long_title))
+
+    assert len(result["title"]) == 100
+
+
+def test_update_youtube_metadata_rejects_empty_title(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    _make_episode(tmp_path, youtube={"title": "T", "description": "D", "tags": [], "category": "Education", "chapters": ""})
+
+    with pytest.raises(HTTPException) as exc_info:
+        api.update_youtube_metadata("test-episode", api.UpdateYoutubeMetadataRequest(title="   "))
+    assert exc_info.value.status_code == 422
+
+
+def test_update_youtube_metadata_rejects_invalid_category():
+    with pytest.raises(Exception):  # pydantic ValidationError at construction time
+        api.UpdateYoutubeMetadataRequest(category="Not A Real Category")
+
+
+def test_update_youtube_metadata_404_when_not_generated_yet(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    _make_episode(tmp_path)
+
+    with pytest.raises(HTTPException) as exc_info:
+        api.update_youtube_metadata("test-episode", api.UpdateYoutubeMetadataRequest(title="X"))
+    assert exc_info.value.status_code == 404
+
+
+def test_update_youtube_metadata_404_when_episode_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+
+    with pytest.raises(HTTPException) as exc_info:
+        api.update_youtube_metadata("does-not-exist", api.UpdateYoutubeMetadataRequest(title="X"))
+    assert exc_info.value.status_code == 404
+
+
 def test_generate_youtube_metadata_success(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     _make_episode(tmp_path)

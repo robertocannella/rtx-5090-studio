@@ -170,6 +170,58 @@ def test_list_jobs_and_episodes_proxy_to_the_right_paths(client, monkeypatch):
     ]
 
 
+def test_update_episode_proxies_patch_with_body(client, monkeypatch):
+    captured = {}
+
+    async def fake_request(self, method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        return _FakeResponse(200, {"title": "New Title"})
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", fake_request)
+
+    resp = client.patch("/api/episodes/some-slug", json={"title": "New Title"})
+    assert resp.status_code == 200
+    assert captured["method"] == "PATCH"
+    assert captured["url"] == f"{main.HISTORY_API_URL}/episodes/some-slug"
+    assert captured["json"] == {"title": "New Title"}
+
+
+def test_delete_episode_proxies_to_history_api(client, monkeypatch):
+    captured = {}
+
+    async def fake_request(self, method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        return _FakeResponse(200, {"status": "deleted", "slug": "some-slug"})
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", fake_request)
+
+    resp = client.delete("/api/episodes/some-slug")
+    assert resp.status_code == 200
+    assert captured["method"] == "DELETE"
+    assert captured["url"] == f"{main.HISTORY_API_URL}/episodes/some-slug"
+
+
+def test_update_youtube_metadata_proxies_patch_with_body(client, monkeypatch):
+    captured = {}
+
+    async def fake_request(self, method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["json"] = kwargs.get("json")
+        return _FakeResponse(200, {"title": "New Title"})
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", fake_request)
+
+    resp = client.patch("/api/episodes/some-slug/youtube", json={"title": "New Title"})
+    assert resp.status_code == 200
+    assert captured["method"] == "PATCH"
+    assert captured["url"] == f"{main.HISTORY_API_URL}/episodes/some-slug/youtube"
+    assert captured["json"] == {"title": "New Title"}
+
+
 def test_metadata_proxies(client, monkeypatch):
     async def fake_request(self, method, url, **kwargs):
         assert url == f"{main.HISTORY_API_URL}/metadata"

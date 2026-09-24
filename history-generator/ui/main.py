@@ -94,9 +94,26 @@ async def get_episode(slug: str):
     return await _proxy("GET", f"{HISTORY_API_URL}/episodes/{slug}")
 
 
+@app.patch("/api/episodes/{slug}")
+async def update_episode(slug: str, request: Request):
+    body = await request.json()
+    return await _proxy("PATCH", f"{HISTORY_API_URL}/episodes/{slug}", json=body)
+
+
+@app.delete("/api/episodes/{slug}")
+async def delete_episode(slug: str):
+    return await _proxy("DELETE", f"{HISTORY_API_URL}/episodes/{slug}")
+
+
 @app.get("/api/episodes/{slug}/youtube")
 async def get_youtube_metadata(slug: str):
     return await _proxy("GET", f"{HISTORY_API_URL}/episodes/{slug}/youtube")
+
+
+@app.patch("/api/episodes/{slug}/youtube")
+async def update_youtube_metadata(slug: str, request: Request):
+    body = await request.json()
+    return await _proxy("PATCH", f"{HISTORY_API_URL}/episodes/{slug}/youtube", json=body)
 
 
 @app.post("/api/episodes/{slug}/youtube/generate")

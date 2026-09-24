@@ -45,6 +45,49 @@ main {
   padding: 16px;
 }
 
+.tabs {
+  display: flex;
+  gap: 4px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab-btn:hover { color: var(--text); }
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.episodes-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.episodes-toolbar input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+}
+
 /* Shown while the form's own dropdowns (domain/visual-style/voice) are still waiting on
    /api/metadata and /api/voices -- the latter hits Kokoro directly and can be slow if
    it's mid-synthesis for a running job, which used to silently stall the whole page
@@ -326,6 +369,34 @@ details summary {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+.ep-title-edit-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ep-title-edit-row input[type="text"] { flex: 1; }
+
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.yt-meta .yt-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+
+.yt-meta .yt-field-row input,
+.yt-meta .yt-field-row textarea,
+.yt-meta .yt-field-row select {
+  width: 100%;
+}
+
+.yt-meta textarea { min-height: 80px; resize: vertical; }
 
 /* Below ~600px there isn't room for three columns -- fall back to stacked rows like the
    layout before this, rather than truncating/overlapping content. */

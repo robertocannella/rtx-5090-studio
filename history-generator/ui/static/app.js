@@ -56,6 +56,36 @@
     return body;
   }
 
+  async function apiPatch(path, payload) {
+    const resp = await fetch(path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    let body;
+    try { body = await resp.json(); } catch { body = {}; }
+    if (!resp.ok) {
+      const err = new Error(describeError(body));
+      err.status = resp.status;
+      err.body = body;
+      throw err;
+    }
+    return body;
+  }
+
+  async function apiDelete(path) {
+    const resp = await fetch(path, { method: "DELETE" });
+    let body;
+    try { body = await resp.json(); } catch { body = {}; }
+    if (!resp.ok) {
+      const err = new Error(describeError(body));
+      err.status = resp.status;
+      err.body = body;
+      throw err;
+    }
+    return body;
+  }
+
   function describeError(body) {
     // FastAPI/pydantic validation errors come back as {"detail": [{"loc": [...], "msg": "..."}]}
     if (Array.isArray(body && body.detail)) {
@@ -98,6 +128,17 @@
     });
     domainSelect.value = metadata.defaults.domain || "history";
     updateDomainHint();
+
+    const episodeDomainFilter = $("episode-domain-filter");
+    const keepFilterValue = episodeDomainFilter.value;
+    episodeDomainFilter.innerHTML = '<option value="">All domains</option>';
+    (metadata.domains || []).forEach((d) => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      episodeDomainFilter.appendChild(opt);
+    });
+    episodeDomainFilter.value = keepFilterValue;
 
     const visualSelect = $("visual-style");
     visualSelect.innerHTML = "";
@@ -549,17 +590,56 @@
     return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`;
   }
 
+  const YOUTUBE_CATEGORIES = ["Education", "Science & Technology", "Entertainment"];
+
+  function youtubeViewModeHtml(y) {
+    return `
+      <div><strong>Title:</strong> ${escapeHtml(y.title)}</div>
+      <div><strong>Category:</strong> ${escapeHtml(y.category)}</div>
+      <div><strong>Tags:</strong> ${escapeHtml(y.tags_joined)}</div>
+      <details><summary>Description</summary><pre>${escapeHtml(y.description)}</pre></details>
+      <details><summary>Chapters</summary><pre>${escapeHtml(y.chapters)}</pre></details>
+      <div class="yt-publish-row">
+        <button type="button" class="small yt-edit-metadata-btn">Edit metadata</button>
+      </div>`;
+  }
+
+  function youtubeEditModeHtml(y) {
+    const options = YOUTUBE_CATEGORIES
+      .map((c) => `<option value="${escapeHtml(c)}" ${c === y.category ? "selected" : ""}>${escapeHtml(c)}</option>`)
+      .join("");
+    return `
+      <div class="yt-field-row">
+        <label>Title</label>
+        <input type="text" class="yt-edit-title" value="${escapeHtml(y.title)}" maxlength="100">
+      </div>
+      <div class="yt-field-row">
+        <label>Category</label>
+        <select class="yt-edit-category">${options}</select>
+      </div>
+      <div class="yt-field-row">
+        <label>Tags (comma-separated)</label>
+        <input type="text" class="yt-edit-tags" value="${escapeHtml(y.tags_joined)}">
+      </div>
+      <div class="yt-field-row">
+        <label>Description</label>
+        <textarea class="yt-edit-description">${escapeHtml(y.description)}</textarea>
+      </div>
+      <div class="hint">Chapters aren't editable here -- they're computed automatically from segment durations.</div>
+      <div class="yt-publish-row">
+        <button type="button" class="small yt-save-metadata-btn">Save changes</button>
+        <button type="button" class="small yt-cancel-edit-metadata-btn">Cancel</button>
+        <span class="yt-edit-metadata-status"></span>
+      </div>`;
+  }
+
   function youtubePanelHtml(slug, y) {
     const publishedNote = y.video_id
       ? `<div class="hint">Last published: ${youtubeWatchLinkHtml(y.video_id)}</div>`
       : "";
     return `
       <div class="yt-meta">
-        <div><strong>Title:</strong> ${escapeHtml(y.title)}</div>
-        <div><strong>Category:</strong> ${escapeHtml(y.category)}</div>
-        <div><strong>Tags:</strong> ${escapeHtml(y.tags_joined)}</div>
-        <details><summary>Description</summary><pre>${escapeHtml(y.description)}</pre></details>
-        <details><summary>Chapters</summary><pre>${escapeHtml(y.chapters)}</pre></details>
+        <div class="yt-view-mode">${youtubeViewModeHtml(y)}</div>
         ${publishedNote}
         <div class="yt-publish-row">
           <input type="text" class="yt-video-id" placeholder="YouTube video ID (leave blank to upload as new)" value="${escapeHtml(y.video_id || "")}">
@@ -612,6 +692,16 @@
   }
 
   function wireYoutubePanelButtons(panel, slug) {
+    const viewMode = panel.querySelector(".yt-view-mode");
+
+    const editBtn = viewMode && viewMode.querySelector(".yt-edit-metadata-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        viewMode.innerHTML = youtubeEditModeHtml(youtubeCache[slug]);
+        wireYoutubeEditMode(panel, viewMode, slug);
+      });
+    }
+
     const publishBtn = panel.querySelector(".yt-publish-btn");
     if (publishBtn) {
       publishBtn.addEventListener("click", async () => {
@@ -669,6 +759,36 @@
         }
       });
     }
+  }
+
+  function wireYoutubeEditMode(panel, viewMode, slug) {
+    viewMode.querySelector(".yt-cancel-edit-metadata-btn").addEventListener("click", () => {
+      viewMode.innerHTML = youtubeViewModeHtml(youtubeCache[slug]);
+      wireYoutubePanelButtons(panel, slug);
+    });
+    viewMode.querySelector(".yt-save-metadata-btn").addEventListener("click", async () => {
+      const status = viewMode.querySelector(".yt-edit-metadata-status");
+      const title = viewMode.querySelector(".yt-edit-title").value.trim();
+      const category = viewMode.querySelector(".yt-edit-category").value;
+      const tags = viewMode.querySelector(".yt-edit-tags").value.split(",").map((t) => t.trim()).filter(Boolean);
+      const description = viewMode.querySelector(".yt-edit-description").value;
+      if (!title) {
+        status.textContent = "Title cannot be empty.";
+        status.className = "yt-edit-metadata-status error";
+        return;
+      }
+      status.textContent = "Saving...";
+      status.className = "yt-edit-metadata-status";
+      try {
+        const y = await apiPatch(`/api/episodes/${encodeURIComponent(slug)}/youtube`, { title, category, tags, description });
+        youtubeCache[slug] = y;
+        viewMode.innerHTML = youtubeViewModeHtml(y);
+        wireYoutubePanelButtons(panel, slug);
+      } catch (e) {
+        status.textContent = "Failed: " + e.message;
+        status.className = "yt-edit-metadata-status error";
+      }
+    });
   }
 
   async function toggleYoutubePanel(slug) {
@@ -732,6 +852,14 @@
   // fixed, since the rebuild+restore both happened, just without a visible gap between them.
   let lastEpisodesJson = null;
 
+  // The raw list as last fetched from the server -- loadEpisodes() only ever replaces
+  // this wholesale; renderEpisodesList() is what actually builds the DOM, filtering this
+  // against the search box and the two dropdowns. Splitting them means typing in the
+  // search box (or changing a filter) re-renders instantly from what's already in memory,
+  // with no round trip, and the 8s auto-refresh's lastEpisodesJson skip-if-unchanged check
+  // (below) still applies to the raw fetch, not to every filter keystroke.
+  let allEpisodes = [];
+
   async function loadEpisodes() {
     const list = $("episodes-list");
     if (!episodesLoadedOnce) {
@@ -755,43 +883,85 @@
       return;
     }
     lastEpisodesJson = episodesJson;
+    allEpisodes = episodes;
+    renderEpisodesList();
+  }
 
-    if (!episodes.length) {
+  function findEpisodeRowWrap(slug) {
+    return Array.from(document.querySelectorAll(".episode-row-wrap")).find((el) => el.dataset.slug === slug);
+  }
+
+  function filteredEpisodes() {
+    const search = $("episode-search").value.trim().toLowerCase();
+    const domain = $("episode-domain-filter").value;
+    const status = $("episode-status-filter").value;
+    return allEpisodes.filter((ep) => {
+      if (search) {
+        const haystack = `${ep.title || ""} ${ep.topic || ""}`.toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      if (domain && ep.domain !== domain) return false;
+      if (status === "done" && !ep.final_video_exists) return false;
+      if (status === "in-progress" && ep.final_video_exists) return false;
+      return true;
+    });
+  }
+
+  function episodeRowHtml(ep) {
+    // See the target_reached comment in jobCardHtml -- segments_complete a bit
+    // below segments_total is normal for a finished episode (outline buffer left
+    // unused), not a sign it's still catching up.
+    const status = ep.final_video_exists ? "done" : (stageLabel(ep) || (ep.target_reached ? "finalizing" : "in progress"));
+    const segmentsLabel = ep.target_reached
+      ? `${ep.segments_complete} segments narrated`
+      : `${ep.segments_complete}/${ep.segments_total} segments`;
+    const domainTag = ep.domain ? `<span class="tag">${escapeHtml(ep.domain)}</span>` : "";
+    const ytActions = ep.youtube_metadata_ready
+      ? `<button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube metadata</button>`
+      : `<button type="button" class="small yt-generate-btn" data-slug="${escapeHtml(ep.slug)}">Generate YouTube metadata</button>
+         <span class="yt-generate-status"></span>`;
+    return `<div class="episode-row-wrap" data-slug="${escapeHtml(ep.slug)}">
+      <div class="episode-row">
+        <div class="ep-col-title">
+          <span class="ep-title-display">${escapeHtml(ep.title || ep.topic)}</span> ${domainTag}
+          <button type="button" class="small ep-edit-title-btn" data-slug="${escapeHtml(ep.slug)}">Rename</button>
+        </div>
+        <div class="ep-col-status">${segmentsLabel} &middot; ${status}</div>
+        <div class="ep-col-actions">
+          ${ytActions}
+          <button type="button" class="small btn-danger ep-delete-btn" data-slug="${escapeHtml(ep.slug)}">Delete</button>
+        </div>
+      </div>
+      <div class="yt-panel" id="yt-panel-${escapeHtml(ep.slug)}" style="display:none"></div>
+    </div>`;
+  }
+
+  function renderEpisodesList() {
+    const list = $("episodes-list");
+    if (!allEpisodes.length) {
       list.innerHTML = '<p class="hint">No episodes yet.</p>';
+      return;
+    }
+    const episodes = filteredEpisodes();
+    if (!episodes.length) {
+      list.innerHTML = '<p class="hint">No episodes match your search/filters.</p>';
       return;
     }
     const headerRow = `<div class="episode-table-header">
       <div>Episode</div><div>Progress</div><div>Actions</div>
     </div>`;
-    list.innerHTML = headerRow + episodes
-      .map((ep) => {
-        // See the target_reached comment in jobCardHtml -- segments_complete a bit
-        // below segments_total is normal for a finished episode (outline buffer left
-        // unused), not a sign it's still catching up.
-        const status = ep.final_video_exists ? "done" : (stageLabel(ep) || (ep.target_reached ? "finalizing" : "in progress"));
-        const segmentsLabel = ep.target_reached
-          ? `${ep.segments_complete} segments narrated`
-          : `${ep.segments_complete}/${ep.segments_total} segments`;
-        const domainTag = ep.domain ? `<span class="tag">${escapeHtml(ep.domain)}</span>` : "";
-        const ytActions = ep.youtube_metadata_ready
-          ? `<button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube metadata</button>`
-          : `<button type="button" class="small yt-generate-btn" data-slug="${escapeHtml(ep.slug)}">Generate YouTube metadata</button>
-             <span class="yt-generate-status"></span>`;
-        return `<div class="episode-row-wrap">
-          <div class="episode-row">
-            <div class="ep-col-title">${escapeHtml(ep.title || ep.topic)} ${domainTag}</div>
-            <div class="ep-col-status">${segmentsLabel} &middot; ${status}</div>
-            <div class="ep-col-actions">${ytActions}</div>
-          </div>
-          <div class="yt-panel" id="yt-panel-${escapeHtml(ep.slug)}" style="display:none"></div>
-        </div>`;
-      })
-      .join("");
+    list.innerHTML = headerRow + episodes.map(episodeRowHtml).join("");
     list.querySelectorAll(".yt-toggle-btn").forEach((btn) => {
       btn.addEventListener("click", () => toggleYoutubePanel(btn.dataset.slug));
     });
     list.querySelectorAll(".yt-generate-btn").forEach((btn) => {
       btn.addEventListener("click", () => generateYoutubeMetadata(btn.dataset.slug, btn.closest(".episode-row")));
+    });
+    list.querySelectorAll(".ep-edit-title-btn").forEach((btn) => {
+      btn.addEventListener("click", () => startEditEpisodeTitle(btn.dataset.slug));
+    });
+    list.querySelectorAll(".ep-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", () => startDeleteEpisode(btn.dataset.slug));
     });
     expandedYoutube.forEach((slug) => {
       const panel = document.getElementById(`yt-panel-${slug}`);
@@ -801,6 +971,94 @@
         wireYoutubePanelButtons(panel, slug);
       }
     });
+  }
+
+  function wireEpisodesToolbar() {
+    $("episode-search").addEventListener("input", renderEpisodesList);
+    $("episode-domain-filter").addEventListener("change", renderEpisodesList);
+    $("episode-status-filter").addEventListener("change", renderEpisodesList);
+  }
+
+  function startEditEpisodeTitle(slug) {
+    const wrap = findEpisodeRowWrap(slug);
+    if (!wrap) return;
+    const titleCol = wrap.querySelector(".ep-col-title");
+    const ep = allEpisodes.find((e) => e.slug === slug);
+    const currentTitle = ep ? (ep.title || ep.topic) : "";
+    titleCol.innerHTML = `
+      <div class="ep-title-edit-row">
+        <input type="text" class="ep-title-input" value="${escapeHtml(currentTitle)}">
+        <button type="button" class="small ep-save-title-btn">Save</button>
+        <button type="button" class="small ep-cancel-title-btn">Cancel</button>
+      </div>
+      <span class="ep-title-edit-status"></span>`;
+    titleCol.querySelector(".ep-title-input").focus();
+    titleCol.querySelector(".ep-cancel-title-btn").addEventListener("click", renderEpisodesList);
+    titleCol.querySelector(".ep-save-title-btn").addEventListener("click", async () => {
+      const input = titleCol.querySelector(".ep-title-input");
+      const status = titleCol.querySelector(".ep-title-edit-status");
+      const newTitle = input.value.trim();
+      if (!newTitle) {
+        status.textContent = "Title cannot be empty.";
+        status.className = "error";
+        return;
+      }
+      try {
+        await apiPatch(`/api/episodes/${encodeURIComponent(slug)}`, { title: newTitle });
+        if (ep) ep.title = newTitle;
+        // Force the next poll to fully resync rather than skip as "unchanged" --
+        // this local edit isn't reflected in lastEpisodesJson's snapshot.
+        lastEpisodesJson = null;
+        renderEpisodesList();
+      } catch (e) {
+        status.textContent = "Failed: " + e.message;
+        status.className = "error";
+      }
+    });
+  }
+
+  function startDeleteEpisode(slug) {
+    const wrap = findEpisodeRowWrap(slug);
+    if (!wrap) return;
+    const actions = wrap.querySelector(".ep-col-actions");
+    actions.innerHTML = `
+      <span class="yt-publish-status error">Delete this episode? This permanently removes all its files.</span>
+      <button type="button" class="small btn-danger ep-confirm-delete-btn">Yes, delete</button>
+      <button type="button" class="small ep-cancel-delete-btn">Cancel</button>`;
+    actions.querySelector(".ep-cancel-delete-btn").addEventListener("click", renderEpisodesList);
+    actions.querySelector(".ep-confirm-delete-btn").addEventListener("click", async () => {
+      actions.innerHTML = '<span class="hint">Deleting...</span>';
+      try {
+        await apiDelete(`/api/episodes/${encodeURIComponent(slug)}`);
+        allEpisodes = allEpisodes.filter((e) => e.slug !== slug);
+        expandedYoutube.delete(slug);
+        delete youtubeCache[slug];
+        lastEpisodesJson = null;
+        renderEpisodesList();
+      } catch (e) {
+        actions.innerHTML = `<span class="yt-publish-status error">Delete failed: ${escapeHtml(e.message)}</span>
+          <button type="button" class="small ep-cancel-delete-btn">Dismiss</button>`;
+        actions.querySelector(".ep-cancel-delete-btn").addEventListener("click", renderEpisodesList);
+      }
+    });
+  }
+
+  // ---- tabs ---------------------------------------------------------
+
+  function switchTab(tabName) {
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === tabName);
+    });
+    document.querySelectorAll(".tab-panel").forEach((panel) => {
+      panel.classList.toggle("active", panel.id === `tab-${tabName}`);
+    });
+  }
+
+  function wireTabs() {
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+    switchTab("generate");
   }
 
   // ---- wiring ---------------------------------------------------------
@@ -887,6 +1145,7 @@
   }
 
   async function init() {
+    wireTabs();
     wireForm();
     syncMusicVisibility();
 
@@ -900,6 +1159,7 @@
     pollAllJobs();
     loadEpisodes();
     $("refresh-episodes-btn").addEventListener("click", loadEpisodes);
+    wireEpisodesToolbar();
 
     const loadingBar = $("init-loading-bar");
     loadingBar.classList.add("show");

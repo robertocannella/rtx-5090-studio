@@ -10,6 +10,7 @@ it is purely a job-queue/status wrapper around the existing pipeline.
 import contextlib
 import math
 import os
+import shutil
 import threading
 import time
 import uuid
@@ -443,6 +444,74 @@ def get_episode(slug: str):
     return progress
 
 
+def _safe_episode_root(slug):
+    """episode_paths() is a plain os.path.join -- fine for a slug that's always come
+    from slugify() internally, but slug here is attacker-controllable request input
+    (FastAPI's path-segment matching already blocks a literal "/", but a URL-encoded
+    ".." segment can still reach here). Resolving the real path and checking it's
+    actually nested under OUTPUT_DIR is what actually stops a delete from ever landing
+    outside the output tree, rather than just special-casing the string "..".
+    """
+    paths = manifest_mod.episode_paths(OUTPUT_DIR, slug)
+    root_real = os.path.realpath(paths["root"])
+    output_real = os.path.realpath(OUTPUT_DIR)
+    if root_real != output_real and not root_real.startswith(output_real + os.sep):
+        raise HTTPException(status_code=400, detail="invalid episode slug")
+    return paths
+
+
+class UpdateEpisodeRequest(BaseModel):
+    title: str
+
+
+@app.patch("/episodes/{slug}")
+def update_episode(slug: str, req: UpdateEpisodeRequest):
+    """Rename an episode's own display title (the one shown here, in Open WebUI, and in
+    the CLI summary) -- separate from its YouTube title, which is edited via
+    PATCH /episodes/{slug}/youtube instead.
+    """
+    paths = manifest_mod.episode_paths(OUTPUT_DIR, slug)
+    m = manifest_mod.load_manifest(paths["manifest"])
+    if not m:
+        raise HTTPException(status_code=404, detail="episode not found")
+
+    title = req.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="title must not be empty")
+
+    m["title"] = title
+    manifest_mod.save_manifest(paths["manifest"], m)
+    return _episode_progress(slug)
+
+
+@app.delete("/episodes/{slug}")
+def delete_episode(slug: str):
+    """Permanently remove this episode's entire output directory -- scripts, audio,
+    video, images, final MP4, everything. Frees real disk space; irreversible. Refuses
+    while a job is actively running for this slug, so files can't be pulled out from
+    under a generation in progress.
+
+    Does not touch a Jellyfin hardlink for this episode (if one exists) directly --
+    history-api has no mount into /srv/media/generated-episodes. sync-jellyfin-library.sh
+    prunes it automatically on its next scheduled run (every 15 minutes via cron) once
+    the source file is gone, not instantly.
+    """
+    with _lock:
+        if slug in _active_slugs:
+            raise HTTPException(
+                status_code=409,
+                detail="a job is currently running for this episode -- cannot delete while active",
+            )
+
+    paths = _safe_episode_root(slug)
+    if not os.path.isdir(paths["root"]):
+        raise HTTPException(status_code=404, detail="episode not found")
+
+    shutil.rmtree(paths["root"])
+    _youtube_publish_status.pop(slug, None)
+    return {"status": "deleted", "slug": slug}
+
+
 @app.get("/episodes/{slug}/youtube")
 def get_youtube_metadata(slug: str):
     """The cached YouTube upload metadata (title, description, tags, category,
@@ -458,6 +527,56 @@ def get_youtube_metadata(slug: str):
     youtube = m.get("youtube")
     if not youtube:
         raise HTTPException(status_code=404, detail="YouTube metadata not generated yet for this episode")
+    return youtube
+
+
+class UpdateYoutubeMetadataRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+    category: str | None = None
+
+    @field_validator("category")
+    @classmethod
+    def _valid_category(cls, v):
+        if v is not None and v not in youtube_publish.CATEGORY_IDS:
+            raise ValueError(f"category must be one of {sorted(youtube_publish.CATEGORY_IDS)}")
+        return v
+
+
+@app.patch("/episodes/{slug}/youtube")
+def update_youtube_metadata(slug: str, req: UpdateYoutubeMetadataRequest):
+    """Manually edit the generated title/description/tags/category before publishing.
+    Chapters are never editable here -- they're pure arithmetic from segment durations
+    (see youtube_metadata.py:compute_chapters), not something to hand-tune, and stay
+    exactly as generated. Only the fields actually provided are changed; everything else
+    in the "youtube" block (chapters, generated_for_segment_count, video_id,
+    published_at, ...) is left untouched.
+    """
+    paths = manifest_mod.episode_paths(OUTPUT_DIR, slug)
+    m = manifest_mod.load_manifest(paths["manifest"])
+    if not m:
+        raise HTTPException(status_code=404, detail="episode not found")
+    youtube = m.get("youtube")
+    if not youtube:
+        raise HTTPException(status_code=404, detail="YouTube metadata not generated yet for this episode")
+
+    if req.title is not None:
+        title = req.title.strip()
+        if not title:
+            raise HTTPException(status_code=422, detail="title must not be empty")
+        youtube["title"] = title[:100]  # YouTube's own real title limit
+    if req.description is not None:
+        youtube["description"] = req.description
+    if req.tags is not None:
+        tags = [t.strip() for t in req.tags if t.strip()]
+        youtube["tags"] = tags
+        youtube["tags_joined"] = ", ".join(tags)
+    if req.category is not None:
+        youtube["category"] = req.category
+
+    m["youtube"] = youtube
+    manifest_mod.save_manifest(paths["manifest"], m)
     return youtube
 
 

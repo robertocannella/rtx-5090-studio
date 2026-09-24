@@ -14,6 +14,13 @@
 # and would otherwise keep showing Jellyfin stale content forever. Detected by comparing
 # device:inode, not mtime/size, so it's correct even if a regenerated episode happens to
 # land on the same size by coincidence.
+#
+# Also prunes hardlinks whose source episode no longer exists in OUTPUT_DIR at all (e.g.
+# deleted via the Configuration UI's "Delete episode" -- see api.py's DELETE
+# /episodes/{slug}, which only removes the episode's own output directory, not this
+# separate hardlink tree). Deleting an episode doesn't remove it from Jellyfin
+# immediately -- it disappears on this script's next scheduled run (every 15 minutes via
+# cron, see crontab -l), not instantly.
 set -euo pipefail
 
 OUTPUT_DIR="/srv/apps/history-generator/output"
@@ -41,4 +48,15 @@ for f in "$OUTPUT_DIR"/*/final/*.mp4; do
   fi
 done
 
-echo "$linked new episode(s) linked, $relinked updated for changed content."
+pruned=0
+for link in "$LIBRARY_DIR"/*.mp4; do
+  [ -e "$link" ] || continue
+  slug=$(basename "$link" .mp4)
+  if [ ! -e "$OUTPUT_DIR/$slug/final/$slug.mp4" ]; then
+    rm -f "$link"
+    echo "pruned (source deleted): $slug"
+    pruned=$((pruned + 1))
+  fi
+done
+
+echo "$linked new episode(s) linked, $relinked updated for changed content, $pruned pruned for deleted episodes."

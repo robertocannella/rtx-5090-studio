@@ -13,8 +13,15 @@
 </header>
 <div id="init-loading-bar" class="loading-bar" aria-hidden="true"></div>
 
+<nav class="tabs">
+  <button type="button" class="tab-btn" data-tab="generate">Generate</button>
+  <button type="button" class="tab-btn" data-tab="episodes">Episodes</button>
+</nav>
+
 <main>
   <div id="top-error" class="top-error"></div>
+
+  <div id="tab-generate" class="tab-panel">
 
   <section class="panel">
     <h2>Preset</h2>
@@ -158,13 +165,26 @@
     <div id="jobs-list"><p class="hint">Loading...</p></div>
   </section>
 
-  <section class="panel">
-    <details id="episodes-details">
-      <summary>All episodes on this server</summary>
+  </div>
+
+  <div id="tab-episodes" class="tab-panel">
+    <section class="panel">
+      <h2>Episodes</h2>
+      <div class="episodes-toolbar">
+        <input type="text" id="episode-search" placeholder="Search by title or topic...">
+        <select id="episode-domain-filter">
+          <option value="">All domains</option>
+        </select>
+        <select id="episode-status-filter">
+          <option value="">All statuses</option>
+          <option value="done">Done</option>
+          <option value="in-progress">In progress</option>
+        </select>
+        <button type="button" class="small" id="refresh-episodes-btn">Refresh</button>
+      </div>
       <div id="episodes-list"><p class="hint">Loading...</p></div>
-      <button type="button" class="small" id="refresh-episodes-btn">Refresh</button>
-    </details>
-  </section>
+    </section>
+  </div>
 </main>
 
 <audio id="voice-preview-audio" preload="none" style="display:none;"></audio>
