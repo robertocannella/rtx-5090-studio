@@ -1019,14 +1019,20 @@
   function renderEpisodesList() {
     const list = $("episodes-list");
     if (!allEpisodes.length) {
+      list.classList.remove("episode-grid");
       list.innerHTML = '<p class="hint">No episodes yet.</p>';
       return;
     }
     const episodes = sortEpisodes(filteredEpisodes());
     if (!episodes.length) {
+      list.classList.remove("episode-grid");
       list.innerHTML = '<p class="hint">No episodes match your search/filters.</p>';
       return;
     }
+    // .episode-grid is what makes the header and every row share one CSS Grid (see
+    // style.css) so their columns actually line up -- only applied once there's a real
+    // table to lay out, not for the plain-text placeholder states above.
+    list.classList.add("episode-grid");
     list.innerHTML = episodeTableHeaderHtml() + episodes.map(episodeRowHtml).join("");
     wireSortHeaders();
     list.querySelectorAll(".yt-toggle-btn").forEach((btn) => {

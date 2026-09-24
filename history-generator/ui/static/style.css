@@ -1,14 +1,15 @@
 :root {
-  --bg: #141414;
-  --panel: #1c1c1c;
-  --panel-alt: #232323;
-  --border: #333;
-  --text: #eee;
-  --text-dim: #999;
-  --accent: #e8b94a;
-  --accent-dim: #a9822f;
-  --danger: #d9534f;
-  --ok: #6fbf73;
+  /* Nord (https://www.nordtheme.com) dark palette. */
+  --bg: #2e3440;        /* nord0 */
+  --panel: #3b4252;     /* nord1 */
+  --panel-alt: #434c5e; /* nord2 */
+  --border: #4c566a;    /* nord3 */
+  --text: #eceff4;      /* nord6 */
+  --text-dim: #7b88a1;  /* muted nord4/nord3 blend */
+  --accent: #88c0d0;    /* nord8, frost cyan */
+  --accent-dim: #5e81ac; /* nord10, frost blue */
+  --danger: #bf616a;    /* nord11 */
+  --ok: #a3be8c;        /* nord14 */
   --radius: 8px;
 }
 
@@ -229,7 +230,7 @@ button:hover { border-color: var(--accent-dim); }
 
 button.primary {
   background: var(--accent);
-  color: #141414;
+  color: var(--bg);
   border-color: var(--accent);
   font-weight: 600;
 }
@@ -267,9 +268,9 @@ button.small {
 }
 
 .top-error {
-  background: #3a1f1f;
+  background: #3b2a2d;
   border: 1px solid var(--danger);
-  color: #f5b5b3;
+  color: #e8a9ae;
   padding: 10px 12px;
   border-radius: 6px;
   margin-bottom: 12px;
@@ -302,7 +303,7 @@ button.small {
 
 .progress-bar {
   height: 6px;
-  background: #333;
+  background: var(--border);
   border-radius: 3px;
   overflow: hidden;
   margin-bottom: 6px;
@@ -338,12 +339,30 @@ details summary {
   margin-bottom: 8px;
 }
 
-.episode-table-header,
-.episode-row {
+/* #episodes-list is the ONE grid that matters here -- .episode-table-header,
+   .episode-row-wrap and .episode-row are all `display: contents`, so their children
+   (the header cells, and each row's 5 column divs) become direct children of this single
+   grid instead of each row/the header forming its own independent grid. That's what makes
+   the columns actually line up: CSS Grid only shares column-track sizing across cells that
+   belong to the *same* grid, and `auto`-sized tracks were previously being computed
+   separately per row (and separately again for the header), based only on that one row's
+   own content -- so a short title in one row and a long one in the next could each end up
+   with different column widths, none of which matched the header. */
+#episodes-list.episode-grid {
   display: grid;
-  grid-template-columns: minmax(200px, 2fr) minmax(70px, auto) minmax(90px, auto) minmax(110px, auto) minmax(190px, auto);
-  gap: 16px;
-  align-items: center;
+  grid-template-columns: minmax(200px, 2fr) minmax(70px, auto) minmax(90px, auto) minmax(140px, auto) minmax(190px, auto);
+  column-gap: 16px;
+  row-gap: 0;
+}
+
+#episodes-list.episode-grid > p.hint {
+  grid-column: 1 / -1;
+}
+
+.episode-table-header,
+.episode-row-wrap,
+.episode-row {
+  display: contents;
 }
 
 .col-sort-btn {
@@ -361,7 +380,7 @@ details summary {
 
 .col-sort-btn:hover { color: var(--text); }
 
-.episode-table-header {
+.episode-table-header > * {
   padding: 4px 0 8px;
   border-bottom: 1px solid var(--border);
   font-size: 0.75rem;
@@ -370,13 +389,14 @@ details summary {
   color: var(--text-dim);
 }
 
-.episode-row {
+.episode-row > div {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.85rem;
+  align-self: center;
 }
 
-.episode-row-wrap:last-child .episode-row { border-bottom: none; }
+.episode-row-wrap:last-child .episode-row > div { border-bottom: none; }
 
 .ep-col-actions {
   display: flex;
@@ -413,14 +433,26 @@ details summary {
 
 .yt-meta textarea { min-height: 80px; resize: vertical; }
 
-/* Below ~760px there isn't room for five columns -- fall back to stacked rows, with
-   data-label attributes (set on the length/segments/status divs in app.js) prefixed via
-   ::before so a bare "23m" or "done" isn't ambiguous once the column headers are gone. */
+/* Below ~760px there isn't room for five columns -- collapse the shared grid to one
+   column, so every cell (across every row) just stacks top to bottom in DOM order.
+   data-label attributes (set on the length/segments/status divs in app.js) are prefixed
+   via ::before so a bare "23m" or "done" isn't ambiguous once the column headers are
+   hidden, and only the Actions cell keeps a border, so one visible line still marks the
+   end of each episode's group of stacked fields. */
 @media (max-width: 760px) {
   .episode-table-header { display: none; }
-  .episode-row {
+  #episodes-list.episode-grid {
     grid-template-columns: 1fr;
-    gap: 4px;
+    row-gap: 4px;
+  }
+  .episode-row > div {
+    padding: 2px 0;
+    border-bottom: none;
+  }
+  .episode-row > .ep-col-actions {
+    padding: 6px 0 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
   }
   .ep-col-length::before,
   .ep-col-segments::before,
@@ -431,6 +463,7 @@ details summary {
 }
 
 .yt-panel {
+  grid-column: 1 / -1;
   margin: 4px 0 10px;
   padding: 10px;
   background: var(--panel-alt);
@@ -471,7 +504,7 @@ details summary {
   font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 10px;
-  background: #2a2a2a;
+  background: var(--bg);
   color: var(--text-dim);
   margin-left: 4px;
 }
