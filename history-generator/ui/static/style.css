@@ -341,10 +341,25 @@ details summary {
 .episode-table-header,
 .episode-row {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) minmax(180px, 1.3fr) minmax(200px, auto);
+  grid-template-columns: minmax(200px, 2fr) minmax(70px, auto) minmax(90px, auto) minmax(110px, auto) minmax(190px, auto);
   gap: 16px;
   align-items: center;
 }
+
+.col-sort-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.col-sort-btn:hover { color: var(--text); }
 
 .episode-table-header {
   padding: 4px 0 8px;
@@ -398,13 +413,20 @@ details summary {
 
 .yt-meta textarea { min-height: 80px; resize: vertical; }
 
-/* Below ~600px there isn't room for three columns -- fall back to stacked rows like the
-   layout before this, rather than truncating/overlapping content. */
-@media (max-width: 600px) {
+/* Below ~760px there isn't room for five columns -- fall back to stacked rows, with
+   data-label attributes (set on the length/segments/status divs in app.js) prefixed via
+   ::before so a bare "23m" or "done" isn't ambiguous once the column headers are gone. */
+@media (max-width: 760px) {
   .episode-table-header { display: none; }
   .episode-row {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+  .ep-col-length::before,
+  .ep-col-segments::before,
+  .ep-col-status::before {
+    content: attr(data-label) ": ";
+    color: var(--text-dim);
   }
 }
 

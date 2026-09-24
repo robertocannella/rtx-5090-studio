@@ -887,6 +887,73 @@
     renderEpisodesList();
   }
 
+  function formatDuration(seconds) {
+    if (seconds == null) return "--";
+    const total = Math.round(seconds);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+    if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
+    return `${s}s`;
+  }
+
+  // Actual narrated length once it's known, falling back to the requested target before
+  // narration finishes -- so a still-running episode sorts/displays sensibly instead of "--".
+  function episodeLengthSeconds(ep) {
+    return ep.narration_seconds != null ? ep.narration_seconds : ep.target_duration_seconds;
+  }
+
+  function episodeStatusLabel(ep) {
+    // See the target_reached comment in jobCardHtml -- segments_complete a bit below
+    // segments_total is normal for a finished episode (outline buffer left unused).
+    return ep.final_video_exists ? "done" : (stageLabel(ep) || (ep.target_reached ? "finalizing" : "in progress"));
+  }
+
+  // ---- sorting -------------------------------------------------------
+
+  let sortField = null; // "title" | "length" | "segments" | "status"
+  let sortDir = 1; // 1 = ascending, -1 = descending
+
+  const SORT_COLUMNS = {
+    title: { label: "Episode", get: (ep) => (ep.title || ep.topic || "").toLowerCase() },
+    length: { label: "Length", get: (ep) => episodeLengthSeconds(ep) || 0 },
+    segments: { label: "Segments", get: (ep) => ep.segments_complete || 0 },
+    status: { label: "Status", get: (ep) => episodeStatusLabel(ep) },
+  };
+
+  function sortIndicator(field) {
+    if (sortField !== field) return "";
+    return sortDir === 1 ? " ▲" : " ▼";
+  }
+
+  function sortEpisodes(list) {
+    if (!sortField) return list;
+    const { get } = SORT_COLUMNS[sortField];
+    return [...list].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      if (av < bv) return -1 * sortDir;
+      if (av > bv) return 1 * sortDir;
+      return 0;
+    });
+  }
+
+  function wireSortHeaders() {
+    document.querySelectorAll(".col-sort-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const field = btn.dataset.sort;
+        if (sortField === field) {
+          sortDir = -sortDir;
+        } else {
+          sortField = field;
+          sortDir = 1;
+        }
+        renderEpisodesList();
+      });
+    });
+  }
+
   function findEpisodeRowWrap(slug) {
     return Array.from(document.querySelectorAll(".episode-row-wrap")).find((el) => el.dataset.slug === slug);
   }
@@ -908,14 +975,15 @@
   }
 
   function episodeRowHtml(ep) {
+    const domainTag = ep.domain ? `<span class="tag">${escapeHtml(ep.domain)}</span>` : "";
+    const lengthLabel = formatDuration(episodeLengthSeconds(ep));
     // See the target_reached comment in jobCardHtml -- segments_complete a bit
     // below segments_total is normal for a finished episode (outline buffer left
     // unused), not a sign it's still catching up.
-    const status = ep.final_video_exists ? "done" : (stageLabel(ep) || (ep.target_reached ? "finalizing" : "in progress"));
     const segmentsLabel = ep.target_reached
-      ? `${ep.segments_complete} segments narrated`
-      : `${ep.segments_complete}/${ep.segments_total} segments`;
-    const domainTag = ep.domain ? `<span class="tag">${escapeHtml(ep.domain)}</span>` : "";
+      ? `${ep.segments_complete} narrated`
+      : `${ep.segments_complete}/${ep.segments_total}`;
+    const status = episodeStatusLabel(ep);
     const ytActions = ep.youtube_metadata_ready
       ? `<button type="button" class="small yt-toggle-btn" data-slug="${escapeHtml(ep.slug)}">YouTube metadata</button>`
       : `<button type="button" class="small yt-generate-btn" data-slug="${escapeHtml(ep.slug)}">Generate YouTube metadata</button>
@@ -926,7 +994,9 @@
           <span class="ep-title-display">${escapeHtml(ep.title || ep.topic)}</span> ${domainTag}
           <button type="button" class="small ep-edit-title-btn" data-slug="${escapeHtml(ep.slug)}">Rename</button>
         </div>
-        <div class="ep-col-status">${segmentsLabel} &middot; ${status}</div>
+        <div class="ep-col-length" data-label="Length">${lengthLabel}</div>
+        <div class="ep-col-segments" data-label="Segments">${segmentsLabel}</div>
+        <div class="ep-col-status" data-label="Status">${status}</div>
         <div class="ep-col-actions">
           ${ytActions}
           <button type="button" class="small btn-danger ep-delete-btn" data-slug="${escapeHtml(ep.slug)}">Delete</button>
@@ -936,21 +1006,29 @@
     </div>`;
   }
 
+  function episodeTableHeaderHtml() {
+    return `<div class="episode-table-header">
+      <button type="button" class="col-sort-btn" data-sort="title">Episode${sortIndicator("title")}</button>
+      <button type="button" class="col-sort-btn" data-sort="length">Length${sortIndicator("length")}</button>
+      <button type="button" class="col-sort-btn" data-sort="segments">Segments${sortIndicator("segments")}</button>
+      <button type="button" class="col-sort-btn" data-sort="status">Status${sortIndicator("status")}</button>
+      <div>Actions</div>
+    </div>`;
+  }
+
   function renderEpisodesList() {
     const list = $("episodes-list");
     if (!allEpisodes.length) {
       list.innerHTML = '<p class="hint">No episodes yet.</p>';
       return;
     }
-    const episodes = filteredEpisodes();
+    const episodes = sortEpisodes(filteredEpisodes());
     if (!episodes.length) {
       list.innerHTML = '<p class="hint">No episodes match your search/filters.</p>';
       return;
     }
-    const headerRow = `<div class="episode-table-header">
-      <div>Episode</div><div>Progress</div><div>Actions</div>
-    </div>`;
-    list.innerHTML = headerRow + episodes.map(episodeRowHtml).join("");
+    list.innerHTML = episodeTableHeaderHtml() + episodes.map(episodeRowHtml).join("");
+    wireSortHeaders();
     list.querySelectorAll(".yt-toggle-btn").forEach((btn) => {
       btn.addEventListener("click", () => toggleYoutubePanel(btn.dataset.slug));
     });
