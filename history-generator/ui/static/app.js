@@ -992,13 +992,13 @@
       <div class="episode-row">
         <div class="ep-col-title">
           <span class="ep-title-display">${escapeHtml(ep.title || ep.topic)}</span> ${domainTag}
-          <button type="button" class="small ep-edit-title-btn" data-slug="${escapeHtml(ep.slug)}">Rename</button>
         </div>
         <div class="ep-col-length" data-label="Length">${lengthLabel}</div>
         <div class="ep-col-segments" data-label="Segments">${segmentsLabel}</div>
         <div class="ep-col-status" data-label="Status">${status}</div>
         <div class="ep-col-actions">
           ${ytActions}
+          <button type="button" class="small ep-edit-title-btn" data-slug="${escapeHtml(ep.slug)}">Edit</button>
           <button type="button" class="small btn-danger ep-delete-btn" data-slug="${escapeHtml(ep.slug)}">Delete</button>
         </div>
       </div>

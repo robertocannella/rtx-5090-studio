@@ -350,7 +350,7 @@ details summary {
    with different column widths, none of which matched the header. */
 #episodes-list.episode-grid {
   display: grid;
-  grid-template-columns: minmax(200px, 2fr) minmax(70px, auto) minmax(90px, auto) minmax(140px, auto) minmax(190px, auto);
+  grid-template-columns: minmax(200px, 2fr) minmax(70px, auto) minmax(90px, auto) minmax(140px, auto) minmax(190px, 240px);
   column-gap: 16px;
   row-gap: 0;
 }
@@ -398,12 +398,22 @@ details summary {
 
 .episode-row-wrap:last-child .episode-row > div { border-bottom: none; }
 
+/* Fixed-width column (see the Actions track above), buttons never wrap onto a second
+   line -- instead the cell scrolls horizontally if its buttons don't all fit, so a row's
+   height stays constant regardless of how many action buttons/status text it's showing. */
 .ep-col-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
+
+.ep-col-actions > * { flex-shrink: 0; }
 
 .ep-title-edit-row {
   display: flex;
