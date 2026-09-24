@@ -164,6 +164,39 @@ def test_youtube_metadata_ready_reflects_manifest_state(tmp_path, monkeypatch):
     assert api._episode_progress("test-episode")["youtube_metadata_ready"] is True
 
 
+def test_youtube_video_id_and_privacy_status_absent_before_publishing(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    paths = manifest_mod.episode_paths(str(tmp_path), "test-episode")
+    manifest_mod.ensure_dirs(paths)
+    manifest_mod.save_manifest(paths["manifest"], {
+        "title": "Test Episode", "topic": "Test Episode", "target_duration_seconds": 60,
+        "segments": [{"number": 1, "title": "A", "duration": 60.0, "status": "complete"}],
+        "youtube": {"title": "T", "description": "D", "tags": [], "category": "Education", "chapters": ""},
+    })
+
+    progress = api._episode_progress("test-episode")
+    assert progress["youtube_video_id"] is None
+    assert progress["youtube_privacy_status"] is None
+
+
+def test_youtube_video_id_and_privacy_status_reflect_manifest_once_published(tmp_path, monkeypatch):
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    paths = manifest_mod.episode_paths(str(tmp_path), "test-episode")
+    manifest_mod.ensure_dirs(paths)
+    manifest_mod.save_manifest(paths["manifest"], {
+        "title": "Test Episode", "topic": "Test Episode", "target_duration_seconds": 60,
+        "segments": [{"number": 1, "title": "A", "duration": 60.0, "status": "complete"}],
+        "youtube": {
+            "title": "T", "description": "D", "tags": [], "category": "Education", "chapters": "",
+            "video_id": "abc123", "privacy_status": "unlisted",
+        },
+    })
+
+    progress = api._episode_progress("test-episode")
+    assert progress["youtube_video_id"] == "abc123"
+    assert progress["youtube_privacy_status"] == "unlisted"
+
+
 def test_stage_is_complete_once_final_video_exists(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
     root = str(tmp_path)

@@ -276,10 +276,35 @@ def test_publish_without_video_id_uploads_and_stores_result(tmp_path, monkeypatc
     assert result == {"status": "uploading"}
     assert api._youtube_publish_status["test-episode"]["status"] == "complete"
     assert api._youtube_publish_status["test-episode"]["video_id"] == "newvid123"
+    assert api._youtube_publish_status["test-episode"]["privacy_status"] == "private"
     assert calls[0][1]["privacy_status"] == "private"  # default, never silently public
 
     saved = manifest_mod.load_manifest(paths["manifest"])
     assert saved["youtube"]["video_id"] == "newvid123"
+    assert saved["youtube"]["privacy_status"] == "private"
+
+
+def test_publish_without_video_id_prefers_confirmed_privacy_status_from_response(tmp_path, monkeypatch):
+    """If YouTube's response ever disagreed with what we asked for, the confirmed value
+    (echoed back in the upload response's "status" object) is what gets stored -- not a
+    blind copy of the request -- since that's the only thing we actually know is true."""
+    monkeypatch.setattr(api, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(api, "threading", type("T", (), {"Thread": ImmediateThread}))
+    _configure_youtube_env(monkeypatch)
+    api._youtube_publish_status.clear()
+    _make_episode(tmp_path, youtube={"title": "T", "description": "D", "tags": [], "category": "Education", "chapters": ""})
+    paths = manifest_mod.episode_paths(str(tmp_path), "test-episode")
+    _touch(os.path.join(paths["final"], "test-episode.mp4"))
+    monkeypatch.setattr(
+        api.youtube_publish, "upload_video",
+        lambda *a, **k: {"id": "newvid123", "status": {"privacyStatus": "unlisted"}},
+    )
+
+    api.publish_youtube_metadata("test-episode", api.PublishYoutubeRequest(privacy_status="private"))
+
+    assert api._youtube_publish_status["test-episode"]["privacy_status"] == "unlisted"
+    saved = manifest_mod.load_manifest(paths["manifest"])
+    assert saved["youtube"]["privacy_status"] == "unlisted"
 
 
 def test_publish_without_video_id_honors_explicit_privacy_status(tmp_path, monkeypatch):

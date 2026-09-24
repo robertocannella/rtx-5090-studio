@@ -230,6 +230,14 @@ def _episode_progress(slug):
         "final_video_path": final_path if final_exists else None,
         "final_video_host_path": final_host_path,
         "youtube_metadata_ready": bool(m.get("youtube")),
+        "youtube_video_id": (m.get("youtube") or {}).get("video_id"),
+        # Only ever set by our own upload (a brand-new video, where we choose the privacy
+        # ourselves) -- pushing metadata onto an already-published video (video_id given to
+        # POST .../publish) never touches privacy, so this can go stale if the privacy is
+        # later changed by hand in YouTube Studio. That's a known, accepted limitation: this
+        # is "last privacy status we ourselves set", not a live read of YouTube's truth,
+        # which would mean an API call per episode on every poll of this list.
+        "youtube_privacy_status": (m.get("youtube") or {}).get("privacy_status"),
     }
 
 
@@ -551,7 +559,7 @@ def update_youtube_metadata(slug: str, req: UpdateYoutubeMetadataRequest):
     (see youtube_metadata.py:compute_chapters), not something to hand-tune, and stay
     exactly as generated. Only the fields actually provided are changed; everything else
     in the "youtube" block (chapters, generated_for_segment_count, video_id,
-    published_at, ...) is left untouched.
+    published_at, privacy_status, ...) is left untouched.
     """
     paths = manifest_mod.episode_paths(OUTPUT_DIR, slug)
     m = manifest_mod.load_manifest(paths["manifest"])
@@ -644,13 +652,19 @@ def _run_youtube_upload(slug, manifest_path, video_path, metadata, privacy_statu
         return
 
     video_id = result.get("id")
-    _youtube_publish_status[slug] = {"status": "complete", "video_id": video_id}
+    # Prefer what YouTube's response actually confirms (it echoes back the full "status"
+    # object for the part=snippet,status upload request) over the value we asked for, in
+    # case the two ever diverge -- falls back to the request value if the response is
+    # missing it for some reason, rather than storing nothing.
+    confirmed_privacy_status = (result.get("status") or {}).get("privacyStatus") or privacy_status
+    _youtube_publish_status[slug] = {"status": "complete", "video_id": video_id, "privacy_status": confirmed_privacy_status}
 
     m = manifest_mod.load_manifest(manifest_path)
     if m:
         youtube = m.get("youtube") or {}
         youtube["video_id"] = video_id
         youtube["published_at"] = time.time()
+        youtube["privacy_status"] = confirmed_privacy_status
         m["youtube"] = youtube
         manifest_mod.save_manifest(manifest_path, m)
 

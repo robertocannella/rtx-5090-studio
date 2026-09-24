@@ -587,6 +587,23 @@
     return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`;
   }
 
+  function privacyBadgeHtml(privacyStatus) {
+    if (!privacyStatus) return "";
+    const label = privacyStatus.charAt(0).toUpperCase() + privacyStatus.slice(1);
+    return `<span class="tag tag-privacy-${escapeHtml(privacyStatus)}">${escapeHtml(label)}</span>`;
+  }
+
+  // Published/privacy badges next to an episode's title in the list -- youtube_video_id
+  // and youtube_privacy_status come straight from the manifest (see _episode_progress()
+  // in api.py), not a live YouTube lookup, so privacy_status reflects the last status WE
+  // set via our own publish action and can go stale if it's later changed by hand in
+  // YouTube Studio. Nothing is shown at all for an episode that's never been published.
+  function youtubeBadgesHtml(ep) {
+    if (!ep.youtube_video_id) return "";
+    const publishedBadge = `<a class="tag tag-published" href="${escapeHtml(youtubeWatchUrl(ep.youtube_video_id))}" target="_blank" rel="noopener" title="Published to YouTube">Published</a>`;
+    return ` ${publishedBadge}${privacyBadgeHtml(ep.youtube_privacy_status)}`;
+  }
+
   const YOUTUBE_CATEGORIES = ["Education", "Science & Technology", "Entertainment"];
 
   function youtubeViewModeHtml(y) {
@@ -632,7 +649,7 @@
 
   function youtubePanelHtml(slug, y) {
     const publishedNote = y.video_id
-      ? `<div class="hint">Last published: ${youtubeWatchLinkHtml(y.video_id)}</div>`
+      ? `<div class="hint">Last published: ${youtubeWatchLinkHtml(y.video_id)} ${privacyBadgeHtml(y.privacy_status)}</div>`
       : "";
     return `
       <div class="yt-meta">
@@ -674,8 +691,13 @@
         status.textContent = "Uploading to YouTube (this can take several minutes for a long episode)...";
         setTimeout(tick, 5000);
       } else if (s.status === "complete") {
-        status.innerHTML = `Published: ${youtubeWatchLinkHtml(s.video_id)}`;
-        if (youtubeCache[slug]) youtubeCache[slug] = { ...youtubeCache[slug], video_id: s.video_id };
+        status.innerHTML = `Published: ${youtubeWatchLinkHtml(s.video_id)} ${privacyBadgeHtml(s.privacy_status)}`;
+        if (youtubeCache[slug]) youtubeCache[slug] = { ...youtubeCache[slug], video_id: s.video_id, privacy_status: s.privacy_status };
+        // The episode list's Published/privacy badges (see youtubeBadgesHtml) come from the
+        // manifest, which _run_youtube_upload just updated server-side -- force the next
+        // 8s poll to pick that up instead of treating an identical-looking older fetch as
+        // "unchanged".
+        lastEpisodesJson = null;
         const input = panel.querySelector(".yt-video-id");
         if (input) input.value = s.video_id;
         publishBtn.disabled = false;
@@ -728,6 +750,7 @@
           const result = await apiPost(`/api/episodes/${encodeURIComponent(slug)}/youtube/publish`, { video_id: videoId });
           status.innerHTML = `Published: ${youtubeWatchLinkHtml(result.video_id)}`;
           if (youtubeCache[slug]) youtubeCache[slug] = { ...youtubeCache[slug], video_id: result.video_id };
+          lastEpisodesJson = null; // the row's Published badge (youtubeBadgesHtml) needs the next poll to pick this up
         } catch (e) {
           status.textContent = "Failed: " + e.message;
           status.className = "yt-publish-status error";
@@ -872,6 +895,66 @@
     });
   }
 
+  // ---- generic confirm modal -------------------------------------------------------
+
+  // A small reusable "are you sure?" popup -- used by delete (below), rather than
+  // replacing a row's own DOM in place, so a slow or failed confirm doesn't leave a row
+  // stuck mid-transformation and the row's real content never has to be reconstructed
+  // afterward. `onConfirm` is an async function; while it's pending, both buttons are
+  // disabled and confirmModalOpen is true so a background list refresh (renderEpisodesList)
+  // wouldn't affect this modal anyway -- it's a separate DOM node, same as the YouTube one.
+  let confirmModalOpen = false;
+  let confirmModalOnConfirm = null;
+
+  function closeConfirmModal() {
+    confirmModalOpen = false;
+    confirmModalOnConfirm = null;
+    $("confirm-modal").style.display = "none";
+    $("confirm-modal-status").textContent = "";
+    $("confirm-modal-status").className = "";
+  }
+
+  function openConfirmModal({ message, confirmLabel, onConfirm }) {
+    confirmModalOpen = true;
+    confirmModalOnConfirm = onConfirm;
+    $("confirm-modal-message").textContent = message;
+    const confirmBtn = $("confirm-modal-confirm-btn");
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.disabled = false;
+    $("confirm-modal-cancel-btn").disabled = false;
+    $("confirm-modal-status").textContent = "";
+    $("confirm-modal-status").className = "";
+    $("confirm-modal").style.display = "flex";
+  }
+
+  function wireConfirmModal() {
+    $("confirm-modal-close").addEventListener("click", closeConfirmModal);
+    $("confirm-modal-cancel-btn").addEventListener("click", closeConfirmModal);
+    $("confirm-modal").addEventListener("click", (evt) => {
+      if (evt.target.id === "confirm-modal") closeConfirmModal();
+    });
+    document.addEventListener("keydown", (evt) => {
+      if (evt.key === "Escape" && confirmModalOpen) closeConfirmModal();
+    });
+    $("confirm-modal-confirm-btn").addEventListener("click", async () => {
+      const status = $("confirm-modal-status");
+      const confirmBtn = $("confirm-modal-confirm-btn");
+      confirmBtn.disabled = true;
+      $("confirm-modal-cancel-btn").disabled = true;
+      status.className = "";
+      status.textContent = "Working...";
+      try {
+        await confirmModalOnConfirm();
+        closeConfirmModal();
+      } catch (e) {
+        status.textContent = "Failed: " + e.message;
+        status.className = "error";
+        confirmBtn.disabled = false;
+        $("confirm-modal-cancel-btn").disabled = false;
+      }
+    });
+  }
+
   // Set once the episodes list has rendered real content -- after that, refreshes
   // (the 8s auto-refresh tick, or the manual Refresh button) update the list's content
   // directly instead of first wiping it to "Loading...". Without this, every refresh
@@ -999,6 +1082,7 @@
     const search = $("episode-search").value.trim().toLowerCase();
     const domain = $("episode-domain-filter").value;
     const status = $("episode-status-filter").value;
+    const youtubeFilter = $("episode-youtube-filter").value;
     return allEpisodes.filter((ep) => {
       if (search) {
         const haystack = `${ep.title || ""} ${ep.topic || ""}`.toLowerCase();
@@ -1007,6 +1091,12 @@
       if (domain && ep.domain !== domain) return false;
       if (status === "done" && !ep.final_video_exists) return false;
       if (status === "in-progress" && ep.final_video_exists) return false;
+      if (youtubeFilter === "published" && !ep.youtube_video_id) return false;
+      if (youtubeFilter === "not-published" && ep.youtube_video_id) return false;
+      // private/unlisted/public: only a published episode with that specific known
+      // privacy_status matches -- see youtubeBadgesHtml's comment on why this can be
+      // stale/absent (it's the last status WE set, not a live YouTube lookup).
+      if (["private", "unlisted", "public"].includes(youtubeFilter) && ep.youtube_privacy_status !== youtubeFilter) return false;
       return true;
     });
   }
@@ -1024,7 +1114,7 @@
     return `<div class="episode-row-wrap" data-slug="${escapeHtml(ep.slug)}">
       <div class="episode-row">
         <div class="ep-col-title">
-          <span class="ep-title-display">${escapeHtml(ep.title || ep.topic)}</span> ${domainTag}
+          <span class="ep-title-display">${escapeHtml(ep.title || ep.topic)}</span> ${domainTag}${youtubeBadgesHtml(ep)}
         </div>
         <div class="ep-col-length" data-label="Length">${lengthLabel}</div>
         <div class="ep-col-segments" data-label="Segments">${segmentsLabel}</div>
@@ -1082,6 +1172,7 @@
     $("episode-search").addEventListener("input", renderEpisodesList);
     $("episode-domain-filter").addEventListener("change", renderEpisodesList);
     $("episode-status-filter").addEventListener("change", renderEpisodesList);
+    $("episode-youtube-filter").addEventListener("change", renderEpisodesList);
   }
 
   function startEditEpisodeTitle(slug) {
@@ -1123,28 +1214,19 @@
   }
 
   function startDeleteEpisode(slug) {
-    const wrap = findEpisodeRowWrap(slug);
-    if (!wrap) return;
-    const actions = wrap.querySelector(".ep-col-actions");
-    actions.innerHTML = `
-      <span class="yt-publish-status error">Delete this episode? This permanently removes all its files.</span>
-      <button type="button" class="small btn-danger ep-confirm-delete-btn">Yes, delete</button>
-      <button type="button" class="small ep-cancel-delete-btn">Cancel</button>`;
-    actions.querySelector(".ep-cancel-delete-btn").addEventListener("click", renderEpisodesList);
-    actions.querySelector(".ep-confirm-delete-btn").addEventListener("click", async () => {
-      actions.innerHTML = '<span class="hint">Deleting...</span>';
-      try {
+    const ep = allEpisodes.find((e) => e.slug === slug);
+    const title = ep ? (ep.title || ep.topic) : slug;
+    openConfirmModal({
+      message: `Delete "${title}"? This permanently removes all its files (script, audio, images, video) and cannot be undone.`,
+      confirmLabel: "Yes, delete",
+      onConfirm: async () => {
         await apiDelete(`/api/episodes/${encodeURIComponent(slug)}`);
         allEpisodes = allEpisodes.filter((e) => e.slug !== slug);
         delete youtubeCache[slug];
         if (currentYoutubeModalSlug === slug) closeYoutubeModal();
         lastEpisodesJson = null;
         renderEpisodesList();
-      } catch (e) {
-        actions.innerHTML = `<span class="yt-publish-status error">Delete failed: ${escapeHtml(e.message)}</span>
-          <button type="button" class="small ep-cancel-delete-btn">Dismiss</button>`;
-        actions.querySelector(".ep-cancel-delete-btn").addEventListener("click", renderEpisodesList);
-      }
+      },
     });
   }
 
@@ -1253,6 +1335,7 @@
     wireTabs();
     wireForm();
     wireYoutubeModal();
+    wireConfirmModal();
     syncMusicVisibility();
 
     // Jobs/episodes don't depend on metadata or voices at all, so they're kicked off
