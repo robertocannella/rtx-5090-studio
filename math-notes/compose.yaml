@@ -1,0 +1,12 @@
+services:
+  math-notes:
+    build: .
+    image: math-notes:local
+    container_name: math-notes
+    restart: unless-stopped
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true

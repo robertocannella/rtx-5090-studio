@@ -21,3 +21,7 @@ ntfy.example.com {
 generator.example.com {
     reverse_proxy history-ui:8000
 }
+
+math.example.com {
+    reverse_proxy math-notes:80
+}

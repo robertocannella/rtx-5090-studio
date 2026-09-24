@@ -8,6 +8,7 @@ This site documents the services running on the `rtx` Ubuntu server.
 - [Jellyfin Media Server](JELLYFIN.md) — Jellyfin deployment, media storage, authentication, and playback architecture.
 - [Ollama + Open WebUI](OLLAMA.md) — local AI stack, GPU-backed model inference, compose files, and model management.
 - [History Generator](HISTORY-GENERATOR.md) — batch pipeline that turns a topic into a ~60-minute narrated history video using Qwen, Kokoro, and FFmpeg.
+- [Math Notes](MATH-NOTES.md) — public MkDocs/KaTeX blog for math notes and worked word problems.
 
 ## Current Services
 
@@ -22,6 +23,7 @@ This site documents the services running on the `rtx` Ubuntu server.
 | ComfyUI | *(private, no hostname — reached only by History Generator)* | Local FLUX.1-schnell image generation, GPU-backed, used by History Generator's `visual_style="images"` |
 | ntfy | `ntfy.example.com` | Private push notifications (currently: history-generator job completion) |
 | Samba file share | `\\rtx\media` (LAN only) | Read/write network access to `/srv/media` for uploading files directly |
+| Math Notes | `math.example.com` (public) | MkDocs/Material blog for math notes and worked word problems, with LaTeX via KaTeX |
 
 ## Architecture
 
@@ -36,6 +38,7 @@ Caddy Gateway
    +-- ai.example.com        --> Open WebUI --> Ollama (private network)
    +-- ntfy.example.com      --> ntfy (deny-all auth; push notifications)
    +-- generator.example.com --> history-ui (basic_auth) --> history-api (private network)
+   +-- math.example.com      --> math-notes (public, static nginx)
 
 Docker network: edge (Open WebUI additionally bridges three private networks: ollama_internal and tts_internal — see OLLAMA.md — and historygen_internal, to reach the history-api service — see HISTORY-GENERATOR.md. history-ui, the Configuration UI, also bridges historygen_internal and tts_internal the same way, so it can reach history-api and Kokoro's voice list — see HISTORY-GENERATOR.md. History Generator (both history-generator and history-api) additionally bridges comfyui_internal, a private network shared only with the standalone comfyui service, for AI-generated segment images — see HISTORY-GENERATOR.md)
 

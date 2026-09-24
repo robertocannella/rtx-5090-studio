@@ -11,6 +11,7 @@ services:
       - ./JELLYFIN.md:/usr/share/nginx/html/JELLYFIN.md:ro
       - ./OLLAMA.md:/usr/share/nginx/html/OLLAMA.md:ro
       - ./HISTORY-GENERATOR.md:/usr/share/nginx/html/HISTORY-GENERATOR.md:ro
+      - ./MATH-NOTES.md:/usr/share/nginx/html/MATH-NOTES.md:ro
     networks:
       - edge
 

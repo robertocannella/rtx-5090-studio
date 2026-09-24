@@ -29,6 +29,13 @@ find "$DEST" -mindepth 1 -maxdepth 1 ! -name ".git" ! -name ".gitignore" -exec r
 
 cd "$SRC"
 git ls-files -z | while IFS= read -r -d '' f; do
+  # math-notes/docs/ is this app's actual blog content (personal math writing), not
+  # infrastructure -- it's already public in its own right at math.example.com, so
+  # mirroring it into this differently-purposed showcase repo would just be clutter. Its
+  # Dockerfile/compose.yaml/mkdocs.yml/requirements.txt (the actual infra) still get copied.
+  case "$f" in
+    math-notes/docs/*) continue ;;
+  esac
   mkdir -p "$DEST/$(dirname "$f")"
   cp "$f" "$DEST/$f"
 done
