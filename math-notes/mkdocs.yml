@@ -23,12 +23,15 @@ theme:
     - navigation.instant
     - navigation.tracking
     - navigation.top
+    - navigation.tabs
     - content.code.copy
     - search.suggest
     - search.highlight
 
 nav:
   - Home: index.md
+  - Blog: blog/index.md
+  - LaTeX Guide: latex-guide.md
 
 markdown_extensions:
   - pymdownx.arithmatex:

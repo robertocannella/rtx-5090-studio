@@ -80,6 +80,29 @@ default, so a reader can attempt the problem before revealing the answer. See
 `docs/blog/posts/2026-09-24-welcome.md` for a worked example of both LaTeX and this pattern
 together.
 
+**Two other references live alongside this one, closer to the code**: `math-notes/README.md`
+is the short, practical "how do I add a post" reference (a repo-root README, not part of
+the built site itself); `docs/latex-guide.md` is a live page on the site itself
+(`math.example.com/latex-guide/`) walking through inline vs. display math,
+superscript/subscript/fractions/roots with worked examples, and a symbol cheat-sheet --
+useful both for a reader and for future-you writing the next post.
+
+## Navigation
+
+`navigation.tabs` (a `theme.features` entry) turns every top-level `nav:` entry in
+`mkdocs.yml` into a persistent tab across the top of every page -- currently Home, Blog,
+and LaTeX Guide. Adding a new non-blog page means adding both the `.md` file under `docs/`
+and a line to `nav:`; blog posts need neither, since the `blog` plugin auto-discovers them.
+
+Material's breadcrumb feature (`navigation.path`) was tried and dropped -- it's an
+Insiders-only feature and silently renders nothing in the open-source `mkdocs-material`
+package this app actually uses (confirmed by inspecting the built HTML, not just the
+changelog). The blog plugin's `categories_toc`/`archive_toc` options were tried for the
+same "more navigation" goal and also dropped after confirming, the same way, that they
+don't add anything visible to this site's pages either -- categories are still fully
+functional and linked (each post's category tag on the blog index links to
+`/blog/category/<name>/`), just without an extra always-visible categories index/sidebar.
+
 ## Deploying a change
 
 ```bash
