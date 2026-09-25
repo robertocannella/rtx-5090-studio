@@ -120,10 +120,9 @@ listing every category that exists across all posts, each linking to its
   directory to `docs/`, not inside it -- `custom_dir` templates are Jinja sources MkDocs
   renders with, not static content to publish, so putting them under `docs/` would make
   MkDocs try to build `overrides/main.html` itself as a page.
-- **`docs/stylesheets/extra.css`** / **`docs/javascripts/categories-panel.js`** -- the fixed-position
-  styling and the click-to-toggle behavior (`document$.subscribe`, the same
-  Material-instant-navigation-aware pattern as `katex.js`, since the panel's DOM is part of
-  what gets replaced on every page swap).
+- **`docs/stylesheets/extra.css`** / **`docs/javascripts/categories-panel.js`** -- the
+  fixed-position styling and the click-to-toggle behavior, via plain event delegation on
+  `document` (see below for why).
 
 **Why `overrides/main.html` overrides the `scripts` block, not `content`**: the first
 version of this override placed the panel's markup in `{% block content %}`, which worked
@@ -138,6 +137,27 @@ overriding it instead is what actually makes the panel appear on every page type
 consistently, confirmed the same way (built the site, `curl`'d each of the four page
 types -- home, blog index, an individual post, a category archive -- and grepped for the
 panel's markup in each).
+
+**Why the toggle button uses event delegation on `document`, not `document$.subscribe`**:
+the first version of `categories-panel.js` re-queried the button and attached a fresh
+click listener inside `document$.subscribe`, on the assumption that Material's instant
+navigation replaces the panel's DOM on every page swap the same way it replaces the main
+content area -- the same assumption `katex.js` correctly makes about math rendering. It
+doesn't, precisely *because* the panel is rendered from the `scripts` block (see just
+above): that block sits outside the content area instant navigation actually swaps, so
+the button's DOM node persists unchanged across every navigation. `document$.subscribe`
+still fired on every navigation though, and each firing attached a brand-new closure as an
+*additional* listener on that same persistent button (a fresh arrow function is never
+`==` the previous one, so the browser never deduplicates it) -- so after visiting even one
+other page, a single click fired two listeners back to back, which toggled the panel open
+then immediately closed again. The net effect: **the button appeared to do nothing at all
+once you'd navigated anywhere**, reported live as "the categories sidebar doesn't work
+when viewing a post." Plain event delegation on `document`, attached exactly once at
+script-load time, fixes this categorically -- `document` itself is never replaced by
+instant navigation, so the listener is never re-attached no matter how many pages get
+visited, regardless of whether the button's own node persists or gets recreated.
+`plot-modal.js` (below) was written with this same delegated pattern from the start, so it
+never had this bug.
 
 ## Matplotlib graphs
 
@@ -185,11 +205,11 @@ points.)
 
 **The popup**: the image is never shown inline -- only a button, so a post's graph doesn't
 clutter or spoil anything until a reader deliberately asks for it. `docs/javascripts/plot-modal.js`
-wires this with plain event delegation on `document` (attached once at load, not
-re-wired per Material instant-navigation page swap like `categories-panel.js` needs to be)
--- since the listener lives on `document` itself, which Material's instant navigation
+wires this with plain event delegation on `document`, attached exactly once at script-load
+time -- since the listener lives on `document` itself, which Material's instant navigation
 never replaces, this works for every post's popup automatically without any per-post or
-per-swap wiring.
+per-navigation rewiring (see the categories sidebar section above for what goes wrong
+without this).
 
 **Failure mode**: a mistake in the plotting code (a typo, two graphs reusing the same
 `name`, code that never actually calls a plotting function) raises a Python exception

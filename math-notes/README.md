@@ -106,6 +106,12 @@ image open in a modal. See the live
 **[LaTeX Guide](https://math.example.com/latex-guide/)**'s "Adding a
 graph" section for the exact syntax and a full example.
 
+## Typography
+
+Base article text size is overridden in `docs/stylesheets/extra.css` (`.md-typeset`,
+`0.9rem` vs. Material's own default `0.8rem`). Change that one rule to adjust site-wide
+reading size further.
+
 ## Custom CSS classes
 
 Everything below lives in `docs/stylesheets/extra.css`; none of it is part
