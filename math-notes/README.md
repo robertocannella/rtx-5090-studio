@@ -112,6 +112,53 @@ Base article text size is overridden in `docs/stylesheets/extra.css` (`.md-types
 `0.9rem` vs. Material's own default `0.8rem`). Change that one rule to adjust site-wide
 reading size further.
 
+## Admonition types (`!!!`/`???`)
+
+The `!!!`/`???` blocks used throughout the posts (see the live
+**[LaTeX Guide](https://math.example.com/latex-guide/)**'s "The word-problem
+layout" section for the syntax itself) come from the `admonition` and `pymdownx.details`
+Markdown extensions -- the word right after `!!!`/`???` is the **type**, and it maps to a
+CSS class (`.md-typeset .admonition.<type>`) that controls its color and icon.
+
+Every type used on this site today is one of Material's **built-in** types -- nothing
+custom has been added yet, and none of them live in `docs/stylesheets/extra.css`:
+
+| Type | Used for | Color |
+|---|---|---|
+| `question` | Stating a problem | Blue |
+| `info` | A neutral reference (e.g. a "Formulas" block) | Light blue |
+| `success` | A worked solution/answer | Green |
+
+Material ships a fixed set of other built-in types too (`note`, `abstract`, `tip`,
+`warning`, `failure`, `danger`, `bug`, `example`, `quote`), all usable the same way with
+no extra CSS.
+
+**To add a genuinely custom type** (your own icon/color, not just reusing a built-in
+one), add two rules to `docs/stylesheets/extra.css` -- no change to `mkdocs.yml` or the
+Markdown extensions needed, since `admonition`/`pymdownx.details` already accept any type
+name, they just fall back to a generic look for one they don't recognize:
+
+```css
+.md-typeset .admonition.mytype,
+.md-typeset details.mytype {
+  border-color: #your-color;
+}
+
+.md-typeset .mytype > .admonition-title,
+.md-typeset .mytype > summary {
+  background-color: #your-color-transparent;
+}
+
+.md-typeset .mytype > .admonition-title::before,
+.md-typeset .mytype > summary::before {
+  background-color: #your-color;
+  -webkit-mask-image: var(--md-admonition-icon--note); /* or your own icon */
+  mask-image: var(--md-admonition-icon--note);
+}
+```
+
+Then use it exactly like a built-in type: `!!! mytype "Title"` or `??? mytype "Title"`.
+
 ## Custom CSS classes
 
 Everything below lives in `docs/stylesheets/extra.css`; none of it is part
