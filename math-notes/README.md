@@ -69,6 +69,17 @@ section -- add the file, then add a line to `nav:` so it shows up as a top
 nav tab (`navigation.tabs` is enabled, so every top-level `nav:` entry
 renders as a tab across the top of every page).
 
+## Categories sidebar
+
+A small, collapsed-by-default panel on the right edge of every page lists every
+category in use, linking to its `/blog/category/<name>/` archive. It updates itself --
+add a `categories:` entry to a post's frontmatter and it appears in the sidebar on the
+next build, nothing else to touch. See `hooks.py`, `overrides/main.html`, and
+`docs/stylesheets/extra.css`/`docs/javascripts/categories-panel.js` if you need to change
+how it looks or behaves; see `/srv/apps/docs/MATH-NOTES.md` for why it's built the way
+it is (in particular, why the template override targets the `scripts` block, not
+`content`).
+
 ## Local preview before deploying
 
 To check a change renders correctly without touching the live container:

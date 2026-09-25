@@ -99,9 +99,45 @@ Insiders-only feature and silently renders nothing in the open-source `mkdocs-ma
 package this app actually uses (confirmed by inspecting the built HTML, not just the
 changelog). The blog plugin's `categories_toc`/`archive_toc` options were tried for the
 same "more navigation" goal and also dropped after confirming, the same way, that they
-don't add anything visible to this site's pages either -- categories are still fully
-functional and linked (each post's category tag on the blog index links to
-`/blog/category/<name>/`), just without an extra always-visible categories index/sidebar.
+don't add anything visible to this site's pages either.
+
+### Categories sidebar
+
+A small, custom, collapsed-by-default panel pinned to the right edge of every page,
+listing every category that exists across all posts, each linking to its
+`/blog/category/<name>/` archive page. Since Material has no built-in widget for this
+(see above), it's three custom pieces:
+
+- **`hooks.py`** (wired via `mkdocs.yml`'s `hooks:`) -- a build-time hook that scans every
+  file under `blog/posts/` for its YAML frontmatter `categories` list and stores the sorted,
+  de-duplicated result in `config.extra.all_categories`. Reads raw frontmatter straight off
+  disk in `on_files` rather than relying on `Page.meta`, since that isn't guaranteed
+  populated for every page yet at that point in MkDocs' own build sequence. Add a new
+  category to a post's frontmatter and it just shows up in the sidebar on the next build --
+  nothing else to update.
+- **`overrides/main.html`** (wired via `theme.custom_dir: overrides`) -- a Jinja template
+  override rendering the panel's HTML from `config.extra.all_categories`. It's a sibling
+  directory to `docs/`, not inside it -- `custom_dir` templates are Jinja sources MkDocs
+  renders with, not static content to publish, so putting them under `docs/` would make
+  MkDocs try to build `overrides/main.html` itself as a page.
+- **`docs/stylesheets/extra.css`** / **`docs/javascripts/categories-panel.js`** -- the fixed-position
+  styling and the click-to-toggle behavior (`document$.subscribe`, the same
+  Material-instant-navigation-aware pattern as `katex.js`, since the panel's DOM is part of
+  what gets replaced on every page swap).
+
+**Why `overrides/main.html` overrides the `scripts` block, not `content`**: the first
+version of this override placed the panel's markup in `{% block content %}`, which worked
+on plain pages (Home, LaTeX Guide) but the panel was silently missing on every blog
+page -- the index, individual posts, and category archives. Reading the actual templates
+shipped inside the installed `mkdocs-material` package (not just guessing from the docs)
+showed why: `blog.html` and `blog-post.html` both `{% extends "main.html" %}`, but both
+override the `container` block wholesale, without calling `{{ super() }}` -- which
+discards the nested `content` block substitution entirely for any page rendered through
+either of them. `scripts` is a block neither of those templates touches at all, so
+overriding it instead is what actually makes the panel appear on every page type
+consistently, confirmed the same way (built the site, `curl`'d each of the four page
+types -- home, blog index, an individual post, a category archive -- and grepped for the
+panel's markup in each).
 
 ## Deploying a change
 

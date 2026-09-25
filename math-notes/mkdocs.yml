@@ -4,6 +4,7 @@ site_url: https://math.example.com/
 
 theme:
   name: material
+  custom_dir: overrides
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -33,6 +34,9 @@ nav:
   - Blog: blog/index.md
   - LaTeX Guide: latex-guide.md
 
+hooks:
+  - hooks.py
+
 markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
@@ -61,8 +65,10 @@ plugins:
 
 extra_css:
   - https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css
+  - stylesheets/extra.css
 
 extra_javascript:
   - javascripts/katex.js
+  - javascripts/categories-panel.js
   - https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js
   - https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js

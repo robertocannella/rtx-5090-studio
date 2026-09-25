@@ -8,7 +8,8 @@ WORKDIR /site
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY mkdocs.yml ./
+COPY mkdocs.yml hooks.py ./
+COPY overrides ./overrides
 COPY docs ./docs
 RUN mkdocs build --strict
 
