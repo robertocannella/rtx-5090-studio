@@ -1,2 +1,4 @@
 mkdocs-material>=9.5,<10
 mkdocs-rss-plugin
+matplotlib
+numpy

@@ -8,9 +8,13 @@ WORKDIR /site
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY mkdocs.yml hooks.py ./
+COPY mkdocs.yml hooks.py render_plots.py ./
 COPY overrides ./overrides
 COPY docs ./docs
+# Must run before `mkdocs build` -- it rewrites ```matplotlib code blocks into plain HTML
+# (a button + hidden image) and writes the rendered PNGs to docs/assets/plots/ so they
+# already exist on disk before MkDocs decides which files to copy into the built site.
+RUN python3 render_plots.py
 RUN mkdocs build --strict
 
 FROM nginx:alpine

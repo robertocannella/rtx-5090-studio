@@ -139,6 +139,64 @@ consistently, confirmed the same way (built the site, `curl`'d each of the four 
 types -- home, blog index, an individual post, a category archive -- and grepped for the
 panel's markup in each).
 
+## Matplotlib graphs
+
+A post can embed a real matplotlib figure, shown only on demand in a popup -- e.g. the
+trajectory graph in `docs/blog/posts/2026-09-24-projectile-motion-horizontal-launch.md`.
+Since this is a static site with no live server and matplotlib is Python-only, there's no
+way to run it in the reader's browser -- the figure has to be rendered to an image at
+build time and embedded, the same fundamental constraint LaTeX would have if KaTeX
+(client-side JS) didn't exist.
+
+**Author-facing syntax**: a fenced code block tagged `matplotlib`, with a required `name`
+(used for the image filename and the button's DOM target) and optional `title` (the
+button's label):
+
+````markdown
+```matplotlib name="projectile-trajectory" title="Show trajectory"
+import numpy as np
+
+t = np.linspace(0, 3.03, 100)
+x = 10 * t
+y = 45 - 0.5 * 9.8 * t**2
+
+fig, ax = plt.subplots()
+ax.plot(x, y)
+```
+````
+
+**`render_plots.py`** (a plain script, run via a `RUN python3 render_plots.py` Docker
+build step *before* `RUN mkdocs build --strict`) finds every such block via regex, `exec`s
+its code in a namespace with `plt` already imported (`matplotlib.use("Agg")` first, since
+there's no display server in the build container), grabs whatever figure the code
+produced (`plt.gcf()`), saves it as `docs/assets/plots/<name>.png`, and rewrites the block
+in place into a button + hidden `<div class="plot-widget__modal">` containing the image.
+
+**Why a standalone script, not an MkDocs hook**: an MkDocs hook that runs during page
+processing (`on_page_markdown`) fires *after* `on_files` has already decided which files
+on disk count as "documentation files" to copy into the built site -- an image written
+that late would never make it into the output. Running plot generation as its own step
+*before* `mkdocs build` even starts sidesteps that ordering problem entirely: every PNG
+already exists on disk by the time MkDocs looks for files to copy. (This is the same
+category of ordering hazard as `hooks.py`'s categories scan, which works around it by
+reading raw frontmatter directly instead of relying on `Page.meta` -- both hazards trace
+back to the same root cause, several build phases each deciding what "exists" at different
+points.)
+
+**The popup**: the image is never shown inline -- only a button, so a post's graph doesn't
+clutter or spoil anything until a reader deliberately asks for it. `docs/javascripts/plot-modal.js`
+wires this with plain event delegation on `document` (attached once at load, not
+re-wired per Material instant-navigation page swap like `categories-panel.js` needs to be)
+-- since the listener lives on `document` itself, which Material's instant navigation
+never replaces, this works for every post's popup automatically without any per-post or
+per-swap wiring.
+
+**Failure mode**: a mistake in the plotting code (a typo, two graphs reusing the same
+`name`, code that never actually calls a plotting function) raises a Python exception
+during `render_plots.py`, which fails the Docker build with a normal traceback -- the
+same "fail loudly at build time" philosophy as `mkdocs build --strict` failing on a
+broken internal link, rather than silently shipping a broken page.
+
 ## Deploying a change
 
 ```bash

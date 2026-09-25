@@ -94,3 +94,24 @@ docker run --rm -p 8080:80 math-notes:local
 `docker build` alone (without `docker run`) is also enough to catch a
 `--strict`-mode build failure (a typo'd link, a malformed admonition, etc.)
 without needing to actually view the page.
+
+## Adding a graph
+
+Matplotlib runs at build time, not in the reader's browser (this is a static
+site) -- write a fenced ` ```matplotlib name="..." ` code block in a post,
+and `render_plots.py` (run automatically as a Docker build step, before
+`mkdocs build`) executes it, saves the figure as a PNG under
+`docs/assets/plots/`, and replaces the block with a button that pops the
+image open in a modal. See the live
+**[LaTeX Guide](https://math.example.com/latex-guide/)**'s "Adding a
+graph" section for the exact syntax and a full example.
+
+## Custom CSS classes
+
+Everything below lives in `docs/stylesheets/extra.css`; none of it is part
+of Material's own theme.
+
+| Component | Classes | Purpose |
+|---|---|---|
+| Categories sidebar | `.categories-panel`, `.categories-panel__toggle`, `.categories-panel__body`, `.categories-panel__title`, `.categories-panel__list` | The collapsed-by-default right-edge panel listing every category (see above). Rendered by `overrides/main.html`, populated by `hooks.py`, toggled by `docs/javascripts/categories-panel.js`. |
+| Graph popup | `.plot-widget`, `.plot-widget__toggle`, `.plot-widget__modal`, `.plot-widget__backdrop`, `.plot-widget__box`, `.plot-widget__close` | The "Show graph" button and its popup (see above). Rendered by `render_plots.py`, toggled by `docs/javascripts/plot-modal.js`. `.plot-widget__toggle` also uses Material's own built-in `.md-button` class for its base look, rather than reinventing button styling. |
