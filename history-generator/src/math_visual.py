@@ -19,10 +19,12 @@ import subprocess
 
 FAMILIES = ("waves", "fourier", "trace")
 # "images" (AI-generated per-segment stills, cross-faded -- see segment_images.py and
-# video.py) lives in this enum too, rather than a separate one, so every caller
-# (api.py's JobRequest, main.py's --visual-style, the Configuration UI) keeps validating
-# against one single source of truth for "what is a valid visual_style" instead of two.
-VALID_VISUAL_STYLES = ("static", "math", "images")
+# video.py) and "thumbnail" (one AI-generated still for the whole episode, reused as a
+# constant background for every segment -- see episode_thumbnail.py and video.py) live in
+# this enum too, rather than separate ones, so every caller (api.py's JobRequest,
+# main.py's --visual-style, the Configuration UI) keeps validating against one single
+# source of truth for "what is a valid visual_style" instead of several.
+VALID_VISUAL_STYLES = ("static", "math", "images", "thumbnail")
 DEFAULT_VISUAL_STYLE = "static"
 DEFAULT_LOOP_SECONDS = 20.0
 

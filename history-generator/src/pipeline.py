@@ -5,6 +5,7 @@ import shutil
 import subprocess
 
 import ambient
+import episode_thumbnail
 import image_client
 import manifest as manifest_mod
 import math_visual
@@ -250,6 +251,30 @@ def apply_images_to_segments(args, paths, m, topic, domain, slug):
                 os.remove(video_path)
             image_client.free_memory(args.comfyui_url)
         manifest_mod.save_manifest(paths["manifest"], m)
+
+
+def apply_thumbnail_to_episode(args, paths, m, topic, domain):
+    """One-time whole-episode thumbnail image (visual_style="thumbnail"): generated the
+    first time this episode's visual_style becomes "thumbnail", then reused on every
+    subsequent run -- including if visual_style is toggled away and back again -- the
+    same one-time-choice philosophy as math_visual's select_visual (see
+    apply_visual_to_segments). Unlike that seeded-random pick, this needs a real Ollama
+    call (for the scene description) and a ComfyUI call (to render it), so it can't
+    happen synchronously up front the way the math visual family is chosen -- it runs
+    here instead, alongside the other GPU-consuming per-episode step
+    (apply_images_to_segments), once the episode's title is guaranteed to be set.
+    """
+    if args.visual_style != "thumbnail" or (m.get("thumbnail_image") and not args.force):
+        return
+
+    print("Generating episode thumbnail image...")
+    rel_path, scene = episode_thumbnail.generate(
+        args.ollama_url, args.model, args.comfyui_url, domain, topic, m["title"], paths,
+    )
+    m["thumbnail_image"] = rel_path
+    m["thumbnail_prompt"] = scene
+    image_client.free_memory(args.comfyui_url)
+    manifest_mod.save_manifest(paths["manifest"], m)
 
 
 def apply_youtube_metadata(args, paths, m, domain):
@@ -559,6 +584,12 @@ def run(args):
         apply_images_to_segments(args, paths, m, args.topic, domain, slug)
     except segment_images.SegmentImagesError as e:
         print(f"[error] segment image generation failed: {e}")
+        return None
+
+    try:
+        apply_thumbnail_to_episode(args, paths, m, args.topic, domain)
+    except episode_thumbnail.EpisodeThumbnailError as e:
+        print(f"[error] episode thumbnail generation failed: {e}")
         return None
 
     apply_youtube_metadata(args, paths, m, domain)

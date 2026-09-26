@@ -238,6 +238,56 @@ def build_image_prompts_user(segment_title, segment_summary, script_text):
     )
 
 
+def build_thumbnail_prompt_tool():
+    return {
+        "type": "function",
+        "function": {
+            "name": "propose_thumbnail_prompt",
+            "description": (
+                "Propose one visual scene description representing an entire educational "
+                "video's topic, for a single AI-generated image used as that video's constant "
+                "background throughout."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": (
+                            "One short, vivid, concrete visual scene capturing this episode's "
+                            "overall topic -- not any single segment or moment within it."
+                        ),
+                    },
+                },
+                "required": ["prompt"],
+            },
+        },
+    }
+
+
+def build_thumbnail_prompt_system(domain=DEFAULT_DOMAIN):
+    d = DOMAINS[domain]
+    return (
+        f"You are a visual art director for an educational {d['label']} video. Given the video's "
+        "overall topic and title (not a specific segment), propose one short, vivid, concrete "
+        "visual scene suitable for an AI image generator, representative of the whole episode -- "
+        "this single image is shown as the constant background throughout the entire video, not "
+        "just one moment of it, so favor an iconic, representative scene over an event from any "
+        "one part of the story. The description must be concrete (real subjects, setting, "
+        "composition, lighting) and must never ask for any text, writing, numbers, labels, "
+        f"diagrams, or charts to appear in the image, since none of that renders reliably. Visual "
+        f"style: {d['image_style']}. You must call propose_thumbnail_prompt."
+    )
+
+
+def build_thumbnail_prompt_user(topic, title):
+    return (
+        f"Episode topic: {topic}\n"
+        f"Episode title: {title}\n\n"
+        "Propose one visual scene representing this episode as a whole."
+    )
+
+
 def build_youtube_metadata_tool():
     return {
         "type": "function",

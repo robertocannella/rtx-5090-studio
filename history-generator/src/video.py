@@ -341,11 +341,20 @@ def build_episode_video(
     math_bg_path = _get_or_render_math_bg(paths, visual, force=force)
 
     episode_title = manifest_data.get("title") or manifest_data["topic"]
+    # visual_style="thumbnail": the same single image, every segment -- reuses
+    # _images_input_and_filter's existing single-image case (loop, no cross-fade) rather
+    # than needing a separate code path, by just always passing a length-1 image_paths.
+    thumbnail_path = (
+        os.path.join(paths["root"], manifest_data["thumbnail_image"])
+        if visual_style == "thumbnail" and manifest_data.get("thumbnail_image") else None
+    )
     clip_paths = []
     for seg in complete:
         image_paths = None
         if visual_style == "images" and seg.get("images"):
             image_paths = [os.path.join(paths["root"], p) for p in seg["images"]]
+        elif thumbnail_path:
+            image_paths = [thumbnail_path]
         clip_paths.append(
             build_segment_video(paths, episode_title, seg, math_bg_path=math_bg_path, image_paths=image_paths, force=force)
         )
