@@ -74,6 +74,17 @@ def test_list_categories_distinct_and_sorted():
     assert db.list_categories() == ["Meta", "Physics"]
 
 
+def test_latex_block_renders_as_display_math():
+    post_id = db.create_post(
+        "Latex Block Post", "Meta",
+        '```latex\n\\frac{a}{b}\n```',
+    )
+    post = db.get_post(post_id=post_id)
+    assert "```latex" not in post["body_html"]
+    assert 'class="arithmatex"' in post["body_html"]
+    assert "\\frac{a}{b}" in post["body_html"]
+
+
 def test_toc_json_reflects_headings_in_body():
     post_id = db.create_post("With Headings", "Meta", "## Section One\n\nText.\n\n## Section Two\n\nMore.")
     post = db.get_post(post_id=post_id)

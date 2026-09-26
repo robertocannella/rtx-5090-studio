@@ -1,11 +1,9 @@
-"""SQLite-backed storage for math-notes posts, shared between the public read-only app
-(public_app.py) and the private admin API (admin_app.py) via a bind-mounted database
-file (see compose.yaml) -- both containers open the same file directly rather than one
-calling the other over HTTP, since SQLite already handles cross-process file locking.
+"""SQLite-backed storage for math-notes posts (see app.py for the public and /admin
+routes that read/write through this module).
 
 A post's Markdown is rendered to HTML exactly once, here, whenever it's created or
-updated (see render.py and render_plots.py) -- every read is then a plain row fetch, no
-per-request Markdown parsing or matplotlib execution.
+updated (see render.py, render_latex.py, and render_plots.py) -- every read is then a
+plain row fetch, no per-request Markdown parsing or matplotlib execution.
 """
 
 import json
@@ -16,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import render
+import render_latex
 import render_plots
 
 DB_PATH = os.environ.get("MATH_NOTES_DB_PATH", "/app/data/math-notes.db")
@@ -99,11 +98,14 @@ def _now():
 
 def _render(body_markdown):
     excerpt_md, full_md = render.split_excerpt(body_markdown)
+    full_md = render_latex.process(full_md)
     full_md = render_plots.process(full_md, PLOTS_DIR)
     # The excerpt is a prefix of the full text (see split_excerpt) -- reprocessing it
-    # through render_plots.process a second time is only a concern if a graph's own
-    # `name` somehow appeared before the <!-- more --> marker, which just re-renders the
-    # same image to the same path a second time (harmless, not a correctness issue).
+    # through render_latex.process/render_plots.process a second time is only a concern
+    # if a graph's own `name` somehow appeared before the <!-- more --> marker, which
+    # just re-renders the same image to the same path a second time (harmless, not a
+    # correctness issue).
+    excerpt_md = render_latex.process(excerpt_md)
     excerpt_md = render_plots.process(excerpt_md, PLOTS_DIR)
     excerpt_html, _ = render.render_markdown(excerpt_md)
     body_html, toc_tokens = render.render_markdown(full_md)

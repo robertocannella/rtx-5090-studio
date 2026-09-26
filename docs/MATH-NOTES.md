@@ -100,6 +100,12 @@ after each page load -- including Material's instant-navigation page swaps
 (`document$.subscribe`, not a plain `DOMContentLoaded` listener, is what makes math still
 render on a page reached without a full reload).
 
+A display-math block can also be written as a fenced ` ```latex ` block instead of a
+literal `$$` pair -- `render_latex.py` rewrites it to `$$ ... $$` before the post ever
+reaches `pymdownx.arithmatex`, so it renders identically either way. Purely a
+save-time text substitution to save the author from matching delimiters by hand; there is
+no separate LaTeX rendering path for it.
+
 **Word problems**: state the problem in a `!!! question "Problem"` admonition, then the
 answer in a `??? success "Solution"` block -- the `???` (vs `!!!`) makes it collapsed by
 default, so a reader can attempt the problem before revealing the answer.

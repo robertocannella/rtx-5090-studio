@@ -21,6 +21,19 @@ $$
 \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
 $$
 
+**Or, instead of matching a pair of `$$` yourself**, put the same content in a fenced
+` ```latex ` block -- it renders identically, this is just a shorthand:
+
+````
+```latex
+\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
+```
+````
+
+Either form works everywhere on this site; use whichever is easier to type. As with any
+fenced block (including the `matplotlib` graph blocks below), the opening and closing
+` ``` ` must start at the very beginning of the line -- no leading spaces.
+
 ## Superscript (exponents)
 
 Use `^` for a superscript. A single character doesn't need braces; anything
