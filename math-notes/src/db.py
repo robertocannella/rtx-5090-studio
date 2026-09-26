@@ -96,6 +96,16 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _normalize_newlines(text):
+    """HTML <textarea> form submissions always use CRLF line endings, regardless of the
+    submitting OS (that's the HTML spec's behavior, not a quirk of any one browser) --
+    normalized here, once, so every regex-based preprocessor downstream (render_latex.py,
+    render_plots.py, both of which match a literal \\n) sees plain \\n consistently,
+    whether a post came from the admin form, migrate_posts.py, or anywhere else.
+    """
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _render(body_markdown):
     excerpt_md, full_md = render.split_excerpt(body_markdown)
     full_md = render_latex.process(full_md)
@@ -119,6 +129,7 @@ def create_post(title, category, body_markdown, slug=None, created_at=None):
     "just now" and scrambling the blog's chronological order.
     """
     slug = (slug or "").strip() or slugify(title)
+    body_markdown = _normalize_newlines(body_markdown)
     excerpt_html, body_html, toc_json, reading_minutes = _render(body_markdown)
     now = _now()
     created_at = created_at or now
@@ -149,6 +160,7 @@ def update_post(post_id, title=None, category=None, body_markdown=None):
     new_category = category if category is not None else row["category"]
 
     if body_markdown is not None:
+        body_markdown = _normalize_newlines(body_markdown)
         excerpt_html, body_html, toc_json, reading_minutes = _render(body_markdown)
         new_body_markdown = body_markdown
     else:

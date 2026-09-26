@@ -74,6 +74,28 @@ def test_list_categories_distinct_and_sorted():
     assert db.list_categories() == ["Meta", "Physics"]
 
 
+def test_create_post_normalizes_crlf_line_endings():
+    # HTML <textarea> submissions always use \r\n, regardless of OS -- a matplotlib or
+    # latex fenced block must still be recognized (their regexes match a literal \n).
+    body = (
+        'Intro.\r\n\r\n```matplotlib name="crlf-test"\r\n'
+        "ax = plt.gca()\r\nax.plot([0, 1], [0, 1])\r\n```"
+    )
+    post_id = db.create_post("CRLF Post", "Meta", body)
+    post = db.get_post(post_id=post_id)
+    assert "\r" not in post["body_markdown"]
+    assert 'data-plot="crlf-test"' in post["body_html"]
+
+
+def test_update_post_normalizes_crlf_line_endings():
+    post_id = db.create_post("CRLF Update", "Meta", "Original.")
+    body = '```latex\r\n\\frac{a}{b}\r\n```'
+    db.update_post(post_id, body_markdown=body)
+    post = db.get_post(post_id=post_id)
+    assert "\r" not in post["body_markdown"]
+    assert 'class="arithmatex"' in post["body_html"]
+
+
 def test_latex_block_renders_as_display_math():
     post_id = db.create_post(
         "Latex Block Post", "Meta",
