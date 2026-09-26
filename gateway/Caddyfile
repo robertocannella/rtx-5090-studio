@@ -27,5 +27,5 @@ generator.example.com {
 }
 
 math.example.com {
-    reverse_proxy math-notes:8000
+    reverse_proxy math-notes:80
 }

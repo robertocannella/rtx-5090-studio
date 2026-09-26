@@ -97,12 +97,10 @@ services:
     environment:
       - HISTORY_API_URL=http://history-api:8000
       - KOKORO_URL=http://kokoro:8880
-      - MATH_NOTES_API_URL=http://math-notes-api:8001
 
     networks:
       - historygen_internal   # reaches history-api (the only thing it proxies generation through)
       - tts_internal           # reaches kokoro directly, read-only, just to list voices
-      - mathnotes_internal     # reaches math-notes-api (see /srv/apps/math-notes), for the Math Notes tab
       - edge                   # the only piece of this whole app meant to be reachable from a browser
 
 networks:
@@ -113,8 +111,6 @@ networks:
   historygen_internal:
     external: true
   comfyui_internal:
-    external: true
-  mathnotes_internal:
     external: true
   edge:
     external: true

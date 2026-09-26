@@ -17,7 +17,6 @@ from fastapi.staticfiles import StaticFiles
 
 HISTORY_API_URL = os.environ.get("HISTORY_API_URL", "http://history-api:8000")
 KOKORO_URL = os.environ.get("KOKORO_URL", "http://kokoro:8880")
-MATH_NOTES_API_URL = os.environ.get("MATH_NOTES_API_URL", "http://math-notes-api:8001")
 REQUEST_TIMEOUT = 30
 
 app = FastAPI(title="History Generator UI")
@@ -153,38 +152,6 @@ async def voice_sample(voice_id: str):
             body = {"detail": resp.text}
         return JSONResponse(status_code=resp.status_code, content=body)
     return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/mpeg"))
-
-
-@app.get("/api/math-notes/posts")
-async def list_math_notes_posts():
-    return await _proxy("GET", f"{MATH_NOTES_API_URL}/posts")
-
-
-@app.post("/api/math-notes/posts")
-async def create_math_notes_post(request: Request):
-    body = await request.json()
-    return await _proxy("POST", f"{MATH_NOTES_API_URL}/posts", json=body)
-
-
-@app.get("/api/math-notes/posts/{post_id}")
-async def get_math_notes_post(post_id: int):
-    return await _proxy("GET", f"{MATH_NOTES_API_URL}/posts/{post_id}")
-
-
-@app.patch("/api/math-notes/posts/{post_id}")
-async def update_math_notes_post(post_id: int, request: Request):
-    body = await request.json()
-    return await _proxy("PATCH", f"{MATH_NOTES_API_URL}/posts/{post_id}", json=body)
-
-
-@app.delete("/api/math-notes/posts/{post_id}")
-async def delete_math_notes_post(post_id: int):
-    return await _proxy("DELETE", f"{MATH_NOTES_API_URL}/posts/{post_id}")
-
-
-@app.get("/api/math-notes/categories")
-async def list_math_notes_categories():
-    return await _proxy("GET", f"{MATH_NOTES_API_URL}/categories")
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

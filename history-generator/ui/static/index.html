@@ -17,7 +17,6 @@
 <nav class="tabs">
   <button type="button" class="tab-btn" data-tab="generate">Generate</button>
   <button type="button" class="tab-btn" data-tab="episodes">Episodes</button>
-  <button type="button" class="tab-btn" data-tab="math-notes">Math Notes</button>
 </nav>
 
 <main>
@@ -193,44 +192,6 @@
         <button type="button" class="small" id="refresh-episodes-btn">Refresh</button>
       </div>
       <div id="episodes-list"><p class="hint">Loading...</p></div>
-    </section>
-  </div>
-
-  <div id="tab-math-notes" class="tab-panel">
-    <section class="panel">
-      <h2>Math Notes</h2>
-      <p class="hint">Create and manage posts for math.example.com directly -- no file editing needed.</p>
-      <div class="mn-toolbar">
-        <button type="button" class="primary small" id="mn-new-post-btn">New post</button>
-        <button type="button" class="small" id="mn-refresh-btn">Refresh</button>
-      </div>
-      <div id="mn-posts-list"><p class="hint">Loading...</p></div>
-    </section>
-
-    <section class="panel" id="mn-editor-panel" style="display:none;">
-      <h2 id="mn-editor-heading">New post</h2>
-      <div class="row">
-        <div class="field">
-          <label for="mn-title">Title *</label>
-          <input type="text" id="mn-title" placeholder="e.g. Newton's Second Law">
-        </div>
-        <div class="field">
-          <label for="mn-category">Category *</label>
-          <input type="text" id="mn-category" list="mn-category-options" placeholder="e.g. Physics">
-          <datalist id="mn-category-options"></datalist>
-        </div>
-      </div>
-      <div class="field" id="mn-slug-field">
-        <label for="mn-slug">Slug (optional -- auto-generated from title if left blank)</label>
-        <input type="text" id="mn-slug" placeholder="e.g. newtons-second-law">
-      </div>
-      <div class="field">
-        <label for="mn-body">Body (Markdown)</label>
-        <textarea id="mn-body" rows="16" placeholder='Write the post here. $...$ for inline math, $$...$$ for display math, !!! question "Problem" / ??? success "Solution" for word problems, &#96;&#96;&#96;matplotlib name="..." for graphs.'></textarea>
-      </div>
-      <button type="button" class="primary" id="mn-save-btn">Save post</button>
-      <button type="button" class="small" id="mn-cancel-btn">Cancel</button>
-      <span id="mn-save-status"></span>
     </section>
   </div>
 </main>
