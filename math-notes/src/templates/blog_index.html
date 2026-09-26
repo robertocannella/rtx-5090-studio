@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content_wrapper %}
+<div class="md-content" data-md-component="content">
+  <div class="md-content__inner" id="content">
+    <header class="md-typeset">
+      <h1>{{ heading }}</h1>
+    </header>
+    {% if not posts %}
+      <p class="md-typeset">No posts {% if category %}in this category {% endif %}yet.</p>
+    {% endif %}
+    {% for post in posts %}
+      <article class="md-post md-post--excerpt">
+        <header class="md-post__header">
+          <div class="md-post__meta md-meta">
+            <ul class="md-meta__list">
+              <li class="md-meta__item"><time>{{ post.created_at_display }}</time></li>
+              <li class="md-meta__item">
+                in
+                <a href="/blog/category/{{ post.category | lower }}/" class="md-meta__link">{{ post.category }}</a>
+              </li>
+              <li class="md-meta__item">{{ post.reading_minutes }} min read</li>
+            </ul>
+          </div>
+        </header>
+        <div class="md-post__content md-typeset">
+          <h2><a class="toclink" href="/blog/{{ post.slug }}/">{{ post.title }}</a></h2>
+          {{ post.excerpt_html | safe }}
+          <nav class="md-post__action">
+            <a href="/blog/{{ post.slug }}/">Continue reading</a>
+          </nav>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

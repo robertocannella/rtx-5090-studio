@@ -1,116 +1,78 @@
 # Math Notes
 
-A public math/physics blog at **https://math.example.com** built with
-[MkDocs](https://www.mkdocs.org/) + [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/),
-with LaTeX rendered by [KaTeX](https://katex.org/). See
-`/srv/apps/docs/MATH-NOTES.md` (on `docs.example.com`) for the full
-architecture writeup -- this file is the short, practical "how do I add a
-post" reference.
+A public math/physics blog at **https://math.example.com**, with LaTeX rendered
+by [KaTeX](https://katex.org/) and Material for MkDocs' real theme (vendored, not
+reinvented). See `/srv/apps/docs/MATH-NOTES.md` (on `docs.example.com`) for the
+full architecture writeup -- this file is the short, practical "how do I add a post"
+reference.
 
-## This is a static site -- every change needs a rebuild
+## Posts live in a database now -- write them from the browser
 
-There's no database and no live editor. Adding or editing a Markdown file
-does nothing to the live site by itself -- it has to be rebuilt into HTML
-and redeployed:
+There's no Markdown file to create and no rebuild needed to publish. Go to
+**https://math.example.com/admin/** (same basic_auth credentials as
+`docs.example.com`), click **New post**, fill in title/category/body, save --
+it's live immediately.
+
+- **Category** is freeform text; every distinct value in use automatically gets a
+  `/blog/category/<name>/` archive page and shows up in the categories sidebar.
+- **Slug** is optional on a new post -- left blank, it's derived from the title. Editing a
+  post's title later never changes its existing slug/URL.
+- A `<!-- more -->` marker in the body splits "excerpt shown on the index" from "rest of
+  the post, only shown on the post's own page" -- put it right after the intro paragraph.
+
+## Writing math and word problems
+
+See the live **[LaTeX Guide](https://math.example.com/latex-guide/)**
+(`src/content/latex_guide.md`) -- inline vs. display math, a cheat-sheet of common LaTeX
+syntax, and the `!!! question` / `??? success` problem/solution pattern used throughout
+the posts here.
+
+## Adding a graph
+
+Write a fenced ` ```matplotlib name="..." ` code block in a post's body -- saving the post
+executes it (`render_plots.py`), saves the figure as a PNG, and replaces the block with a
+button that pops the image open in a modal. See the live
+**[LaTeX Guide](https://math.example.com/latex-guide/)**'s "Adding a graph"
+section for the exact syntax and a full example. A mistake in the plotting code is
+reported right on the admin save form -- the post isn't saved until it's fixed.
+
+## Adding a non-blog page (Home, LaTeX Guide)
+
+These are plain Markdown files under `src/content/`, rendered once at app startup, listed
+in `app.py`'s `NAV_ITEMS` (which drives both the top tab bar and the primary sidebar) --
+add the file, add a route in `app.py`, add an entry to `NAV_ITEMS`.
+
+## Categories sidebar
+
+A small, collapsed-by-default panel on the right edge of every page lists every category
+in use, linking to its `/blog/category/<name>/` archive -- fully data-driven from
+`db.list_categories()`, nothing to maintain by hand. See `templates/base.html` for the
+markup and `static/javascripts/categories-panel.js` for the toggle behavior; see
+`/srv/apps/docs/MATH-NOTES.md` for why that script uses plain event delegation instead of
+Material's `document$.subscribe`.
+
+## Deploying a code change
+
+Content changes (posts) need no deploy at all -- only a change to the app's own code does:
 
 ```bash
 cd /srv/apps/math-notes
 docker compose up -d --build
 ```
 
-`mkdocs build --strict` runs as part of that build and **fails the build**
-on a broken internal link or a bad markdown-extension reference, rather
-than silently shipping a broken page.
-
-## Adding a new post
-
-Create a file under `docs/blog/posts/`, named `YYYY-MM-DD-a-short-slug.md`:
-
-```markdown
----
-date: 2026-09-24
-categories:
-  - Algebra
----
-
-# Post title
-
-The opening paragraph -- this is what shows up as the excerpt on the blog
-index page.
-
-<!-- more -->
-
-The rest of the post goes here, only shown on the post's own page.
-```
-
-- `date` drives sort order, the RSS feed, and the "September 24, 2026" line
-  shown on the post.
-- `categories` can list more than one; each one gets its own
-  auto-generated archive page at `/blog/category/<name>/`, and shows as a
-  small tag on the post's card on the blog index.
-- The `<!-- more -->` marker is what splits "excerpt shown on the index"
-  from "rest of the post" -- put it right after the intro paragraph.
-- Nothing else needs updating -- the blog plugin auto-discovers every file
-  under `blog/posts/` and rebuilds the index, categories, and RSS feed from
-  scratch on every build.
-
-## Writing math and word problems
-
-See the live **[LaTeX Guide](https://math.example.com/latex-guide/)**
-page (`docs/latex-guide.md`) -- it covers inline vs. display math, a
-cheat-sheet of common LaTeX syntax, and the `!!! question` / `??? success`
-problem/solution pattern used throughout the posts here.
-
-## Adding a non-blog page
-
-Pages outside the blog (like this guide, or the homepage) are plain
-Markdown files under `docs/`, listed explicitly in `mkdocs.yml`'s `nav:`
-section -- add the file, then add a line to `nav:` so it shows up as a top
-nav tab (`navigation.tabs` is enabled, so every top-level `nav:` entry
-renders as a tab across the top of every page).
-
-## Categories sidebar
-
-A small, collapsed-by-default panel on the right edge of every page lists every
-category in use, linking to its `/blog/category/<name>/` archive. It updates itself --
-add a `categories:` entry to a post's frontmatter and it appears in the sidebar on the
-next build, nothing else to touch. See `hooks.py`, `overrides/main.html`, and
-`docs/stylesheets/extra.css`/`docs/javascripts/categories-panel.js` if you need to change
-how it looks or behaves; see `/srv/apps/docs/MATH-NOTES.md` for why it's built the way
-it is (in particular, why the template override targets the `scripts` block, not
-`content`).
-
-## Local preview before deploying
-
-To check a change renders correctly without touching the live container:
+## Running the tests
 
 ```bash
 cd /srv/apps/math-notes
-docker build -t math-notes:local .
-docker run --rm -p 8080:80 math-notes:local
-# open http://localhost:8080
+docker run --rm -v "$(pwd)":/app -w /app python:3.12-slim bash -c \
+  "pip install --no-cache-dir -q -r src/requirements.txt -r tests/requirements-dev.txt && cd tests && python -m pytest -q"
 ```
-
-`docker build` alone (without `docker run`) is also enough to catch a
-`--strict`-mode build failure (a typo'd link, a malformed admonition, etc.)
-without needing to actually view the page.
-
-## Adding a graph
-
-Matplotlib runs at build time, not in the reader's browser (this is a static
-site) -- write a fenced ` ```matplotlib name="..." ` code block in a post,
-and `render_plots.py` (run automatically as a Docker build step, before
-`mkdocs build`) executes it, saves the figure as a PNG under
-`docs/assets/plots/`, and replaces the block with a button that pops the
-image open in a modal. See the live
-**[LaTeX Guide](https://math.example.com/latex-guide/)**'s "Adding a
-graph" section for the exact syntax and a full example.
 
 ## Typography
 
-Base article text size is overridden in `docs/stylesheets/extra.css` (`.md-typeset`,
-`0.9rem` vs. Material's own default `0.8rem`). Change that one rule to adjust site-wide
-reading size further.
+Base article text size is overridden in `src/static/stylesheets/extra.css`
+(`.md-typeset`, `0.9rem` vs. Material's own default `0.8rem`). Change that one rule to
+adjust site-wide reading size further.
 
 ## Admonition types (`!!!`/`???`)
 
@@ -121,7 +83,7 @@ Markdown extensions -- the word right after `!!!`/`???` is the **type**, and it 
 CSS class (`.md-typeset .admonition.<type>`) that controls its color and icon.
 
 Every type used on this site today is one of Material's **built-in** types -- nothing
-custom has been added yet, and none of them live in `docs/stylesheets/extra.css`:
+custom has been added yet, and none of them live in `extra.css`:
 
 | Type | Used for | Color |
 |---|---|---|
@@ -134,8 +96,8 @@ Material ships a fixed set of other built-in types too (`note`, `abstract`, `tip
 no extra CSS.
 
 **To add a genuinely custom type** (your own icon/color, not just reusing a built-in
-one), add two rules to `docs/stylesheets/extra.css` -- no change to `mkdocs.yml` or the
-Markdown extensions needed, since `admonition`/`pymdownx.details` already accept any type
+one), add two rules to `src/static/stylesheets/extra.css` -- no change to the Markdown
+extension config needed, since `admonition`/`pymdownx.details` already accept any type
 name, they just fall back to a generic look for one they don't recognize:
 
 ```css
@@ -161,10 +123,10 @@ Then use it exactly like a built-in type: `!!! mytype "Title"` or `??? mytype "T
 
 ## Custom CSS classes
 
-Everything below lives in `docs/stylesheets/extra.css`; none of it is part
-of Material's own theme.
+Everything below lives in `src/static/stylesheets/extra.css`; none of it is part of
+Material's own vendored theme.
 
 | Component | Classes | Purpose |
 |---|---|---|
-| Categories sidebar | `.categories-panel`, `.categories-panel__toggle`, `.categories-panel__body`, `.categories-panel__title`, `.categories-panel__list` | The collapsed-by-default right-edge panel listing every category (see above). Rendered by `overrides/main.html`, populated by `hooks.py`, toggled by `docs/javascripts/categories-panel.js`. |
-| Graph popup | `.plot-widget`, `.plot-widget__toggle`, `.plot-widget__modal`, `.plot-widget__backdrop`, `.plot-widget__box`, `.plot-widget__close` | The "Show graph" button and its popup (see above). Rendered by `render_plots.py`, toggled by `docs/javascripts/plot-modal.js`. `.plot-widget__toggle` also uses Material's own built-in `.md-button` class for its base look, rather than reinventing button styling. |
+| Categories sidebar | `.categories-panel`, `.categories-panel__toggle`, `.categories-panel__body`, `.categories-panel__title`, `.categories-panel__list` | The collapsed-by-default right-edge panel listing every category (see above). Rendered by `templates/base.html`, populated from `db.list_categories()`, toggled by `static/javascripts/categories-panel.js`. |
+| Graph popup | `.plot-widget`, `.plot-widget__toggle`, `.plot-widget__modal`, `.plot-widget__backdrop`, `.plot-widget__box`, `.plot-widget__close` | The "Show graph" button and its popup (see above). Rendered by `render_plots.py`, toggled by `static/javascripts/plot-modal.js`. `.plot-widget__toggle` also uses Material's own built-in `.md-button` class for its base look, rather than reinventing button styling. |

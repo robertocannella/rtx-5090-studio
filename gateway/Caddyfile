@@ -27,5 +27,14 @@ generator.example.com {
 }
 
 math.example.com {
-    reverse_proxy math-notes:80
+    handle /admin* {
+        basic_auth {
+            user $2a$14$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+        }
+        reverse_proxy math-notes:8000
+    }
+    handle {
+        reverse_proxy math-notes:8000
+    }
 }

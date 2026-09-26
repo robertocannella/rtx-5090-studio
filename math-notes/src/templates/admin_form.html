@@ -1,0 +1,23 @@
+{% extends "admin_base.html" %}
+{% block content %}
+<form class="admin-form" method="post" action="{{ action }}">
+  <label>Title
+    <input type="text" name="title" value="{{ post.title if post else '' }}" required>
+  </label>
+  <label>Category
+    <input type="text" name="category" value="{{ post.category if post else '' }}" required>
+  </label>
+  {% if not post %}
+    <label>Slug (optional -- derived from the title if left blank)
+      <input type="text" name="slug" value="">
+    </label>
+  {% endif %}
+  <label>Body (Markdown)
+    <textarea name="body_markdown" required>{{ post.body_markdown if post else '' }}</textarea>
+  </label>
+  <div class="admin-actions">
+    <button type="submit" class="md-button md-button--primary">Save</button>
+    <a href="/admin/">Cancel</a>
+  </div>
+</form>
+{% endblock %}
