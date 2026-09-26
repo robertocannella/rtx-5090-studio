@@ -441,11 +441,31 @@ history-ui  --- historygen_internal ---  history-api  (job queue, all validation
   |                                          |          voice-sample synthesis/cache)
   |                                          +-- tts_internal --- kokoro (synthesis)
   +-- tts_internal --- kokoro (voice *list* only, GET /v1/audio/voices)
+  +-- mathnotes_internal --- math-notes-api  (private post CRUD -- see docs/MATH-NOTES.md)
 ```
 
 `history-ui` is a thin proxy with **zero generation logic and zero validation rules of its own** — every `/api/*` route just forwards to the matching `history-api` route (`POST /jobs`, `GET /jobs`, `GET /jobs/{id}`, `GET /episodes`, `GET /episodes/{slug}`) and returns the response verbatim, including validation error bodies. The one exception is `GET /api/voices`, which queries Kokoro directly (`GET /v1/audio/voices`) for a real, live voice list rather than hand-maintaining a copy of it that could drift stale. Static assets (`ui/static/index.html`, `app.js`, `style.css` — plain HTML/CSS/vanilla JS, no build step, no framework) are served at `/`.
 
 The Ollama-facing side (`ollama_internal`) is deliberately **not** reachable from `history-ui` — it has no reason to talk to Ollama or synthesize anything itself.
+
+### Math Notes tab
+
+A "Math Notes" tab alongside Generate/Episodes, for creating and managing posts on the
+completely separate `/srv/apps/math-notes` blog (see `docs/MATH-NOTES.md`) without
+editing files. This UI has no business being aware of blog-post concepts on its own --
+`ui/main.py`'s `/api/math-notes/*` routes are the same thin-proxy pattern as every other
+route here, just forwarding to `math-notes-api` (over `mathnotes_internal`, joined
+specifically for this) instead of `history-api`. Saving a post takes effect immediately
+on the live public site -- there's no rebuild/redeploy step involved at all, unlike an
+episode job.
+
+This tab living in an *already-public* Configuration UI is what surfaced a real,
+pre-existing gap while building it: `generator.example.com` had **no
+`basic_auth`** in the live Caddyfile until this feature was built, despite this doc
+having claimed otherwise all along (see the note just above) -- the whole Configuration
+UI, not just this new tab, had been reachable by anyone who knew the URL. Fixed by adding
+the same `basic_auth` block `docs.example.com` already uses, confirmed via a live
+`401` before the fix and a `200` with credentials after.
 
 ### Single source of truth for validation
 

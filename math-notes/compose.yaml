@@ -4,9 +4,42 @@ services:
     image: math-notes:local
     container_name: math-notes
     restart: unless-stopped
+    user: "1000:1000"
+    command: ["uvicorn", "public_app:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - MATH_NOTES_DB_PATH=/app/data/math-notes.db
+      - MATH_NOTES_PLOTS_DIR=/app/data/assets/plots
+      # matplotlib's default cache dir is under $HOME, which doesn't exist for the
+      # UID 1000 this runs as (no /etc/passwd entry) -- points it at the same writable
+      # bind-mounted volume everything else here already uses instead.
+      - MPLCONFIGDIR=/app/data/.matplotlib
+    volumes:
+      - ./data:/app/data
     networks:
       - edge
 
+  # Private post-management API -- create/update/delete/list posts. Never joins `edge`;
+  # only history-ui (the Configuration UI, itself basic_auth-gated) can reach it, over
+  # mathnotes_internal. Shares the same SQLite database file and plot-image directory as
+  # the public math-notes service above via the same bind-mounted ./data.
+  math-notes-api:
+    build: .
+    image: math-notes:local
+    container_name: math-notes-api
+    restart: unless-stopped
+    user: "1000:1000"
+    command: ["uvicorn", "admin_app:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      - MATH_NOTES_DB_PATH=/app/data/math-notes.db
+      - MATH_NOTES_PLOTS_DIR=/app/data/assets/plots
+      - MPLCONFIGDIR=/app/data/.matplotlib
+    volumes:
+      - ./data:/app/data
+    networks:
+      - mathnotes_internal
+
 networks:
   edge:
+    external: true
+  mathnotes_internal:
     external: true

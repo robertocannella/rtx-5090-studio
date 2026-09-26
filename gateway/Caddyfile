@@ -19,9 +19,13 @@ ntfy.example.com {
 }
 
 generator.example.com {
+    basic_auth {
+        user $2a$14$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+    }
     reverse_proxy history-ui:8000
 }
 
 math.example.com {
-    reverse_proxy math-notes:80
+    reverse_proxy math-notes:8000
 }

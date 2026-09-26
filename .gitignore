@@ -10,6 +10,7 @@ history-generator/voice_samples/
 comfyui/data/
 jellyfin/config/
 jellyfin/cache/
+math-notes/data/
 
 # Python
 __pycache__/

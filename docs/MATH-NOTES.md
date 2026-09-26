@@ -1,249 +1,207 @@
 # Math Notes
 
-A public math blog at **`math.example.com`** -- personal notes, derivations, and
-worked word problems, written in Markdown with real LaTeX math. Unlike everything else in
-this doc set, this one is meant to be read by other people, not just as an operator
-reference.
+A public math/physics blog at **`math.example.com`** -- personal notes,
+derivations, and worked word problems, written in Markdown with real LaTeX math. Unlike
+everything else in this doc set, this one is meant to be read by other people, not just
+as an operator reference.
 
-## Why MkDocs, not WordPress
-
-The alternative on the table was WordPress plus a LaTeX plugin. MkDocs (specifically
-[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)) was chosen instead
-because:
-
-- **No database, no PHP** -- content is Markdown files in `/srv/apps/math-notes/docs/`,
-  built once into static HTML/CSS/JS. Nothing to patch, nothing that can get SQL-injected,
-  nothing with its own login/admin surface to secure.
-- **Real LaTeX, not a plugin's approximation** -- math is rendered client-side by
-  [KaTeX](https://katex.org/), the same library used by many serious math sites, rather
-  than a WordPress plugin that often renders formulas to small server-side images.
-- **Fits the existing stack exactly** -- git-tracked content, a Dockerfile, a `compose.yaml`
-  joining `edge`, and a Caddy route, the same pattern as every other app under `/srv/apps`.
-
-## Architecture
+## Architecture: two small FastAPI services sharing one SQLite database
 
 ```text
-Browser (math.example.com)
-  |
-Caddy (no basic_auth -- this one's meant to be public)
-  |
-edge
-  |
-math-notes (nginx serving a pre-built static site)
+Browser (math.example.com)          Configuration UI (generator.example.com)
+  |                                            |  "Math Notes" tab
+Caddy (no basic_auth -- public)             Caddy (basic_auth)
+  |                                            |
+edge                                        history-ui
+  |                                            |
+math-notes (public, read-only)              mathnotes_internal
+  |                                            |
+  +-------------- shared ./data --------------math-notes-api (private, read/write)
 ```
 
-`math-notes` is a **two-stage Docker build** (`Dockerfile`): stage one is a throwaway
-`python:3.12-slim` image with `mkdocs-material` and `mkdocs-rss-plugin` installed, which
-runs `mkdocs build --strict` (fails the build on any broken link/reference, not just
-warns) to produce static output in `site/`; stage two is a bare `nginx:alpine` that only
-ever contains that generated `site/` directory. The running container has no Python, no
-pip, and no source Markdown in it at all -- only genuinely static files.
+- **`math-notes`** -- public, read-only. Serves the blog, category pages, the LaTeX
+  guide, and the RSS feed. Joins only `edge`.
+- **`math-notes-api`** -- private post management (create/update/delete/list). Joins
+  only `mathnotes_internal`, a private Docker network shared with `history-ui` -- never
+  reachable from the public internet. `history-ui`'s Configuration UI (a "Math Notes"
+  tab, see below) is the only client, gated the same way that whole UI is (Caddy
+  `basic_auth` on `generator.example.com` -- see the note on that below).
+- Both are the **same Docker image** (`math-notes:local`, built from one `Dockerfile`),
+  just started with a different `uvicorn` target (`public_app:app` vs `admin_app:app`,
+  see `compose.yaml`'s two service definitions) and different networks.
+- Both share the same SQLite database file and plot-image directory via a bind-mounted
+  `./data` volume (`math-notes.db`, `assets/plots/*.png`) -- a write from `math-notes-api`
+  is immediately visible to `math-notes`'s next read, no HTTP call between the two
+  services at all.
 
-## Writing a post
+## Why this replaced a static MkDocs build
 
-Add a Markdown file under `docs/blog/posts/`, named `YYYY-MM-DD-slug.md`, with YAML
-frontmatter:
+This site used to be a static site built with MkDocs Material -- chosen originally over
+WordPress specifically because it needed no database, no PHP, and no admin login surface
+to secure (see git history for that reasoning). It was rebuilt into this dynamic
+database-backed pair of services because the actual requirement changed: **posts needed
+to be created from a web UI, not by editing Markdown files by hand**, and that content
+needed to live in a real database rather than git-tracked files.
 
-```markdown
----
-date: 2026-09-24
-categories:
-  - Algebra
----
+The good news: almost none of the actual *content* logic had to change. LaTeX rendering,
+word-problem admonitions, and matplotlib graphs are all built on the same underlying
+Python libraries (Python-Markdown + its extensions, and matplotlib itself) whether they
+run once at build time (the old way) or once per post-save (the new way) -- see
+"Rendering pipeline" below for exactly what moved and what didn't.
 
-# Post title
+## Rendering pipeline: once at save time, never per page view
 
-Intro paragraph (shown as the excerpt on the blog index).
+A post's Markdown is converted to HTML **exactly once**, when it's created or updated
+(`src/db.py:create_post()`/`update_post()`) -- every page view after that is a plain
+SQLite row fetch (`body_html`/`excerpt_html` columns, already rendered), not a per-request
+Markdown parse. This is the same "expensive work happens once, reads are cheap" principle
+`history-generator`'s whole pipeline is built around, just applied to a blog post instead
+of a video segment.
 
-<!-- more -->
+**Markdown extensions** (`src/render.py`): `admonition` (`!!!` blocks), `pymdownx.details`
+(`???` collapsible blocks), `pymdownx.superfences`, `attr_list`, `md_in_html` (lets
+`render_plots.py`'s raw HTML `<div>` output pass through untouched), `pymdownx.arithmatex`
+in `generic` mode, and `tables`. These are the *exact same* extensions the old MkDocs
+build used -- moving from a static build to a dynamic app didn't require reimplementing
+any of this, just calling `markdown.markdown(text, extensions=[...])` directly instead of
+letting MkDocs' own build pipeline call it.
 
-The rest of the post, only shown on the post's own page.
-```
+**LaTeX**: `pymdownx.arithmatex` wraps `$...$`/`$$...$$` math in `<span>`/`<div
+class="arithmatex">` markers and normalizes the delimiters to `\(...\)`/`\[...\]` -- it
+does **not** render the math itself. That still happens client-side, in the reader's
+browser, via [KaTeX](https://katex.org/) (`src/static/javascripts/katex.js`). Since this
+is now a plain multi-page site (no more MkDocs' instant-navigation SPA behavior), that
+script is just `renderMathInElement(document.body, {...})` at the top level -- loaded
+with `defer` after the KaTeX CDN scripts (also `defer`, so all three run in document
+order after the page is parsed) -- no `DOMContentLoaded` listener or SPA-navigation
+re-wiring needed, which the old MkDocs-based version required.
 
-The `blog` plugin (built into `mkdocs-material`, not a separate package) auto-discovers
-everything under `blog/posts/` and builds the index, category pages, and pagination --
-there's no separate "publish" step or manifest to update beyond adding the file itself.
-`mkdocs-rss-plugin` generates an RSS feed (`feed_rss_created.xml`) from the same frontmatter
-dates, with `use_git: false` set in `mkdocs.yml` since the Docker build context here is
-just this app's own files, not a git checkout the plugin's git-history fallback could read.
+**Matplotlib graphs** (`src/render_plots.py`): a fenced `` ```matplotlib name="..."
+title="..." `` block is executed once, at save time, and replaced with a "Show graph"
+button + hidden modal containing the rendered PNG -- the image is never shown inline,
+only on demand. This is the dynamic-app adaptation of the original MkDocs-build-time
+version: that one scanned `.md` files on disk as a Docker build step; this one processes
+a single Markdown string, called directly from `db.py` whenever a post is saved. A
+mistake in the plotting code (a typo, a `name` reused by two different graphs, code that
+never actually calls a plotting function) raises `render_plots.PlotError`, which
+`admin_app.py` turns into a `422` with a message naming the broken block -- the save
+fails loudly, rather than silently publishing a broken page. The popup itself
+(`src/static/javascripts/plot-modal.js`) uses plain event delegation on `document`,
+attached once -- this never needed to change, since a plain multi-page site never had the
+SPA-navigation duplicate-listener hazard the old categories sidebar (on the previous
+MkDocs build) once had.
 
-**LaTeX**: inline math is `$...$`, display math is a `$$ ... $$` block on its own lines,
-exactly like writing real LaTeX. This is `pymdownx.arithmatex` (`generic: true`) wrapping
-the math in spans that `docs/javascripts/katex.js` finds and renders via KaTeX after each
-page load -- including Material's instant-navigation page swaps (`document$.subscribe`,
-not a plain `DOMContentLoaded` listener, is what makes math still render on a page reached
-without a full reload).
+**Categories sidebar**: a small, collapsed-by-default panel on the right edge of every
+page, listing every category in use, each linking to its `/blog/category/<name>/`
+archive. This got *simpler* moving to a dynamic app -- the old MkDocs version needed a
+build-time hook (`hooks.py`) to scan every post's frontmatter for its category, since
+MkDocs had no live database to query. Here, `db.list_categories()` is just `SELECT
+DISTINCT category FROM posts`, run fresh on every page render
+(`public_app.py`'s routes all pass `categories=db.list_categories()` into their template
+context) -- no separate build-time scanning step exists at all anymore.
 
-**Word problems**: state the problem in a `!!! question "Problem"` admonition, then the
-answer in a `??? success "Solution"` block -- the `???` (vs `!!!`) makes it collapsed by
-default, so a reader can attempt the problem before revealing the answer. See
-`docs/blog/posts/2026-09-24-welcome.md` for a worked example of both LaTeX and this pattern
-together.
+## Database schema
 
-**Two other references live alongside this one, closer to the code**: `math-notes/README.md`
-is the short, practical "how do I add a post" reference (a repo-root README, not part of
-the built site itself); `docs/latex-guide.md` is a live page on the site itself
-(`math.example.com/latex-guide/`) walking through inline vs. display math,
-superscript/subscript/fractions/roots with worked examples, and a symbol cheat-sheet --
-useful both for a reader and for future-you writing the next post.
+One table, `posts` (`src/db.py:init_db()`):
 
-## Navigation
+| Column | Purpose |
+|---|---|
+| `id` | Primary key, used by the admin API's URLs (`/posts/{id}`) |
+| `slug` | Permanent URL segment (`/blog/{slug}/`) -- unique, immutable after creation (see below) |
+| `title`, `category` | Shown as-is |
+| `body_markdown` | The author's original Markdown, kept so a post can be re-edited |
+| `body_html`, `excerpt_html` | Pre-rendered HTML (see "Rendering pipeline" above) -- `excerpt_html` is everything before a `<!-- more -->` marker (or the whole post, if there's no marker), same convention the old MkDocs blog plugin used |
+| `created_at`, `updated_at` | ISO 8601 UTC timestamps |
 
-`navigation.tabs` (a `theme.features` entry) turns every top-level `nav:` entry in
-`mkdocs.yml` into a persistent tab across the top of every page -- currently Home, Blog,
-and LaTeX Guide. Adding a new non-blog page means adding both the `.md` file under `docs/`
-and a line to `nav:`; blog posts need neither, since the `blog` plugin auto-discovers them.
+`journal_mode=WAL` (`db.py:get_connection()`) lets the public app's reads proceed without
+blocking on the admin app's occasional writes (and vice versa) -- the two are separate OS
+processes in separate containers, not threads in one process, so a plain rollback-journal
+SQLite database would otherwise serialize more aggressively than this low-write-volume
+use case needs.
 
-Material's breadcrumb feature (`navigation.path`) was tried and dropped -- it's an
-Insiders-only feature and silently renders nothing in the open-source `mkdocs-material`
-package this app actually uses (confirmed by inspecting the built HTML, not just the
-changelog). The blog plugin's `categories_toc`/`archive_toc` options were tried for the
-same "more navigation" goal and also dropped after confirming, the same way, that they
-don't add anything visible to this site's pages either.
+**Slugs are immutable once a post is created** -- `admin_app.py`'s `UpdatePostRequest`
+has no `slug` field at all. The Configuration UI's editor hides the slug field entirely
+once you're editing an existing post (rather than showing an input that would silently do
+nothing), to make this obvious rather than surprising.
 
-### Categories sidebar
+## Creating and managing posts
 
-A small, custom, collapsed-by-default panel pinned to the right edge of every page,
-listing every category that exists across all posts, each linking to its
-`/blog/category/<name>/` archive page. Since Material has no built-in widget for this
-(see above), it's three custom pieces:
+**From the Configuration UI** (`generator.example.com`, "Math Notes" tab) --
+click "New post", fill in title/category/body (Markdown, same LaTeX/admonition/matplotlib
+syntax as always -- see the live [LaTeX Guide](https://math.example.com/latex-guide/)),
+click "Save post". The post is live **immediately** -- there's no build or deploy step
+between saving and it appearing on the public site, unlike the old MkDocs version, which
+needed a `docker compose up -d --build` after every content change.
 
-- **`hooks.py`** (wired via `mkdocs.yml`'s `hooks:`) -- a build-time hook that scans every
-  file under `blog/posts/` for its YAML frontmatter `categories` list and stores the sorted,
-  de-duplicated result in `config.extra.all_categories`. Reads raw frontmatter straight off
-  disk in `on_files` rather than relying on `Page.meta`, since that isn't guaranteed
-  populated for every page yet at that point in MkDocs' own build sequence. Add a new
-  category to a post's frontmatter and it just shows up in the sidebar on the next build --
-  nothing else to update.
-- **`overrides/main.html`** (wired via `theme.custom_dir: overrides`) -- a Jinja template
-  override rendering the panel's HTML from `config.extra.all_categories`. It's a sibling
-  directory to `docs/`, not inside it -- `custom_dir` templates are Jinja sources MkDocs
-  renders with, not static content to publish, so putting them under `docs/` would make
-  MkDocs try to build `overrides/main.html` itself as a page.
-- **`docs/stylesheets/extra.css`** / **`docs/javascripts/categories-panel.js`** -- the
-  fixed-position styling and the click-to-toggle behavior, via plain event delegation on
-  `document` (see below for why).
+`app.js`'s Math Notes tab (`loadMathNotesPosts()`, `startNewMathNotesPost()`,
+`startEditMathNotesPost()`, `saveMathNotesPost()`, `deleteMathNotesPost()`) talks to
+`history-ui`'s own new proxy routes (`ui/main.py`, `/api/math-notes/*`), which forward to
+`math-notes-api` over `mathnotes_internal` -- the same thin-proxy pattern already used for
+every other route in that UI (see [Configuration UI](#configuration-ui) above). Deleting
+a post reuses the same generic confirm-modal pattern already built for deleting episodes
+(`openConfirmModal()`).
 
-**Why `overrides/main.html` overrides the `scripts` block, not `content`**: the first
-version of this override placed the panel's markup in `{% block content %}`, which worked
-on plain pages (Home, LaTeX Guide) but the panel was silently missing on every blog
-page -- the index, individual posts, and category archives. Reading the actual templates
-shipped inside the installed `mkdocs-material` package (not just guessing from the docs)
-showed why: `blog.html` and `blog-post.html` both `{% extends "main.html" %}`, but both
-override the `container` block wholesale, without calling `{{ super() }}` -- which
-discards the nested `content` block substitution entirely for any page rendered through
-either of them. `scripts` is a block neither of those templates touches at all, so
-overriding it instead is what actually makes the panel appear on every page type
-consistently, confirmed the same way (built the site, `curl`'d each of the four page
-types -- home, blog index, an individual post, a category archive -- and grepped for the
-panel's markup in each).
-
-**Why the toggle button uses event delegation on `document`, not `document$.subscribe`**:
-the first version of `categories-panel.js` re-queried the button and attached a fresh
-click listener inside `document$.subscribe`, on the assumption that Material's instant
-navigation replaces the panel's DOM on every page swap the same way it replaces the main
-content area -- the same assumption `katex.js` correctly makes about math rendering. It
-doesn't, precisely *because* the panel is rendered from the `scripts` block (see just
-above): that block sits outside the content area instant navigation actually swaps, so
-the button's DOM node persists unchanged across every navigation. `document$.subscribe`
-still fired on every navigation though, and each firing attached a brand-new closure as an
-*additional* listener on that same persistent button (a fresh arrow function is never
-`==` the previous one, so the browser never deduplicates it) -- so after visiting even one
-other page, a single click fired two listeners back to back, which toggled the panel open
-then immediately closed again. The net effect: **the button appeared to do nothing at all
-once you'd navigated anywhere**, reported live as "the categories sidebar doesn't work
-when viewing a post." Plain event delegation on `document`, attached exactly once at
-script-load time, fixes this categorically -- `document` itself is never replaced by
-instant navigation, so the listener is never re-attached no matter how many pages get
-visited, regardless of whether the button's own node persists or gets recreated.
-`plot-modal.js` (below) was written with this same delegated pattern from the start, so it
-never had this bug.
-
-## Matplotlib graphs
-
-A post can embed a real matplotlib figure, shown only on demand in a popup -- e.g. the
-trajectory graph in `docs/blog/posts/2026-09-24-projectile-motion-horizontal-launch.md`.
-Since this is a static site with no live server and matplotlib is Python-only, there's no
-way to run it in the reader's browser -- the figure has to be rendered to an image at
-build time and embedded, the same fundamental constraint LaTeX would have if KaTeX
-(client-side JS) didn't exist.
-
-**Author-facing syntax**: a fenced code block tagged `matplotlib`, with a required `name`
-(used for the image filename and the button's DOM target) and optional `title` (the
-button's label):
-
-````markdown
-```matplotlib name="projectile-trajectory" title="Show trajectory"
-import numpy as np
-
-t = np.linspace(0, 3.03, 100)
-x = 10 * t
-y = 45 - 0.5 * 9.8 * t**2
-
-fig, ax = plt.subplots()
-ax.plot(x, y)
-```
-````
-
-**`render_plots.py`** (a plain script, run via a `RUN python3 render_plots.py` Docker
-build step *before* `RUN mkdocs build --strict`) finds every such block via regex, `exec`s
-its code in a namespace with `plt` already imported (`matplotlib.use("Agg")` first, since
-there's no display server in the build container), grabs whatever figure the code
-produced (`plt.gcf()`), saves it as `docs/assets/plots/<name>.png`, and rewrites the block
-in place into a button + hidden `<div class="plot-widget__modal">` containing the image.
-
-**Why a standalone script, not an MkDocs hook**: an MkDocs hook that runs during page
-processing (`on_page_markdown`) fires *after* `on_files` has already decided which files
-on disk count as "documentation files" to copy into the built site -- an image written
-that late would never make it into the output. Running plot generation as its own step
-*before* `mkdocs build` even starts sidesteps that ordering problem entirely: every PNG
-already exists on disk by the time MkDocs looks for files to copy. (This is the same
-category of ordering hazard as `hooks.py`'s categories scan, which works around it by
-reading raw frontmatter directly instead of relying on `Page.meta` -- both hazards trace
-back to the same root cause, several build phases each deciding what "exists" at different
-points.)
-
-**The popup**: the image is never shown inline -- only a button, so a post's graph doesn't
-clutter or spoil anything until a reader deliberately asks for it. `docs/javascripts/plot-modal.js`
-wires this with plain event delegation on `document`, attached exactly once at script-load
-time -- since the listener lives on `document` itself, which Material's instant navigation
-never replaces, this works for every post's popup automatically without any per-post or
-per-navigation rewiring (see the categories sidebar section above for what goes wrong
-without this).
-
-**Failure mode**: a mistake in the plotting code (a typo, two graphs reusing the same
-`name`, code that never actually calls a plotting function) raises a Python exception
-during `render_plots.py`, which fails the Docker build with a normal traceback -- the
-same "fail loudly at build time" philosophy as `mkdocs build --strict` failing on a
-broken internal link, rather than silently shipping a broken page.
+**A real security fix made alongside this feature**: `generator.example.com` had
+**no `basic_auth` at all** in the live Caddyfile before this -- the whole Configuration
+UI (episode delete, YouTube publish, and now post authoring) was reachable by anyone who
+knew the URL, despite `docs/README.md`'s service table claiming otherwise. Fixed by
+adding the same `basic_auth` block `docs.example.com` already uses. Embedding the
+Math Notes authoring UI as a *new tab in an already-public* Configuration UI would have
+made post-authoring public too, had this not been caught and fixed first.
 
 ## Deploying a change
+
+Both services share one image -- rebuild once, redeploy both:
 
 ```bash
 cd /srv/apps/math-notes
 docker compose up -d --build
 ```
 
-`mkdocs build --strict` runs as part of that build -- a typo'd internal link or a
-markdown-extension config mistake fails the build loudly instead of silently shipping a
-broken page.
+Neither service holds any in-flight state worth protecting (all real state is in
+`./data`, on the shared bind mount, untouched by a container recreate) -- unlike
+`history-api`, there's no "check for an active job first" concern here.
 
-## DNS and TLS
+## Local preview and tests
 
-`math.example.com` needs an A/CNAME record added in Cloudflare pointing at the
-same target as this server's other subdomains -- this isn't something that can be done
-from the server itself. Until that record exists, Caddy's automatic HTTPS certificate
-request for it will keep failing (`no valid A records found`) and retrying on its own
-schedule (`docker logs gateway`); once the record is added, the next retry succeeds
-without needing to touch the gateway again.
+```bash
+cd /srv/apps/math-notes
+docker build -t math-notes:local .
+docker run --rm -v "$PWD/tests:/app/tests" -w /app/src math-notes:local \
+  sh -c "pip install --quiet pytest httpx && python -m pytest ../tests -q"
+```
 
-## Not mirrored to the public showcase repo
+**Tests**: `tests/test_render.py` (Markdown extensions, admonitions, arithmatex,
+excerpt-splitting), `tests/test_render_plots.py` (matplotlib block execution, error
+handling for broken/empty plotting code), `tests/test_db.py` (post CRUD, slug
+uniqueness/generation, the `created_at` override migration relies on), `tests/test_public_app.py`
+(every public route, including a real matplotlib-post render + image fetch), and
+`tests/test_admin_app.py` (every admin route, including validation and the `409`/`404`/`422`
+error-status mapping). A `tests/conftest.py` sets `MATH_NOTES_DB_PATH`/`MATH_NOTES_PLOTS_DIR`
+env vars *before* any app module is imported, since `public_app.py`'s static-file mount
+for served images captures its directory once, at import time -- a `monkeypatch` applied
+after import can't retroactively change it, which is exactly the bug this conftest setup
+works around (found live, fixed before it ever reached production).
 
-`scripts/export-showcase.sh` copies every git-tracked file under `/srv/apps` into the
-separate `rtx-5090-studio` showcase repo (redacting the real domain/credentials) -- but
-`math-notes/docs/` is excluded from that copy. The showcase repo is about
-demonstrating this server's *infrastructure*; a personal math blog's actual writing isn't
-infrastructure, and it's already public in its own right at `math.example.com`, so
-mirroring its content into a second, differently-purposed public repo would just be
-clutter. The app's `Dockerfile`/`compose.yaml`/`mkdocs.yml` (the infrastructure part) are
-still exported normally.
+## Migrating existing posts
+
+`migrate_posts.py` (app root, not part of the running image) is a one-time tool that
+reads the original Markdown files this site used to be built from (`docs/blog/posts/*.md`
+-- kept in the repo purely as a historical record now, not read by anything at runtime)
+and inserts them as database rows, preserving each post's original `date:` frontmatter as
+its `created_at` (via `db.create_post()`'s optional `created_at` parameter) rather than
+resetting every migrated post's date to "now" and scrambling the blog's chronological
+order. Safe to re-run -- skips any file whose slug already has a post in the database.
+Run once, already done for the 3 posts that existed under the old MkDocs build (Welcome,
+Projectile motion: horizontal launch, Constant acceleration: airplane takeoff); shouldn't
+need to run again.
+
+## LaTeX Guide
+
+The live **[LaTeX Guide](https://math.example.com/latex-guide/)** page
+(`src/latex_guide.md`, rendered by `public_app.py:latex_guide()` the same way a post's
+body is rendered, just not database-backed since it's fixed reference documentation, not
+a post) covers inline vs. display math, superscript/subscript/fractions/roots with worked
+examples, a symbol cheat-sheet, the `!!!`/`???` word-problem pattern, and the
+`` ```matplotlib `` graph syntax -- all still accurate; none of that syntax changed when
+the site moved off MkDocs.

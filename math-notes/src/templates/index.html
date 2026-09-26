@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Math Notes{% endblock %}
+{% block content %}
+<h1>Math Notes</h1>
+<p>
+  Personal notes, derivations, and worked word problems, written in Markdown
+  with real LaTeX math rendered by <a href="https://katex.org/" target="_blank" rel="noopener">KaTeX</a>.
+</p>
+<ul>
+  <li>Inline math: <code>$x^2 + y^2 = r^2$</code> renders as $x^2 + y^2 = r^2$.</li>
+  <li>Display math: a <code>$$ ... $$</code> block renders centered on its own line.</li>
+  <li>Word problems use a collapsible "Solution" block, so the problem can be
+    read and attempted before revealing the answer.</li>
+</ul>
+<p>See the <a href="/blog/">Blog</a> for posts, or browse by <button type="button" class="categories-panel__toggle" style="all:unset;color:var(--accent);cursor:pointer;text-decoration:underline;">category</button>.</p>
+{% endblock %}

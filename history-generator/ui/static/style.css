@@ -84,6 +84,12 @@ main {
   margin-bottom: 12px;
 }
 
+.mn-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .episodes-toolbar input[type="text"] {
   flex: 1;
   min-width: 200px;
