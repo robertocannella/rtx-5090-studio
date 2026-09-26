@@ -2,6 +2,8 @@ import math
 import os
 import subprocess
 
+from PIL import ImageFont
+
 import math_visual
 
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -9,7 +11,43 @@ BG_COLOR = "0x141414"
 TITLE_COLOR = "white"
 SEGMENT_COLOR = "0xE8B94A"
 RESOLUTION = "1920x1080"
+FRAME_WIDTH = 1920
 FPS = "30"
+
+EPISODE_TITLE_MAX_FONTSIZE = 60
+SEGMENT_TITLE_MAX_FONTSIZE = 80
+MIN_TITLE_FONTSIZE = 32
+# Leaves a margin on both sides of the frame rather than letting text run edge to edge.
+TITLE_MAX_WIDTH_RATIO = 0.92
+
+_font_cache = {}
+
+
+def _measure_text_width(text, fontsize):
+    font = _font_cache.get(fontsize)
+    if font is None:
+        font = ImageFont.truetype(FONT_PATH, fontsize)
+        _font_cache[fontsize] = font
+    return font.getlength(text)
+
+
+def _fit_fontsize(text, max_fontsize, frame_width=FRAME_WIDTH, min_fontsize=MIN_TITLE_FONTSIZE):
+    """The largest fontsize <= max_fontsize at which `text` (rendered in FONT_PATH) fits
+    within TITLE_MAX_WIDTH_RATIO of frame_width. ffmpeg's drawtext filter has no built-in
+    shrink-to-fit -- a single fixed fontsize that looks right for a short title clips
+    badly off both edges of the frame for a long one (confirmed against a real
+    76-character episode title, which overflowed both sides at a fixed fontsize=60).
+    Measured with Pillow against the actual font file rather than an approximate
+    average-character-width guess -- a rough per-character heuristic gave inconsistent
+    results across even two real titles while this was being worked out, since real
+    character widths vary a lot (a capitalized, W/M-heavy title is much wider than an
+    equally-long one full of narrow lowercase letters).
+    """
+    fontsize = max_fontsize
+    max_width = frame_width * TITLE_MAX_WIDTH_RATIO
+    while fontsize > min_fontsize and _measure_text_width(text, fontsize) > max_width:
+        fontsize -= 2
+    return fontsize
 
 MIN_GAP_SECONDS = 0.0
 MAX_GAP_SECONDS = 10.0
@@ -137,10 +175,12 @@ def build_segment_video(paths, episode_title, seg, math_bg_path=None, image_path
         "drawbox=x=0:y=(ih/2-80):w=iw:h=160:color=black@0.45:t=fill,"
         if busy_background else ""
     )
+    ep_fontsize = _fit_fontsize(episode_title, EPISODE_TITLE_MAX_FONTSIZE)
+    seg_fontsize = _fit_fontsize(seg["title"], SEGMENT_TITLE_MAX_FONTSIZE)
     text_filter = (
-        f"drawtext=fontfile={FONT_PATH}:textfile={ep_title_file}:fontsize=48:fontcolor={TITLE_COLOR}:"
+        f"drawtext=fontfile={FONT_PATH}:textfile={ep_title_file}:fontsize={ep_fontsize}:fontcolor={TITLE_COLOR}:"
         f"x=(w-text_w)/2:y=100,"
-        f"drawtext=fontfile={FONT_PATH}:textfile={seg_title_file}:fontsize=68:fontcolor={SEGMENT_COLOR}:"
+        f"drawtext=fontfile={FONT_PATH}:textfile={seg_title_file}:fontsize={seg_fontsize}:fontcolor={SEGMENT_COLOR}:"
         f"x=(w-text_w)/2:y=(h-text_h)/2"
     )
 
