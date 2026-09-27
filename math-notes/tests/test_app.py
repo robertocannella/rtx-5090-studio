@@ -50,12 +50,13 @@ def test_blog_index_lists_created_post(client):
 
 
 def test_individual_post_page(client):
-    db.create_post("My First Post", "Physics", "Intro.\n\n<!-- more -->\n\nFull body text.")
+    post_id = db.create_post("My First Post", "Physics", "Intro.\n\n<!-- more -->\n\nFull body text.")
     resp = client.get("/blog/my-first-post/")
     assert resp.status_code == 200
     assert "My First Post" in resp.text
     assert "Full body text." in resp.text
     assert 'class="md-content md-content--post"' in resp.text
+    assert f'href="/admin/{post_id}/edit"' in resp.text
 
 
 def test_individual_post_404_for_unknown_slug(client):
@@ -119,6 +120,15 @@ def test_admin_list_shows_posts(client):
     resp = client.get("/admin/")
     assert resp.status_code == 200
     assert "Admin Visible" in resp.text
+
+
+def test_admin_pages_render_the_real_site_header(client):
+    for path in ("/admin/", "/admin/new"):
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert 'class="md-header"' in resp.text
+        assert "assets/stylesheets/main." in resp.text
+        assert 'class="admin-header"' in resp.text
 
 
 def test_admin_create_post(client):

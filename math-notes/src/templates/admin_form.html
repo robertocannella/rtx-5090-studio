@@ -1,5 +1,5 @@
 {% extends "admin_base.html" %}
-{% block content %}
+{% block admin_content %}
 <form class="admin-form" method="post" action="{{ action }}">
   <label>Title
     <input type="text" name="title" value="{{ post.title if post else '' }}" required>

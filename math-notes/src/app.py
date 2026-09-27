@@ -79,6 +79,15 @@ def _base_context(request, active_nav, header_topic, title):
     }
 
 
+def _admin_context(request, title, **extra):
+    # active_nav="admin" matches none of NAV_ITEMS, so the real site header renders with
+    # no tab marked active -- admin isn't Home/Blog/LaTeX Guide, it's a separate surface
+    # that happens to share the same chrome.
+    ctx = _base_context(request, "admin", title, f"{title} - Math Notes Admin")
+    ctx.update(extra)
+    return ctx
+
+
 def _display_date(iso_string):
     return datetime.fromisoformat(iso_string).strftime("%B %-d, %Y")
 
@@ -199,7 +208,7 @@ def feed():
 @app.get("/admin/")
 def admin_list(request: Request):
     return templates.TemplateResponse(
-        request, "admin_list.html", {"request": request, "title": "Posts", "posts": db.list_posts(), "error": None},
+        request, "admin_list.html", _admin_context(request, "Posts", posts=db.list_posts(), error=None),
     )
 
 
@@ -207,7 +216,7 @@ def admin_list(request: Request):
 def admin_new_form(request: Request):
     return templates.TemplateResponse(
         request, "admin_form.html",
-        {"request": request, "title": "New post", "action": "/admin/new", "post": None, "error": None},
+        _admin_context(request, "New post", action="/admin/new", post=None, error=None),
     )
 
 
@@ -224,10 +233,10 @@ def admin_new_submit(
     except (db.DuplicateSlugError, render_plots.PlotError) as e:
         return templates.TemplateResponse(
             request, "admin_form.html",
-            {
-                "request": request, "title": "New post", "action": "/admin/new", "error": str(e),
-                "post": {"title": title, "category": category, "body_markdown": body_markdown},
-            },
+            _admin_context(
+                request, "New post", action="/admin/new", error=str(e),
+                post={"title": title, "category": category, "body_markdown": body_markdown},
+            ),
             status_code=422,
         )
     return RedirectResponse("/admin/", status_code=303)
@@ -240,7 +249,7 @@ def admin_edit_form(request: Request, post_id: int):
         raise HTTPException(status_code=404, detail="no such post")
     return templates.TemplateResponse(
         request, "admin_form.html",
-        {"request": request, "title": f"Edit: {post['title']}", "action": f"/admin/{post_id}/edit", "post": post, "error": None},
+        _admin_context(request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post, error=None),
     )
 
 
@@ -259,10 +268,10 @@ def admin_edit_submit(
     except render_plots.PlotError as e:
         return templates.TemplateResponse(
             request, "admin_form.html",
-            {
-                "request": request, "title": "Edit post", "action": f"/admin/{post_id}/edit", "error": str(e),
-                "post": {"title": title, "category": category, "body_markdown": body_markdown},
-            },
+            _admin_context(
+                request, "Edit post", action=f"/admin/{post_id}/edit", error=str(e),
+                post={"title": title, "category": category, "body_markdown": body_markdown},
+            ),
             status_code=422,
         )
     return RedirectResponse("/admin/", status_code=303)
