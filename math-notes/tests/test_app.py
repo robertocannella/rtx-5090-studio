@@ -56,6 +56,18 @@ def test_katex_zoom_js_supports_tapping_a_formula_to_zoom(client):
     assert '"summary, a, button, img, .katex"' in admin_js.text
 
 
+def test_article_text_and_headings_use_the_tuned_sizes(client):
+    # Reported live as "the plain text is tiny" and "###heading gets a bit too small",
+    # while h1/h2 were already fine -- the base .md-typeset size grows (which h3/h4/body
+    # text all scale from in em), but h1/h2 are pinned back to their own previous
+    # absolute size so they don't move at all (see extra.css's comment).
+    resp = client.get("/stylesheets/extra.css")
+    assert resp.status_code == 200
+    assert ".md-typeset {\n  font-size: 1.05rem;\n}" in resp.text
+    assert ".md-typeset h1 {\n  font-size: 1.8rem;\n}" in resp.text
+    assert ".md-typeset h2 {\n  font-size: 1.40625rem;\n}" in resp.text
+
+
 def test_katex_zoom_hover_indicator_script_and_style_are_served(client):
     # A faint -/+ near a formula's own edge previews which half a tap would zoom --
     # mouse/trackpad only (see extra.css's hover/pointer media query), driven by two

@@ -26,10 +26,27 @@ html {
   }
 }
 
-/* Material's own default article text size is 0.8rem -- bumped up a bit for easier
-   reading (this is on top of, not instead of, the root-level scale-down above). */
+/* Material's own default article text size is 0.8rem -- bumped up for easier reading
+   (this is on top of, not instead of, the root-level scale-down above). Every heading
+   size (h1-h4) and all plain body text (paragraphs, list items, table cells, admonition
+   bodies, etc.) are defined in em *relative to this one value*, not independently, so
+   raising it scales all of them together -- reported live as "the plain text is tiny"
+   and "###heading gets a bit too small" while h1/h2 (2em and 1.5625em -- already big
+   enough that the same relative gap reads fine at either size) were fine as they were.
+   The h1/h2 overrides just below hold those two exactly where they already were (their
+   own previous em size times the *previous* 0.9rem base) while h3, h4, and plain text
+   all grow with the new base -- the two headings the report said were already fine don't
+   move at all. */
 .md-typeset {
-  font-size: 0.9rem;
+  font-size: 1.05rem;
+}
+
+.md-typeset h1 {
+  font-size: 1.8rem;
+}
+
+.md-typeset h2 {
+  font-size: 1.40625rem;
 }
 
 /* KaTeX-rendered math (both inline $...$ and display $$...$$/\[...\]) defaults to the
@@ -64,15 +81,26 @@ html {
    touch devices have no real "hover", and iOS in particular can leave a :hover-driven
    indicator stuck on-screen after a tap since there's no pointer to move away and clear
    it -- gating on real hover support sidesteps that entirely rather than working around
-   it after the fact. Pure CSS -- the JS above only ever toggles these two classes, never
-   touches opacity/position itself. */
-@media (hover: hover) and (pointer: fine) {
-  .katex {
-    position: relative;
-  }
+   it after the fact. Pure CSS -- the JS above only ever toggles the katex-zoom-hover--*
+   classes (on the outer .katex, matching what the click handler already treats as "the
+   formula"), never touches opacity/position itself.
 
-  .katex::before,
-  .katex::after {
+   Anchored to .katex-html > .base, not the outer .katex/.katex-html, on purpose: for
+   *display* math specifically, KaTeX's own CSS makes .katex and .katex-html
+   `display: block` (centering the glyphs inside via text-align, for its equation-number
+   feature -- see .katex-display>.katex>.katex-html>.tag), which stretches that box to the
+   full content-column width -- so positioning relative to it put the indicators out at
+   the page's margins, nowhere near the actual glyphs (reported live as "not seeing the
+   +/- zoom tips"). .base is KaTeX's own tightly-fitting wrapper around the actual
+   rendered row (`display: inline-block; width: min-content`), identical in both inline
+   and display math, so anchoring there instead hugs the visible formula either way. The
+   `> .base` child combinator (not a bare descendant selector) matters too: a formula with
+   a fraction or root has additional, deeper-nested .base spans of its own, and a bare
+   `.katex .base` selector would put a second (or third) faint +/- inside those, not just
+   at the one outermost edge. */
+@media (hover: hover) and (pointer: fine) {
+  .katex-html > .base::before,
+  .katex-html > .base::after {
     content: "";
     position: absolute;
     top: 50%;
@@ -86,18 +114,18 @@ html {
     pointer-events: none;
   }
 
-  .katex::before {
+  .katex-html > .base::before {
     content: "\2212";
     left: -1rem;
   }
 
-  .katex::after {
+  .katex-html > .base::after {
     content: "+";
     right: -1rem;
   }
 
-  .katex-zoom-hover--left::before,
-  .katex-zoom-hover--right::after {
+  .katex-zoom-hover--left .katex-html > .base::before,
+  .katex-zoom-hover--right .katex-html > .base::after {
     opacity: 0.55;
   }
 }
