@@ -19,6 +19,11 @@ it's live immediately.
   post's title later never changes its existing slug/URL.
 - A `<!-- more -->` marker in the body splits "excerpt shown on the index" from "rest of
   the post, only shown on the post's own page" -- put it right after the intro paragraph.
+- The body is a stack of small blocks (one per paragraph, admonition, graph, math block,
+  etc.), not one giant text box -- **+ Add block** appends a new one, and each block has
+  its own move-up/move-down/delete controls. It's still one plain Markdown string under
+  the hood (`render.split_into_segments`/`join_segments`); the blocks are purely an
+  editing convenience.
 
 ## Writing math and word problems
 

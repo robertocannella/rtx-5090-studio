@@ -108,6 +108,136 @@ def normalize_display_math_spacing(text):
     return "\n".join(out)
 
 
+_FENCE_PREFIX = "```"
+_MATH_OPENERS = {"\\[": "\\]", "$$": "$$"}
+
+
+def _is_indented(line):
+    return line.startswith("    ") or line.startswith("\t")
+
+
+def split_into_segments(text):
+    """Splits a post's raw Markdown into an ordered list of top-level block strings --
+    a paragraph, a heading, a whole `!!!`/`???` admonition (including everything nested
+    under it), a whole fenced code block, a whole `$$`/`\\[` math block, or the
+    `<!-- more -->` marker -- so the admin editor can show one smaller textarea per block
+    instead of one giant one. `join_segments` is the inverse: reassembling the list this
+    returns always reproduces markdown that renders identically to the original (verified
+    against every real post in the live database, not just synthetic examples).
+
+    This never looks inside a block to sub-divide it further -- an admonition's internal
+    math/paragraphs stay part of that one block, matching the editor's actual goal (edit
+    *a* problem/solution/graph at a time, not fight the granularity of Markdown's own
+    grammar).
+    """
+    lines = text.split("\n")
+    n = len(lines)
+    segments = []
+    i = 0
+
+    while i < n:
+        while i < n and lines[i].strip() == "":
+            i += 1
+        if i >= n:
+            break
+
+        stripped = lines[i].strip()
+
+        if stripped.startswith(_FENCE_PREFIX):
+            start = i
+            i += 1
+            while i < n and not lines[i].strip().startswith(_FENCE_PREFIX):
+                i += 1
+            if i < n:
+                i += 1  # include the closing fence
+            segments.append("\n".join(lines[start:i]))
+            continue
+
+        if stripped in _MATH_OPENERS:
+            closer = _MATH_OPENERS[stripped]
+            start = i
+            i += 1
+            while i < n and lines[i].strip() != closer:
+                i += 1
+            if i < n:
+                i += 1  # include the closing marker
+            segments.append("\n".join(lines[start:i]))
+            continue
+
+        if stripped == EXCERPT_MARKER:
+            segments.append(lines[i])
+            i += 1
+            continue
+
+        if stripped.startswith("!!!") or stripped.startswith("???"):
+            start = i
+            end = i + 1
+            i += 1
+            while i < n:
+                if lines[i].strip() == "":
+                    j = i
+                    while j < n and lines[j].strip() == "":
+                        j += 1
+                    if j < n and _is_indented(lines[j]):
+                        i = j  # blank line(s) followed by more indented content -- internal
+                        continue
+                    break  # blank line(s) followed by a new block, or end of text -- stop
+                if _is_indented(lines[i]):
+                    i += 1
+                    end = i
+                else:
+                    break
+            segments.append("\n".join(lines[start:end]))
+            i = end
+            continue
+
+        # A plain paragraph or heading -- runs until a blank line or the start of one of
+        # the block types above, however many lines that is (a soft-wrapped paragraph
+        # stays one segment, matching how Markdown itself treats it as one block).
+        start = i
+        i += 1
+        while i < n:
+            s = lines[i].strip()
+            if s == "" or s.startswith(_FENCE_PREFIX) or s in _MATH_OPENERS or s == EXCERPT_MARKER \
+                    or s.startswith("!!!") or s.startswith("???"):
+                break
+            i += 1
+        segments.append("\n".join(lines[start:i]))
+
+    return segments
+
+
+def join_segments(segments):
+    """Inverse of split_into_segments -- blank-line-separated, matching the convention
+    every other block-level construct on this site already assumes (split_excerpt,
+    normalize_display_math_spacing).
+    """
+    return "\n\n".join(s.strip() for s in segments if s.strip())
+
+
+def classify_segment(segment):
+    """A short label for the admin editor to show above a segment's textarea -- purely
+    cosmetic, recomputed fresh from content every time, never stored."""
+    stripped = segment.strip()
+    first_line = stripped.split("\n", 1)[0].strip()
+    if first_line == EXCERPT_MARKER:
+        return "Excerpt break"
+    if first_line.startswith("```matplotlib"):
+        return "Matplotlib graph"
+    if first_line.startswith(_FENCE_PREFIX):
+        return "Code block"
+    if first_line in _MATH_OPENERS:
+        return "Math block"
+    if first_line.startswith("!!!") or first_line.startswith("???"):
+        m = re.match(r'^(?:!!!|\?\?\?)\s*(\S+)', first_line)
+        kind = m.group(1) if m else ""
+        prefix = "Admonition" if first_line.startswith("!!!") else "Collapsible"
+        return f"{prefix} ({kind})" if kind else prefix
+    if first_line.startswith("#"):
+        return "Heading"
+    return "Paragraph"
+
+
 def secondary_toc(toc_tokens):
     """Material's secondary sidebar never lists the page's own top-level heading (its
     title is already shown as the page heading itself) -- only what's nested under it.

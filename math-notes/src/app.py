@@ -102,6 +102,28 @@ def _set_admin_cookie(response):
     return response
 
 
+def _segment_dict(text):
+    lines = max(text.count("\n") + 1, 1)
+    return {
+        "text": text,
+        "label": render.classify_segment(text) if text.strip() else "Paragraph",
+        "rows": min(max(lines + 1, 2), 20),
+    }
+
+
+def _segments_for(body_markdown):
+    """The admin editor's per-block view of a post's body -- a Gutenberg-style editor
+    over the same flat body_markdown, not a new content model (see render.py's
+    split_into_segments/join_segments). A brand new post starts with a single empty
+    paragraph block rather than an empty list, so the form always has at least one
+    textarea to type into.
+    """
+    texts = render.split_into_segments(body_markdown) if body_markdown else []
+    if not texts:
+        texts = [""]
+    return [_segment_dict(t) for t in texts]
+
+
 def _admin_context(request, title, **extra):
     # active_nav="admin" matches none of NAV_ITEMS, so the real site header renders with
     # no tab marked active -- admin isn't Home/Blog/LaTeX Guide, it's a separate surface
@@ -239,7 +261,7 @@ def admin_list(request: Request):
 def admin_new_form(request: Request):
     return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_form.html",
-        _admin_context(request, "New post", action="/admin/new", post=None, error=None),
+        _admin_context(request, "New post", action="/admin/new", post=None, segments=_segments_for(""), error=None),
     ))
 
 
@@ -248,9 +270,10 @@ def admin_new_submit(
     request: Request,
     title: str = Form(...),
     category: str = Form(...),
-    body_markdown: str = Form(...),
+    segments: list[str] = Form(...),
     slug: str = Form(""),
 ):
+    body_markdown = render.join_segments(segments)
     try:
         db.create_post(title.strip(), category.strip(), body_markdown, slug=slug.strip() or None)
     except (db.DuplicateSlugError, render_plots.PlotError) as e:
@@ -258,7 +281,8 @@ def admin_new_submit(
             request, "admin_form.html",
             _admin_context(
                 request, "New post", action="/admin/new", error=str(e),
-                post={"title": title, "category": category, "body_markdown": body_markdown},
+                post={"title": title, "category": category},
+                segments=[_segment_dict(s) for s in segments],
             ),
             status_code=422,
         )
@@ -284,7 +308,10 @@ def admin_edit_form(request: Request, post_id: int):
         raise HTTPException(status_code=404, detail="no such post")
     return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_form.html",
-        _admin_context(request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post, error=None),
+        _admin_context(
+            request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post,
+            segments=_segments_for(post["body_markdown"]), error=None,
+        ),
     ))
 
 
@@ -294,8 +321,9 @@ def admin_edit_submit(
     post_id: int,
     title: str = Form(...),
     category: str = Form(...),
-    body_markdown: str = Form(...),
+    segments: list[str] = Form(...),
 ):
+    body_markdown = render.join_segments(segments)
     try:
         db.update_post(post_id, title=title.strip(), category=category.strip(), body_markdown=body_markdown)
     except db.PostNotFoundError as e:
@@ -305,7 +333,8 @@ def admin_edit_submit(
             request, "admin_form.html",
             _admin_context(
                 request, "Edit post", action=f"/admin/{post_id}/edit", error=str(e),
-                post={"title": title, "category": category, "body_markdown": body_markdown},
+                post={"title": title, "category": category},
+                segments=[_segment_dict(s) for s in segments],
             ),
             status_code=422,
         )

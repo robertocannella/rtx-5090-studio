@@ -93,6 +93,24 @@ Saving re-renders the post immediately -- no build step, no waiting. A mistake i
 matplotlib block (see below) is reported right there on the form and the post is not
 saved, rather than silently shipping a broken page.
 
+**The body is edited as a sequence of blocks**, not one giant textarea -- a
+Gutenberg-style editor over the same plain Markdown, not a new content model. Saving a
+post's `body_markdown` still writes exactly one Markdown string to the `posts` table;
+`render.split_into_segments()` breaks that string into an ordered list of top-level
+blocks (a paragraph, a heading, a whole `!!!`/`???` admonition including everything
+nested under it, a whole ` ```matplotlib ` block, a whole `$$`/`\[` math block, or the
+`<!-- more -->` marker) purely so each one gets its own smaller textarea in the admin
+form -- `render.join_segments()` is the inverse, run server-side on save
+(`app.py`'s admin routes) to reassemble the submitted blocks, in whatever order they're
+in, back into one string before it ever reaches `db.create_post`/`update_post`. Add,
+delete, and reorder (move up/down) are `static/javascripts/admin-blocks.js`, plain DOM
+manipulation with no server round-trip -- the block boundaries themselves only exist for
+editing convenience, so no existing post needed migrating and nothing downstream (the
+public site, the excerpt split, the TOC, matplotlib rendering) changed at all. Verified
+against the exact `body_markdown` of every real post in the live database (not just
+synthetic examples) rendering identically before and after a split/rejoin round-trip --
+see `tests/test_segments.py` and `tests/fixtures/real_posts.json`.
+
 **LaTeX**: inline math is `$...$`, display math is a `$$ ... $$` or `\[ ... \]` block on
 its own lines, exactly like writing real LaTeX. This is `pymdownx.arithmatex`
 (`generic: true`) wrapping the math in spans/divs that `static/javascripts/katex.js` finds

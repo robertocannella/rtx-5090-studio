@@ -12,12 +12,44 @@
       <input type="text" name="slug" value="">
     </label>
   {% endif %}
-  <label>Body (Markdown)
-    <textarea name="body_markdown" required>{{ post.body_markdown if post else '' }}</textarea>
-  </label>
+
+  <div class="admin-blocks" id="admin-blocks">
+    {% for seg in segments %}
+      <div class="admin-block">
+        <div class="admin-block__header">
+          <span class="admin-block__label">{{ seg.label }}</span>
+          <div class="admin-block__controls">
+            <button type="button" class="admin-block__move-up" title="Move block up">&uarr;</button>
+            <button type="button" class="admin-block__move-down" title="Move block down">&darr;</button>
+            <button type="button" class="admin-block__delete" title="Delete block">&times;</button>
+          </div>
+        </div>
+        <textarea name="segments" rows="{{ seg.rows }}">{{ seg.text }}</textarea>
+      </div>
+    {% endfor %}
+  </div>
+
+  <button type="button" id="admin-add-block" class="md-button">+ Add block</button>
+
   <div class="admin-actions">
     <button type="submit" class="md-button md-button--primary">Save</button>
     <a href="/admin/">Cancel</a>
   </div>
 </form>
+
+<template id="admin-block-template">
+  <div class="admin-block">
+    <div class="admin-block__header">
+      <span class="admin-block__label">Paragraph</span>
+      <div class="admin-block__controls">
+        <button type="button" class="admin-block__move-up" title="Move block up">&uarr;</button>
+        <button type="button" class="admin-block__move-down" title="Move block down">&darr;</button>
+        <button type="button" class="admin-block__delete" title="Delete block">&times;</button>
+      </div>
+    </div>
+    <textarea name="segments" rows="4"></textarea>
+  </div>
+</template>
+
+<script src="/javascripts/admin-blocks.js"></script>
 {% endblock %}

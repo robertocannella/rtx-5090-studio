@@ -144,7 +144,7 @@ def test_admin_pages_render_the_real_site_header(client):
 def test_admin_create_post(client):
     resp = client.post(
         "/admin/new",
-        data={"title": "New Post", "category": "Meta", "body_markdown": "Body text."},
+        data={"title": "New Post", "category": "Meta", "segments": ["Body text."]},
         follow_redirects=False,
     )
     assert resp.status_code == 303
@@ -156,7 +156,7 @@ def test_admin_create_duplicate_slug_shows_error(client):
     db.create_post("Existing", "Meta", "Body.", slug="dup")
     resp = client.post(
         "/admin/new",
-        data={"title": "Other", "category": "Meta", "body_markdown": "Body.", "slug": "dup"},
+        data={"title": "Other", "category": "Meta", "segments": ["Body."], "slug": "dup"},
     )
     assert resp.status_code == 422
     assert "already exists" in resp.text
@@ -168,7 +168,7 @@ def test_admin_create_broken_plot_shows_error(client):
         data={
             "title": "Bad Plot",
             "category": "Meta",
-            "body_markdown": '```matplotlib name="bad"\nthis is not python(((\n```',
+            "segments": ['```matplotlib name="bad"\nthis is not python(((\n```'],
         },
     )
     assert resp.status_code == 422
@@ -179,7 +179,7 @@ def test_admin_edit_post_redirects_to_view_mode(client):
     post_id = db.create_post("Editable", "Meta", "Old body.")
     resp = client.post(
         f"/admin/{post_id}/edit",
-        data={"title": "Edited", "category": "Meta", "body_markdown": "New body."},
+        data={"title": "Edited", "category": "Meta", "segments": ["New body."]},
         follow_redirects=False,
     )
     # Saving switches the page from edit mode to view mode (a rendered read of exactly
@@ -190,6 +190,43 @@ def test_admin_edit_post_redirects_to_view_mode(client):
     post = db.get_post(post_id=post_id)
     assert post["title"] == "Edited"
     assert "New body." in post["body_html"]
+
+
+def test_admin_edit_form_shows_one_block_per_segment(client):
+    body = 'Intro.\n\n!!! question "Problem"\n    Body.\n\n```matplotlib name="g"\nax = plt.gca()\n```'
+    post_id = db.create_post("Blocky", "Meta", body)
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    # +1 for the hidden <template>'s own inert textarea (never submitted -- browsers
+    # exclude <template> content from forms, unlike a plain count() of the raw HTML).
+    assert resp.text.count('name="segments"') == 3 + 1
+    assert "Admonition (question)" in resp.text
+    assert "Matplotlib graph" in resp.text
+    assert "Paragraph" in resp.text
+
+
+def test_admin_new_form_starts_with_one_empty_block(client):
+    resp = client.get("/admin/new")
+    assert resp.status_code == 200
+    assert resp.text.count('name="segments"') == 1 + 1  # +1 for the hidden <template>
+
+
+def test_admin_edit_submit_with_multiple_segments_reassembles_body(client):
+    post_id = db.create_post("Multi Block", "Meta", "Original.")
+    resp = client.post(
+        f"/admin/{post_id}/edit",
+        data={
+            "title": "Multi Block",
+            "category": "Meta",
+            "segments": ["Intro paragraph.", '!!! question "Problem"\n    What is x?'],
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    post = db.get_post(post_id=post_id)
+    assert post["body_markdown"] == 'Intro paragraph.\n\n!!! question "Problem"\n    What is x?'
+    assert "Intro paragraph." in post["body_html"]
+    assert 'class="admonition question"' in post["body_html"]
 
 
 def test_admin_edit_form_has_no_preview(client):
@@ -229,7 +266,7 @@ def test_admin_new_post_still_redirects_to_listing(client):
     # still goes to the listing, since there's no "keep iterating on this one" context yet.
     resp = client.post(
         "/admin/new",
-        data={"title": "Fresh Post", "category": "Meta", "body_markdown": "Body."},
+        data={"title": "Fresh Post", "category": "Meta", "segments": ["Body."]},
         follow_redirects=False,
     )
     assert resp.status_code == 303

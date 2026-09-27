@@ -11,11 +11,51 @@
     font: inherit; padding: 0.5rem; border: 1px solid var(--md-default-fg-color--lightest); border-radius: 0.2rem;
     background: var(--md-default-bg-color); color: var(--md-default-fg-color);
   }
-  form.admin-form textarea { min-height: 24rem; font-family: var(--md-code-font); font-size: 0.85rem; }
+  form.admin-form textarea { min-height: 3rem; font-family: var(--md-code-font); font-size: 0.85rem; resize: vertical; }
   .admin-actions { display: flex; gap: 0.75rem; }
   .admin-error { color: #b3261e; font-weight: 700; }
   .admin-saved { color: var(--md-primary-fg-color); font-weight: 700; }
   .admin-row-actions form { display: inline; }
+
+  /* Gutenberg-style block editor (admin_form.html) -- each block of a post's markdown
+     (a paragraph, an admonition, a matplotlib graph, a math block -- see render.py's
+     split_into_segments) gets its own smaller textarea instead of one giant one, so a
+     single problem/solution/graph can be edited without scrolling past the rest of the
+     post. Reordering/adding/deleting is wired up in static/javascripts/admin-blocks.js;
+     this is purely the block chrome's appearance. */
+  .admin-blocks { display: flex; flex-direction: column; gap: 0.75rem; }
+  .admin-block {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 0.2rem;
+    padding: 0.5rem;
+    background: var(--md-code-bg-color);
+  }
+  .admin-block__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+  .admin-block__label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--md-default-fg-color--light);
+  }
+  .admin-block__controls { display: flex; gap: 0.25rem; }
+  .admin-block__controls button {
+    font: inherit;
+    line-height: 1;
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 0.2rem;
+    background: var(--md-default-bg-color);
+    color: var(--md-default-fg-color);
+    cursor: pointer;
+  }
+  .admin-block__controls button:hover { border-color: var(--md-primary-fg-color); color: var(--md-primary-fg-color); }
+  .admin-block textarea { width: 100%; }
   .admin-preview {
     margin-top: 1.5rem;
     border: 1px solid var(--md-default-fg-color--lightest);
