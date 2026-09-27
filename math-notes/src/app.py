@@ -36,6 +36,19 @@ BASE_DIR = Path(__file__).parent
 CONTENT_DIR = BASE_DIR / "content"
 SITE_URL = "https://math.example.com"
 
+def _preview_plots_dir():
+    """Scratch output for the admin editor's explicit "Generate graph" action
+    (render_plots.process_live) -- deliberately separate from db.PLOTS_DIR (the real
+    directory create_post()/update_post() write to), so clicking it while experimenting,
+    then abandoning the edit without saving the post, can never change what a live,
+    already-published post's graph looks like. Computed fresh on every call, not cached
+    as a module constant -- db.PLOTS_DIR is itself a plain mutable module attribute
+    (tests monkeypatch it directly), and caching this once at import time would silently
+    keep pointing at the real default forever after, regardless of what db.PLOTS_DIR
+    later became.
+    """
+    return db.PLOTS_DIR.parent / "preview_plots"
+
 _home_html = None
 _home_toc = None
 _latex_guide_html = None
@@ -115,6 +128,25 @@ def _render_segment_preview(text):
     processed = render_plots.process_preview(processed, db.PLOTS_DIR)
     html, _ = render.render_markdown(processed)
     return render.expand_details_blocks(html)
+
+
+def _generate_graph_preview(text):
+    """The admin editor's explicit "Generate graph" action -- unlike
+    _render_segment_preview, this genuinely executes the block's matplotlib code
+    (render_plots.process_live), into _preview_plots_dir(), never the real db.PLOTS_DIR a
+    save writes to. A broken block is expected here (that's the point of a button the
+    author clicks on purpose to check whether their in-progress code works), so its
+    error is shown inline rather than raised.
+    """
+    try:
+        processed = render.normalize_display_math_spacing(text)
+        processed = render_plots.process_live(
+            processed, _preview_plots_dir(), assets_url_prefix="/admin/preview-plots",
+        )
+        html, _ = render.render_markdown(processed)
+        return render.expand_details_blocks(html)
+    except render_plots.PlotError as e:
+        return f'<p class="admin-error">{xml_escape(str(e))}</p>'
 
 
 def _segment_dict(text):
@@ -275,6 +307,24 @@ def admin_preview_segment(text: str = Form("")):
     return Response(content=_render_segment_preview(text) if text.strip() else "", media_type="text/html")
 
 
+@app.post("/admin/generate-graph")
+def admin_generate_graph(text: str = Form("")):
+    """Called by static/javascripts/admin-blocks.js's "Generate graph" button --
+    genuinely executes the block's matplotlib code (unlike preview-segment above), into
+    _preview_plots_dir(), never the real path a save writes to. Doesn't touch the database.
+    """
+    return Response(content=_generate_graph_preview(text) if text.strip() else "", media_type="text/html")
+
+
+@app.get("/admin/preview-plots/{filename}")
+def admin_preview_plot_image(filename: str):
+    preview_plots_dir = _preview_plots_dir()
+    path = preview_plots_dir / filename
+    if not path.is_file() or path.resolve().parent != preview_plots_dir.resolve():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(path, media_type="image/png")
+
+
 @app.get("/admin/")
 def admin_list(request: Request):
     return _set_admin_cookie(templates.TemplateResponse(
@@ -286,7 +336,10 @@ def admin_list(request: Request):
 def admin_new_form(request: Request):
     return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_form.html",
-        _admin_context(request, "New post", action="/admin/new", post=None, segments=_segments_for(""), error=None),
+        _admin_context(
+            request, "New post", action="/admin/new", post=None, segments=_segments_for(""), error=None,
+            show_all_posts_header_link=False,
+        ),
     ))
 
 
@@ -308,6 +361,7 @@ def admin_new_submit(
                 request, "New post", action="/admin/new", error=str(e),
                 post={"title": title, "category": category},
                 segments=[_segment_dict(s) for s in segments],
+                show_all_posts_header_link=False,
             ),
             status_code=422,
         )
@@ -335,6 +389,7 @@ def admin_edit_form(request: Request, post_id: int):
         _admin_context(
             request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post,
             segments=_segments_for(post["body_markdown"]), error=None,
+            show_all_posts_header_link=False,
         ),
     ))
 
@@ -359,6 +414,7 @@ def admin_edit_submit(
                 request, "Edit post", action=f"/admin/{post_id}/edit", error=str(e),
                 post={"title": title, "category": category},
                 segments=[_segment_dict(s) for s in segments],
+                show_all_posts_header_link=False,
             ),
             status_code=422,
         )

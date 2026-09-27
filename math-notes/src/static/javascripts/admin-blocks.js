@@ -4,7 +4,10 @@
 // mode first finalizes whichever block was being edited, fetching a live render of
 // exactly what's currently typed in it (POST /admin/preview-segment -- stateless, saves
 // nothing to the database) so its view mode reflects in-progress edits, not just the
-// last save.
+// last save. A matplotlib block's own Generate graph button is the one case that
+// genuinely executes its code on purpose (POST /admin/generate-graph, into a scratch
+// directory the real save path never reads from) -- everything else here only ever
+// renders, never runs, whatever is currently typed.
 //
 // Plain event delegation on `document`, attached once -- this is a normal full page load
 // (not part of Material's instant-navigation content swapping the rest of the site uses),
@@ -92,29 +95,52 @@ document.addEventListener("keydown", (event) => {
   adminBlockHandleTab(textarea, event.shiftKey);
 });
 
+async function adminBlockRenderInto(view, text, url) {
+  if (!text.trim()) {
+    view.innerHTML = "";
+    return;
+  }
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "text=" + encodeURIComponent(text),
+    });
+    view.innerHTML = await resp.text();
+    adminBlocksRenderMath(view);
+  } catch (err) {
+    // A transient network error here shouldn't block anything -- Save (a real form
+    // submit) is what actually matters, and it doesn't depend on this preview at all.
+  }
+}
+
 async function adminBlockSwitchToView(block) {
   const textarea = block.querySelector("textarea");
   const view = block.querySelector(".admin-block__view");
-  const text = textarea.value;
-  if (!text.trim()) {
-    view.innerHTML = "";
-  } else {
-    try {
-      const resp = await fetch("/admin/preview-segment", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "text=" + encodeURIComponent(text),
-      });
-      view.innerHTML = await resp.text();
-      adminBlocksRenderMath(view);
-    } catch (err) {
-      // A transient network error here shouldn't block anything -- Save (a real form
-      // submit) is what actually matters, and it doesn't depend on this preview at all.
-    }
-  }
+  await adminBlockRenderInto(view, textarea.value, "/admin/preview-segment");
   block.dataset.mode = "view";
   block.querySelector(".admin-block__toggle").textContent = "Edit";
 }
+
+// A ```matplotlib block's code is never executed just by looking at it (see
+// adminBlockRenderInto/preview-segment) -- the Generate graph button is the one
+// explicit, author-initiated exception, so it's only shown for a block that currently
+// looks like a matplotlib block, checked live as the author types (a brand new "+ Add
+// block" starts out as a plain paragraph until it actually contains one).
+const ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE = /```matplotlib\s+name="/;
+
+function adminBlockUpdateGenerateGraphVisibility(block) {
+  const textarea = block.querySelector("textarea");
+  const button = block.querySelector(".admin-block__generate-graph");
+  button.hidden = !ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE.test(textarea.value);
+}
+
+document.addEventListener("input", (event) => {
+  const block = event.target.closest(".admin-block");
+  if (block && event.target.tagName === "TEXTAREA") {
+    adminBlockUpdateGenerateGraphVisibility(block);
+  }
+});
 
 function adminBlockSwitchToEdit(block) {
   block.dataset.mode = "edit";
@@ -157,6 +183,12 @@ document.addEventListener("click", (event) => {
   const deleteButton = event.target.closest(".admin-block__delete");
   if (deleteButton) {
     const block = deleteButton.closest(".admin-block");
+    // A block being actively edited may hold unsaved changes (or just be easy to delete
+    // by reflex while mid-edit) -- a settled, view-mode block is already reflected in the
+    // last render either way, so only the edit-mode case is worth interrupting for.
+    if (block.dataset.mode === "edit" && !confirm("Discard this block and its unsaved changes?")) {
+      return;
+    }
     const container = block.parentNode;
     if (container.children.length > 1) {
       block.remove();
@@ -165,6 +197,18 @@ document.addEventListener("click", (event) => {
       block.querySelector("textarea").value = "";
       adminBlockSwitchToEdit(block);
     }
+    return;
+  }
+
+  const generateButton = event.target.closest(".admin-block__generate-graph");
+  if (generateButton) {
+    const block = generateButton.closest(".admin-block");
+    const textarea = block.querySelector("textarea");
+    const view = block.querySelector(".admin-block__view");
+    adminBlockRenderInto(view, textarea.value, "/admin/generate-graph").then(() => {
+      block.dataset.mode = "view";
+      block.querySelector(".admin-block__toggle").textContent = "Edit";
+    });
     return;
   }
 

@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import admin_auth
+import app as app_module
 import db
 from app import app
 
@@ -272,6 +273,66 @@ def test_admin_preview_segment_never_executes_matplotlib_code(client):
     assert "will render here after you save" in resp.text
 
 
+def test_admin_generate_graph_executes_code_and_serves_the_image(client):
+    text = '```matplotlib name="gen-graph-test" title="Show it"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    resp = client.post("/admin/generate-graph", data={"text": text})
+    assert resp.status_code == 200
+    assert 'src="/admin/preview-plots/gen-graph-test.png"' in resp.text
+    assert "plot-widget__toggle" not in resp.text  # visible directly, not behind a button
+
+    image_resp = client.get("/admin/preview-plots/gen-graph-test.png")
+    assert image_resp.status_code == 200
+    assert image_resp.headers["content-type"] == "image/png"
+
+
+def test_admin_generate_graph_never_touches_the_real_saved_image(client):
+    # Regenerating a block's graph before saving the post must never change what a live,
+    # already-published post's graph looks like -- only an actual save may write there.
+    post_id = db.create_post(
+        "Real Graph Post", "Meta",
+        '```matplotlib name="real-graph"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```',
+    )
+    post = db.get_post(post_id=post_id)
+    real_image_before = db.PLOTS_DIR.joinpath("real-graph.png").read_bytes()
+
+    edited_text = '```matplotlib name="real-graph"\nax = plt.gca()\nax.plot([1, 0], [1, 0])\n```'
+    resp = client.post("/admin/generate-graph", data={"text": edited_text})
+    assert resp.status_code == 200
+
+    real_image_after = db.PLOTS_DIR.joinpath("real-graph.png").read_bytes()
+    assert real_image_after == real_image_before  # untouched by the un-saved preview
+
+
+def test_admin_generate_graph_shows_error_for_broken_code(client):
+    text = '```matplotlib name="broken-gen"\nthis is not valid python(((\n```'
+    resp = client.post("/admin/generate-graph", data={"text": text})
+    assert resp.status_code == 200
+    assert 'class="admin-error"' in resp.text
+    assert "broken-gen" in resp.text
+
+
+def test_admin_generate_graph_empty_text_returns_empty_body(client):
+    resp = client.post("/admin/generate-graph", data={"text": "   "})
+    assert resp.status_code == 200
+    assert resp.text == ""
+
+
+def test_admin_preview_plot_image_404s_for_unknown_filename(client):
+    resp = client.get("/admin/preview-plots/does-not-exist.png")
+    assert resp.status_code == 404
+
+
+def test_preview_plots_dir_tracks_current_plots_dir(monkeypatch, tmp_path):
+    # Regression test: _preview_plots_dir() must be computed fresh from db.PLOTS_DIR on
+    # every call, not cached once at import time -- a cached version would silently keep
+    # pointing at the real default forever after, meaning every test (and every real
+    # request, if db.PLOTS_DIR were ever reconfigured) would write generated graphs
+    # straight into the live production data directory instead of an isolated one.
+    fake_plots_dir = tmp_path / "custom" / "plots"
+    monkeypatch.setattr(db, "PLOTS_DIR", fake_plots_dir)
+    assert app_module._preview_plots_dir() == fake_plots_dir.parent / "preview_plots"
+
+
 def test_admin_edit_submit_with_multiple_segments_reassembles_body(client):
     post_id = db.create_post("Multi Block", "Meta", "Original.")
     resp = client.post(
@@ -325,6 +386,23 @@ def test_admin_list_still_shows_all_posts_link_in_its_own_header(client):
     assert resp.status_code == 200
     header_section = resp.text.split('<div class="admin-header">')[1].split("</div>")[0]
     assert "All posts" in header_section
+
+
+def test_admin_new_form_has_no_all_posts_link_in_header(client):
+    # The Cancel link in the form's own action row already goes back to the list --
+    # showing All posts in the header too was redundant.
+    resp = client.get("/admin/new")
+    assert resp.status_code == 200
+    header_section = resp.text.split('<div class="admin-header">')[1].split("</div>")[0]
+    assert "All posts" not in header_section
+
+
+def test_admin_edit_form_has_no_all_posts_link_in_header(client):
+    post_id = db.create_post("No Header Link Post", "Meta", "Body.")
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    header_section = resp.text.split('<div class="admin-header">')[1].split("</div>")[0]
+    assert "All posts" not in header_section
 
 
 def test_admin_view_page_shows_saved_banner_after_redirect(client):

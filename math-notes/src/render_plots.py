@@ -79,6 +79,32 @@ def process(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
     return FENCE_RE.sub(replace, markdown_text)
 
 
+def process_live(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
+    """Like process() -- actually executes each block's code -- but for the admin
+    editor's explicit "Generate graph" action, not a save: renders the result as a plain
+    visible <img>, matching the editor's "show it expanded" convention
+    (expand_details_blocks/process_preview), rather than the public site's click-to-reveal
+    button+modal.
+
+    Unlike process_preview, this genuinely runs the block's code and can raise
+    PlotError -- that is the point of a button the author clicks on purpose to see
+    whether their in-progress code actually works. The caller must always pass a scratch
+    `plots_dir` distinct from the real one create_post()/update_post() write to: an
+    abandoned edit (Generate graph clicked, then navigated away without saving the post)
+    must never change what a live, already-published post's graph looks like.
+    """
+    plots_dir = Path(plots_dir)
+
+    def replace(match):
+        name = match.group("name")
+        title = match.group("title") or "Graph"
+        code = match.group("code")
+        _render_one(name, code, plots_dir)
+        return f'<p class="plot-widget__preview"><img src="{assets_url_prefix}/{name}.png" alt="{title}"></p>'
+
+    return FENCE_RE.sub(replace, markdown_text)
+
+
 def process_preview(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
     """Renders a ```matplotlib block for the admin editor's per-block view-mode preview
     (app.py's _render_segment_preview) -- but never executes the block's code, only ever

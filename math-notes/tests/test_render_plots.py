@@ -78,3 +78,34 @@ def test_process_preview_uses_existing_image_without_regenerating(tmp_path):
     assert '<img src="/assets/plots/already-saved.png" alt="Show it">' in result
     assert "plot-widget__toggle" not in result
     assert (tmp_path / "already-saved.png").read_bytes() == b"fake png bytes"  # untouched
+
+
+def test_process_live_executes_code_and_renders_visible_image(tmp_path):
+    text = (
+        '```matplotlib name="live-test" title="Show live"\n'
+        "ax = plt.gca()\n"
+        "ax.plot([0, 1], [0, 1])\n"
+        "```"
+    )
+    result = render_plots.process_live(text, tmp_path)
+    assert "```matplotlib" not in result
+    assert "plot-widget__preview" in result
+    assert '<img src="/assets/plots/live-test.png" alt="Show live">' in result
+    assert "plot-widget__toggle" not in result  # visible directly, not behind a button
+    assert (tmp_path / "live-test.png").exists()
+    assert (tmp_path / "live-test.png").stat().st_size > 0
+
+
+def test_process_live_raises_on_broken_code(tmp_path):
+    # Unlike process_preview, process_live is an explicit "run this now" action -- it
+    # must actually surface a broken block's error, not silently do nothing.
+    text = '```matplotlib name="broken-live"\nthis is not valid python(((\n```'
+    with pytest.raises(render_plots.PlotError, match="broken-live"):
+        render_plots.process_live(text, tmp_path)
+
+
+def test_process_live_overwrites_existing_image_in_its_own_directory(tmp_path):
+    (tmp_path / "regen.png").write_bytes(b"stale bytes")
+    text = '```matplotlib name="regen"\nax = plt.gca()\nax.plot([0, 1], [1, 0])\n```'
+    render_plots.process_live(text, tmp_path)
+    assert (tmp_path / "regen.png").read_bytes() != b"stale bytes"
