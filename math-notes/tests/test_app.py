@@ -27,6 +27,18 @@ def test_home_page_renders_material_chrome(client):
     assert "assets/stylesheets/main." in resp.text
 
 
+def test_katex_zoom_controls_render_on_public_and_admin_pages(client):
+    # Same base.html chrome on both -- one zoom preference should reach a public post's
+    # rendered math and the admin editor's view-mode preview panes alike.
+    post_id = db.create_post("Zoom Control Post", "Meta", "Body.")
+    for path in ("/", f"/blog/{db.get_post(post_id=post_id)['slug']}/", "/admin/", "/admin/new"):
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert "data-katex-zoom-in" in resp.text
+        assert "data-katex-zoom-out" in resp.text
+        assert "/javascripts/katex-zoom.js" in resp.text
+
+
 def test_palette_scope_is_pinned_to_site_root_on_every_page(client):
     # __md_scope must resolve the same way regardless of which page happens to load it,
     # otherwise the palette (dark/light) preference and other persisted UI state end up

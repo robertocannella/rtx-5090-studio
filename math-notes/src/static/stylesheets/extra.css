@@ -37,13 +37,44 @@ html {
    large by default here instead: inline math is bumped, and a display equation (KaTeX's
    own .katex-display wrapper, applied automatically whenever auto-render.js is called
    with displayMode: true, i.e. every block delimiter) gets an even larger bump on top of
-   that, since a standalone equation is normally the main thing on its line. */
+   that, since a standalone equation is normally the main thing on its line.
+
+   --katex-zoom is a further, viewer-adjustable multiplier on top of these base sizes --
+   defaults to 1 (i.e. exactly the sizes above), controlled by the A-/A+ buttons in the
+   header (static/javascripts/katex-zoom.js), which only ever change this one custom
+   property. Defining it on :root, not just wherever math happens to appear, means every
+   .katex element on the page -- public post, LaTeX guide, or the admin editor's
+   view-mode preview panes -- responds to the same zoom level without each needing its
+   own copy of the variable. */
+:root {
+  --katex-zoom: 1;
+}
+
 .katex {
-  font-size: 1.15em;
+  font-size: calc(1.15em * var(--katex-zoom));
 }
 
 .katex-display > .katex {
-  font-size: 1.3em;
+  font-size: calc(1.3em * var(--katex-zoom));
+}
+
+/* The A-/A+ header buttons that adjust --katex-zoom above (static/javascripts/katex-zoom.js).
+   Reuses Material's own .md-header__button sizing/hover behavior; just tightens the gap
+   between the two so they read as one compact control, matching the palette toggle
+   sitting right next to them. */
+.katex-zoom {
+  display: flex;
+  align-items: center;
+}
+
+.katex-zoom button {
+  font: inherit;
+  font-weight: 700;
+  border: none;
+  background: none;
+  cursor: pointer;
+  width: auto;
+  padding: 0 0.3rem;
 }
 
 /* Minimal, collapsed-by-default categories panel pinned to the right edge of the
