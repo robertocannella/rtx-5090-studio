@@ -182,10 +182,46 @@ def test_admin_edit_post(client):
         data={"title": "Edited", "category": "Meta", "body_markdown": "New body."},
         follow_redirects=False,
     )
-    assert resp.status_code == 303
+    # Saving in edit mode stays on the edit page (with a live preview of the save),
+    # rather than redirecting to the listing -- so a run of edits doesn't require
+    # navigating back to the list and clicking Edit again each time.
+    assert resp.status_code == 200
+    assert "Saved." in resp.text
+    assert "New body." in resp.text  # shown in both the textarea and the preview
     post = db.get_post(post_id=post_id)
     assert post["title"] == "Edited"
     assert "New body." in post["body_html"]
+
+
+def test_admin_edit_post_shows_rendered_preview(client):
+    post_id = db.create_post("Preview Post", "Meta", "Old body.")
+    resp = client.post(
+        f"/admin/{post_id}/edit",
+        data={"title": "Preview Post", "category": "Meta", "body_markdown": "**Bold new body.**"},
+    )
+    assert resp.status_code == 200
+    assert 'class="admin-preview' in resp.text
+    assert "<strong>Bold new body.</strong>" in resp.text
+
+
+def test_admin_edit_form_shows_preview_on_plain_get_too(client):
+    post_id = db.create_post("Existing Post", "Meta", "Already **saved** body.")
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    assert 'class="admin-preview' in resp.text
+    assert "<strong>saved</strong>" in resp.text
+
+
+def test_admin_new_post_still_redirects_to_listing(client):
+    # Only edit-mode saves stay on the page -- creating a brand new post still goes to
+    # the listing, since there's no "keep iterating on this one" context yet.
+    resp = client.post(
+        "/admin/new",
+        data={"title": "Fresh Post", "category": "Meta", "body_markdown": "Body."},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/admin/"
 
 
 def test_admin_delete_post(client):

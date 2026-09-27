@@ -297,7 +297,14 @@ def admin_edit_submit(
             ),
             status_code=422,
         )
-    return RedirectResponse("/admin/", status_code=303)
+    # Stay on the edit page instead of redirecting to the listing, showing the
+    # just-saved post's own rendered preview -- re-fetched so the preview and the
+    # form both reflect the update that was just written, not the pre-save request data.
+    post = db.get_post(post_id=post_id)
+    return _set_admin_cookie(templates.TemplateResponse(
+        request, "admin_form.html",
+        _admin_context(request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post, error=None, saved=True),
+    ))
 
 
 @app.post("/admin/{post_id}/delete")
