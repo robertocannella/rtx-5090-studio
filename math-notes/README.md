@@ -24,6 +24,10 @@ it's live immediately.
   its own move-up/move-down/delete controls. It's still one plain Markdown string under
   the hood (`render.split_into_segments`/`join_segments`); the blocks are purely an
   editing convenience.
+- Each block shows rendered, not raw, by default -- click a block (or its **Edit**
+  button) to edit its Markdown; only one block is editable at a time, so the rest of the
+  post always reads the way it'll actually look. Click **Done** (or edit another block)
+  to switch back.
 
 ## Writing math and word problems
 

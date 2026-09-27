@@ -111,6 +111,23 @@ against the exact `body_markdown` of every real post in the live database (not j
 synthetic examples) rendering identically before and after a split/rejoin round-trip --
 see `tests/test_segments.py` and `tests/fixtures/real_posts.json`.
 
+**Each block shows its rendered result by default, not raw Markdown** -- clicking a
+block (or its Edit button) switches just that one into a raw textarea; only one block is
+ever in edit mode at a time, so the rest of the post always reads the way it will
+actually look. Switching a block *out* of edit mode calls `POST
+/admin/preview-segment` (`app.py`'s `admin_preview_segment`, wired up in
+`admin-blocks.js`) with whatever is currently typed in it -- a stateless render that
+writes nothing to the database, so the view reflects in-progress edits, not just the
+last save.
+
+A matplotlib block is the one exception: its view mode never re-executes the block's
+code (`render_plots.process_preview`, not `process`) -- only save does that. Toggling a
+graph block to view mode just points at whatever PNG the last real save already
+produced for that block's `name` (or shows a "will render after you save" placeholder,
+for a graph that's never been saved yet), specifically so that merely looking at a
+graph block -- or typing something syntactically broken while mid-edit -- can never run
+arbitrary Python or overwrite a live, already-published image as a side effect.
+
 **LaTeX**: inline math is `$...$`, display math is a `$$ ... $$` or `\[ ... \]` block on
 its own lines, exactly like writing real LaTeX. This is `pymdownx.arithmatex`
 (`generic: true`) wrapping the math in spans/divs that `static/javascripts/katex.js` finds

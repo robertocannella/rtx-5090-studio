@@ -102,12 +102,27 @@ def _set_admin_cookie(response):
     return response
 
 
+def _render_segment_preview(text):
+    """The admin editor's per-block view-mode content -- a real render of exactly what's
+    currently typed for this one block (not necessarily saved yet), so switching a block
+    to view mode reflects in-progress edits, not just the last save. Uses
+    render_plots.process_preview (never executes a matplotlib block's code -- see that
+    function's docstring) rather than render_plots.process, since this runs on every
+    edit<->view toggle, not just on save.
+    """
+    processed = render.normalize_display_math_spacing(text)
+    processed = render_plots.process_preview(processed, db.PLOTS_DIR)
+    html, _ = render.render_markdown(processed)
+    return html
+
+
 def _segment_dict(text):
     lines = max(text.count("\n") + 1, 1)
     return {
         "text": text,
         "label": render.classify_segment(text) if text.strip() else "Paragraph",
         "rows": min(max(lines + 1, 2), 20),
+        "view_html": _render_segment_preview(text) if text.strip() else "",
     }
 
 
@@ -248,6 +263,15 @@ def feed():
 # Admin -- CRUD UI for posts. Gated entirely by Caddy's basic_auth on the /admin
 # prefix (see gateway/Caddyfile), not by anything in this app.
 # ---------------------------------------------------------------------------
+
+
+@app.post("/admin/preview-segment")
+def admin_preview_segment(text: str = Form("")):
+    """Called by static/javascripts/admin-blocks.js every time a block is switched from
+    edit mode back to view mode -- renders exactly what's currently typed in that one
+    block's textarea, saving nothing. Stateless; doesn't touch the database.
+    """
+    return Response(content=_render_segment_preview(text) if text.strip() else "", media_type="text/html")
 
 
 @app.get("/admin/")

@@ -209,6 +209,44 @@ def test_admin_new_form_starts_with_one_empty_block(client):
     resp = client.get("/admin/new")
     assert resp.status_code == 200
     assert resp.text.count('name="segments"') == 1 + 1  # +1 for the hidden <template>
+    assert 'data-mode="edit"' in resp.text
+
+
+def test_admin_edit_form_marks_populated_blocks_as_view_mode(client):
+    post_id = db.create_post("View By Default", "Meta", "Some **bold** text.")
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    assert 'data-mode="view"' in resp.text
+    assert '<strong>bold</strong>' in resp.text  # rendered into the block's view pane
+
+
+def test_admin_preview_segment_renders_markdown(client):
+    resp = client.post("/admin/preview-segment", data={"text": "Some **bold** text."})
+    assert resp.status_code == 200
+    assert "<strong>bold</strong>" in resp.text
+
+
+def test_admin_preview_segment_renders_admonitions_and_math(client):
+    text = '!!! question "Problem"\n    What is $x^2$?'
+    resp = client.post("/admin/preview-segment", data={"text": text})
+    assert resp.status_code == 200
+    assert 'class="admonition question"' in resp.text
+    assert 'class="arithmatex"' in resp.text
+
+
+def test_admin_preview_segment_empty_text_returns_empty_body(client):
+    resp = client.post("/admin/preview-segment", data={"text": "   "})
+    assert resp.status_code == 200
+    assert resp.text == ""
+
+
+def test_admin_preview_segment_never_executes_matplotlib_code(client):
+    # A block whose code would raise if actually run -- previewing it (unlike saving it)
+    # must never execute it, since this fires on every edit<->view toggle, not just save.
+    text = '```matplotlib name="danger"\nraise RuntimeError("must not run")\n```'
+    resp = client.post("/admin/preview-segment", data={"text": text})
+    assert resp.status_code == 200
+    assert "will render here after you save" in resp.text
 
 
 def test_admin_edit_submit_with_multiple_segments_reassembles_body(client):

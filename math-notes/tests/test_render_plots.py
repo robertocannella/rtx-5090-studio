@@ -50,3 +50,28 @@ def test_process_handles_multiple_blocks_in_one_post(tmp_path):
     assert 'data-plot="second"' in result
     assert (tmp_path / "first.png").exists()
     assert (tmp_path / "second.png").exists()
+
+
+def test_process_preview_shows_placeholder_when_never_saved(tmp_path):
+    text = '```matplotlib name="never-saved"\nthis is not even valid python(((\n```'
+    result = render_plots.process_preview(text, tmp_path)
+    assert "```matplotlib" not in result
+    assert "will render here after you save" in result
+    assert not (tmp_path / "never-saved.png").exists()
+
+
+def test_process_preview_never_executes_code():
+    # A block whose code would raise if actually run -- process_preview must never
+    # execute it (this is called on every keystroke-adjacent view toggle, not just save).
+    text = '```matplotlib name="dangerous"\nraise RuntimeError("should never run")\n```'
+    result = render_plots.process_preview(text, "/does/not/exist")  # path never touched
+    assert "will render here after you save" in result
+
+
+def test_process_preview_uses_existing_image_without_regenerating(tmp_path):
+    (tmp_path / "already-saved.png").write_bytes(b"fake png bytes")
+    text = '```matplotlib name="already-saved" title="Show it"\nraise RuntimeError("must not run")\n```'
+    result = render_plots.process_preview(text, tmp_path)
+    assert 'data-plot="already-saved"' in result
+    assert "/assets/plots/already-saved.png" in result
+    assert (tmp_path / "already-saved.png").read_bytes() == b"fake png bytes"  # untouched

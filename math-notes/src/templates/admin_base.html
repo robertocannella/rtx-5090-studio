@@ -56,6 +56,26 @@
   }
   .admin-block__controls button:hover { border-color: var(--md-primary-fg-color); color: var(--md-primary-fg-color); }
   .admin-block textarea { width: 100%; }
+
+  /* Each block shows either its rendered view or its raw textarea, never both -- only
+     one block is ever in edit mode at once (static/javascripts/admin-blocks.js enforces
+     that), so the rest of the post always reads as it will actually look, exactly what
+     a Gutenberg-style block editor's edit/view toggle is for. */
+  .admin-block[data-mode="view"] textarea { display: none; }
+  .admin-block[data-mode="edit"] .admin-block__view { display: none; }
+  .admin-block__view {
+    padding: 0.4rem 0.6rem;
+    cursor: text;
+    min-height: 1.5rem;
+  }
+  .admin-block__view:empty::before {
+    content: "Empty -- click to edit.";
+    color: var(--md-default-fg-color--light);
+    font-style: italic;
+  }
+  .admin-block__view :first-child { margin-top: 0; }
+  .admin-block__view :last-child { margin-bottom: 0; }
+  .plot-widget__pending { color: var(--md-default-fg-color--light); }
   .admin-preview {
     margin-top: 1.5rem;
     border: 1px solid var(--md-default-fg-color--lightest);
