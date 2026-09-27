@@ -66,6 +66,12 @@ def test_article_text_and_headings_use_the_tuned_sizes(client):
     assert ".md-typeset {\n  font-size: 1.05rem;\n}" in resp.text
     assert ".md-typeset h1 {\n  font-size: 1.8rem;\n}" in resp.text
     assert ".md-typeset h2 {\n  font-size: 1.40625rem;\n}" in resp.text
+    # Material hardcodes admonitions/details (!!! question "Problem", etc.) to an
+    # absolute 0.64rem, not an em relative to .md-typeset's own size -- reported live as
+    # "the text within these blocks [is] tiny" even after the bump above, since that
+    # bump alone never reaches an absolute value. Content here is core reading material
+    # (problem/solution bodies), so it's pinned to match the surrounding article text.
+    assert ".md-typeset .admonition,\n.md-typeset details {\n  font-size: 1.05rem;\n}" in resp.text
 
 
 def test_katex_zoom_hover_indicator_script_and_style_are_served(client):

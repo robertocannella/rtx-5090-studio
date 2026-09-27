@@ -27,16 +27,24 @@ html {
 }
 
 /* Material's own default article text size is 0.8rem -- bumped up for easier reading
-   (this is on top of, not instead of, the root-level scale-down above). Every heading
-   size (h1-h4) and all plain body text (paragraphs, list items, table cells, admonition
-   bodies, etc.) are defined in em *relative to this one value*, not independently, so
-   raising it scales all of them together -- reported live as "the plain text is tiny"
-   and "###heading gets a bit too small" while h1/h2 (2em and 1.5625em -- already big
-   enough that the same relative gap reads fine at either size) were fine as they were.
-   The h1/h2 overrides just below hold those two exactly where they already were (their
-   own previous em size times the *previous* 0.9rem base) while h3, h4, and plain text
-   all grow with the new base -- the two headings the report said were already fine don't
-   move at all. */
+   (this is on top of, not instead of, the root-level scale-down above). Most heading
+   sizes (h1-h4) and plain body text (paragraphs, list items, table cells) are defined in
+   em *relative to this one value*, not independently, so raising it scales them together
+   -- reported live as "the plain text is tiny" and "###heading gets a bit too small"
+   while h1/h2 (2em and 1.5625em -- already big enough that the same relative gap reads
+   fine at either size) were fine as they were. The h1/h2 overrides just below hold those
+   two exactly where they already were (their own previous em size times the *previous*
+   0.9rem base) while h3, h4, and plain text all grow with the new base -- the two
+   headings the report said were already fine don't move at all.
+
+   Admonitions/details (!!! question "Problem", ??? success "Solution", etc.) are the one
+   exception: Material sets their font-size as an absolute 0.64rem, not an em relative to
+   the value above, specifically so an admonition reads slightly smaller than the
+   surrounding prose it's inset into -- so raising .md-typeset's own size never touched
+   them at all, leaving exactly this kind of block still tiny even after the bump above.
+   Content here (problem statements, solutions) is core reading material, not an aside,
+   so it's set to match the surrounding article text exactly instead of preserving
+   Material's original smaller-than-body ratio. */
 .md-typeset {
   font-size: 1.05rem;
 }
@@ -47,6 +55,11 @@ html {
 
 .md-typeset h2 {
   font-size: 1.40625rem;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  font-size: 1.05rem;
 }
 
 /* KaTeX-rendered math (both inline $...$ and display $$...$$/\[...\]) defaults to the
