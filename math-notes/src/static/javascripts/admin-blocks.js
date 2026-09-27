@@ -25,6 +25,73 @@ function adminBlocksRenderMath(el) {
   }
 }
 
+const ADMIN_BLOCKS_INDENT = "    "; // 4 spaces, matching every admonition/details block's
+                                     // continuation indent throughout this site's actual
+                                     // post content -- not a literal tab character, so a
+                                     // Tab keystroke here stays consistent with everything
+                                     // already written (and with what render.py's
+                                     // split_into_segments/normalize_display_math_spacing
+                                     // already treat as "indented").
+
+// A plain <textarea> only ever emits Tab as a focus-navigation key, moving focus to
+// whatever's next in tab order (here, the Save button) instead of typing anything -- for
+// a Markdown editor, where indentation is meaningful (admonition/details bodies), that is
+// almost never what's wanted. This intercepts Tab/Shift+Tab in any block's textarea and
+// turns it into indent/outdent instead, the same convention essentially every code editor
+// uses. A single-line, no-selection Tab just inserts the indent at the cursor; a
+// multi-line selection indents/outdents every line it touches, so nesting an existing
+// paragraph under an admonition (select it, press Tab) doesn't mean re-typing it by hand.
+function adminBlockHandleTab(textarea, shiftKey) {
+  const value = textarea.value;
+  const selectionStart = textarea.selectionStart;
+  const selectionEnd = textarea.selectionEnd;
+  const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
+  const spansMultipleLines = value.slice(selectionStart, selectionEnd).includes("\n");
+
+  if (!shiftKey && !spansMultipleLines) {
+    textarea.value = value.slice(0, selectionStart) + ADMIN_BLOCKS_INDENT + value.slice(selectionEnd);
+    const cursor = selectionStart + ADMIN_BLOCKS_INDENT.length;
+    textarea.selectionStart = textarea.selectionEnd = cursor;
+    return;
+  }
+
+  let lineEnd = value.indexOf("\n", selectionEnd);
+  lineEnd = lineEnd === -1 ? value.length : lineEnd;
+  const before = value.slice(0, lineStart);
+  const after = value.slice(lineEnd);
+  const lines = value.slice(lineStart, lineEnd).split("\n");
+
+  let firstLineDelta = 0;
+  const newLines = lines.map((line, i) => {
+    if (shiftKey) {
+      let cut = 0;
+      if (line.startsWith(ADMIN_BLOCKS_INDENT)) cut = ADMIN_BLOCKS_INDENT.length;
+      else if (line.startsWith("\t")) cut = 1;
+      else {
+        const leading = line.match(/^ +/);
+        if (leading) cut = Math.min(leading[0].length, ADMIN_BLOCKS_INDENT.length);
+      }
+      if (i === 0) firstLineDelta = -cut;
+      return line.slice(cut);
+    }
+    if (i === 0) firstLineDelta = ADMIN_BLOCKS_INDENT.length;
+    return ADMIN_BLOCKS_INDENT + line;
+  });
+
+  const newBlock = newLines.join("\n");
+  textarea.value = before + newBlock + after;
+  textarea.selectionStart = Math.max(lineStart, selectionStart + firstLineDelta);
+  textarea.selectionEnd = lineStart + newBlock.length;
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const textarea = event.target;
+  if (textarea.tagName !== "TEXTAREA" || !textarea.closest(".admin-block")) return;
+  event.preventDefault();
+  adminBlockHandleTab(textarea, event.shiftKey);
+});
+
 async function adminBlockSwitchToView(block) {
   const textarea = block.querySelector("textarea");
   const view = block.querySelector(".admin-block__view");
