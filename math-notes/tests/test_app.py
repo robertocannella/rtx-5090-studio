@@ -39,6 +39,21 @@ def test_katex_zoom_controls_render_on_public_and_admin_pages(client):
         assert "/javascripts/katex-zoom.js" in resp.text
 
 
+def test_katex_copy_button_script_and_style_are_served(client):
+    # The actual copy behavior (reading KaTeX's own embedded LaTeX annotation, writing to
+    # the clipboard) only runs in a real browser -- this just confirms the pieces it
+    # depends on are actually wired up and reachable.
+    js_resp = client.get("/javascripts/katex.js")
+    assert js_resp.status_code == 200
+    assert "mnInjectKatexCopyButtons" in js_resp.text
+    assert "application/x-tex" in js_resp.text
+
+    css_resp = client.get("/stylesheets/extra.css")
+    assert css_resp.status_code == 200
+    assert ".katex-copy" in css_resp.text
+    assert "--md-clipboard-icon" in css_resp.text
+
+
 def test_palette_scope_is_pinned_to_site_root_on_every_page(client):
     # __md_scope must resolve the same way regardless of which page happens to load it,
     # otherwise the palette (dark/light) preference and other persisted UI state end up

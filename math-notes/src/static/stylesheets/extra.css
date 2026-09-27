@@ -58,6 +58,65 @@ html {
   font-size: calc(1.3em * var(--katex-zoom));
 }
 
+/* A copy-the-source button on every *display* math block, injected by
+   static/javascripts/katex.js's mnInjectKatexCopyButtons() -- reuses Material's own
+   --md-clipboard-icon (the exact icon its code-block copy button uses, already defined
+   site-wide) rather than shipping a second icon asset, but with this site's own
+   positioning/visibility rules instead of depending on Material's own .md-clipboard
+   conditional-display CSS, which is written for its code-block markup, not this. Hidden
+   until the block is hovered/focused, same "don't clutter until wanted" idea as the
+   public site's own graph-image click-to-reveal buttons. */
+.katex-display {
+  position: relative;
+}
+
+.katex-copy {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  color: var(--md-default-fg-color--light);
+}
+
+.katex-display:hover .katex-copy,
+.katex-copy:focus {
+  opacity: 1;
+}
+
+.katex-copy:hover,
+.katex-copy:focus {
+  color: var(--md-accent-fg-color);
+}
+
+.katex-copy--copied,
+.katex-copy--copied:hover {
+  opacity: 1;
+  color: var(--md-primary-fg-color);
+}
+
+.katex-copy::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: currentcolor;
+  -webkit-mask-image: var(--md-clipboard-icon);
+  mask-image: var(--md-clipboard-icon);
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
 /* The A-/A+ header buttons that adjust --katex-zoom above (static/javascripts/katex-zoom.js).
    Reuses Material's own .md-header__button sizing/hover behavior; just tightens the gap
    between the two so they read as one compact control, matching the palette toggle

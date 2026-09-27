@@ -26,6 +26,12 @@ function adminBlocksRenderMath(el) {
   if (window.renderMathInElement) {
     renderMathInElement(el, { delimiters: ADMIN_BLOCKS_KATEX_DELIMITERS });
   }
+  if (window.mnInjectKatexCopyButtons) {
+    // Same copy-the-LaTeX-source button every display math block gets on public pages
+    // (see katex.js) -- this is the other place math actually gets rendered (a block's
+    // view-mode preview), so it needs its own call to pick up freshly-rendered math here.
+    window.mnInjectKatexCopyButtons(el);
+  }
 }
 
 const ADMIN_BLOCKS_INDENT = "    "; // 4 spaces, matching every admonition/details block's
