@@ -310,6 +310,23 @@ def test_admin_view_page_shows_rendered_post_and_actions(client):
     assert "Saved." not in resp.text  # no ?saved=1 on a plain visit
 
 
+def test_admin_view_page_has_all_posts_link_in_sidebar_not_header(client):
+    post_id = db.create_post("Sidebar Link Post", "Meta", "Body.")
+    resp = client.get(f"/admin/{post_id}")
+    assert resp.status_code == 200
+    assert '<div class="admin-header">' in resp.text
+    header_section = resp.text.split('<div class="admin-header">')[1].split("</div>")[0]
+    assert "All posts" not in header_section
+    assert '<span class="md-ellipsis">All posts</span>' in resp.text
+
+
+def test_admin_list_still_shows_all_posts_link_in_its_own_header(client):
+    resp = client.get("/admin/")
+    assert resp.status_code == 200
+    header_section = resp.text.split('<div class="admin-header">')[1].split("</div>")[0]
+    assert "All posts" in header_section
+
+
 def test_admin_view_page_shows_saved_banner_after_redirect(client):
     post_id = db.create_post("Saved Banner Post", "Meta", "Body.")
     resp = client.get(f"/admin/{post_id}?saved=1")

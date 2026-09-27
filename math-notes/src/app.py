@@ -87,6 +87,7 @@ def _base_context(request, active_nav, header_topic, title, is_admin=None):
         "primary_sidebar_hidden": False,
         "all_categories": db.list_categories(),
         "is_admin": is_admin,
+        "extra_sidebar_links": [],
     }
 
 
@@ -319,10 +320,9 @@ def admin_view(request: Request, post_id: int):
     if not post:
         raise HTTPException(status_code=404, detail="no such post")
     saved = request.query_params.get("saved") == "1"
-    return _set_admin_cookie(templates.TemplateResponse(
-        request, "admin_view.html",
-        _admin_context(request, post["title"], post=post, saved=saved),
-    ))
+    ctx = _admin_context(request, post["title"], post=post, saved=saved, show_all_posts_header_link=False)
+    ctx["extra_sidebar_links"] = [{"label": "All posts", "href": "/admin/"}]
+    return _set_admin_cookie(templates.TemplateResponse(request, "admin_view.html", ctx))
 
 
 @app.get("/admin/{post_id}/edit")

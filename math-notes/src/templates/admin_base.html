@@ -87,7 +87,7 @@
 </style>
 <div class="admin-header">
   <h1>{{ header_topic }}</h1>
-  <a href="/admin/">All posts</a>
+  {% if show_all_posts_header_link | default(true) %}<a href="/admin/">All posts</a>{% endif %}
 </div>
 {% if error %}<p class="admin-error">{{ error }}</p>{% endif %}
 {% block admin_content %}{% endblock %}

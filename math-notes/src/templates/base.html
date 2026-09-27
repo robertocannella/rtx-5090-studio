@@ -143,6 +143,13 @@
                         </a>
                       </li>
                     {% endif %}
+                    {% for link in extra_sidebar_links %}
+                      <li class="md-nav__item">
+                        <a href="{{ link.href }}" class="md-nav__link">
+                          <span class="md-ellipsis">{{ link.label }}</span>
+                        </a>
+                      </li>
+                    {% endfor %}
                   </ul>
                 </nav>
               </div>
