@@ -13,7 +13,7 @@
     </label>
   {% endif %}
 
-  <div class="admin-blocks" id="admin-blocks">
+  <div class="admin-blocks" id="admin-blocks" data-post-slug="{{ post.slug if post else '' }}">
     {% for seg in segments %}
       <div class="admin-block" data-mode="{{ 'view' if seg.view_html else 'edit' }}">
         <div class="admin-block__header">

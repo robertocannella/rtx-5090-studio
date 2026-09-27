@@ -95,16 +95,17 @@ document.addEventListener("keydown", (event) => {
   adminBlockHandleTab(textarea, event.shiftKey);
 });
 
-async function adminBlockRenderInto(view, text, url) {
+async function adminBlockRenderInto(view, text, url, extraParams = {}) {
   if (!text.trim()) {
     view.innerHTML = "";
     return;
   }
   try {
+    const params = new URLSearchParams({ text, ...extraParams });
     const resp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "text=" + encodeURIComponent(text),
+      body: params.toString(),
     });
     view.innerHTML = await resp.text();
     adminBlocksRenderMath(view);
@@ -117,7 +118,11 @@ async function adminBlockRenderInto(view, text, url) {
 async function adminBlockSwitchToView(block) {
   const textarea = block.querySelector("textarea");
   const view = block.querySelector(".admin-block__view");
-  await adminBlockRenderInto(view, textarea.value, "/admin/preview-segment");
+  // The post's own slug (blank for a brand new, not-yet-saved post) -- needed so an
+  // already-saved matplotlib block's preview looks in the right directory for its PNG
+  // (see app.py's _render_segment_preview for why).
+  const slug = document.getElementById("admin-blocks").dataset.postSlug || "";
+  await adminBlockRenderInto(view, textarea.value, "/admin/preview-segment", { slug });
   block.dataset.mode = "view";
   block.querySelector(".admin-block__toggle").textContent = "Edit";
 }

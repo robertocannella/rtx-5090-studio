@@ -116,16 +116,30 @@ def _set_admin_cookie(response):
     return response
 
 
-def _render_segment_preview(text):
+def _render_segment_preview(text, slug=None):
     """The admin editor's per-block view-mode content -- a real render of exactly what's
     currently typed for this one block (not necessarily saved yet), so switching a block
     to view mode reflects in-progress edits, not just the last save. Uses
     render_plots.process_preview (never executes a matplotlib block's code -- see that
     function's docstring) rather than render_plots.process, since this runs on every
     edit<->view toggle, not just on save.
+
+    slug must match whatever db._render() used for this post's *last real save*
+    (db.PLOTS_DIR/<slug>/), since that's the only place an already-saved graph's PNG
+    could actually be -- without it, an existing, previously-saved graph would show the
+    "will render after you save" placeholder every time, since it'd be looking in the
+    wrong directory. A brand new, not-yet-saved post has no real slug yet and therefore
+    no graph of its could possibly already exist anywhere, so a placeholder path that
+    nothing ever writes to is correct there, not a bug to work around.
     """
     processed = render.normalize_display_math_spacing(text)
-    processed = render_plots.process_preview(processed, db.PLOTS_DIR)
+    if slug:
+        plots_dir = db.PLOTS_DIR / slug
+        assets_url_prefix = f"/assets/plots/{slug}"
+    else:
+        plots_dir = db.PLOTS_DIR / ".unsaved-preview"
+        assets_url_prefix = "/assets/plots/.unsaved-preview"
+    processed = render_plots.process_preview(processed, plots_dir, assets_url_prefix=assets_url_prefix)
     html, _ = render.render_markdown(processed)
     return render.expand_details_blocks(html)
 
@@ -149,27 +163,29 @@ def _generate_graph_preview(text):
         return f'<p class="admin-error">{xml_escape(str(e))}</p>'
 
 
-def _segment_dict(text):
+def _segment_dict(text, slug=None):
     lines = max(text.count("\n") + 1, 1)
     return {
         "text": text,
         "label": render.classify_segment(text) if text.strip() else "Paragraph",
         "rows": min(max(lines + 1, 2), 20),
-        "view_html": _render_segment_preview(text) if text.strip() else "",
+        "view_html": _render_segment_preview(text, slug) if text.strip() else "",
     }
 
 
-def _segments_for(body_markdown):
+def _segments_for(body_markdown, slug=None):
     """The admin editor's per-block view of a post's body -- a Gutenberg-style editor
     over the same flat body_markdown, not a new content model (see render.py's
     split_into_segments/join_segments). A brand new post starts with a single empty
     paragraph block rather than an empty list, so the form always has at least one
-    textarea to type into.
+    textarea to type into. slug is the post's own (existing posts only) -- see
+    _render_segment_preview for why it's needed to correctly preview an already-saved
+    matplotlib block.
     """
     texts = render.split_into_segments(body_markdown) if body_markdown else []
     if not texts:
         texts = [""]
-    return [_segment_dict(t) for t in texts]
+    return [_segment_dict(t, slug) for t in texts]
 
 
 def _admin_context(request, title, **extra):
@@ -244,10 +260,11 @@ def latex_guide(request: Request):
     return templates.TemplateResponse(request, "simple_page.html", ctx)
 
 
-@app.get("/assets/plots/{filename}")
-def plot_image(filename: str):
-    path = db.PLOTS_DIR / filename
-    if not path.is_file() or path.resolve().parent != db.PLOTS_DIR.resolve():
+@app.get("/assets/plots/{slug}/{filename}")
+def plot_image(slug: str, filename: str):
+    post_plots_dir = db.PLOTS_DIR / slug
+    path = post_plots_dir / filename
+    if not path.is_file() or path.resolve().parent != post_plots_dir.resolve():
         raise HTTPException(status_code=404, detail="not found")
     return FileResponse(path, media_type="image/png")
 
@@ -299,12 +316,18 @@ def feed():
 
 
 @app.post("/admin/preview-segment")
-def admin_preview_segment(text: str = Form("")):
+def admin_preview_segment(text: str = Form(""), slug: str = Form("")):
     """Called by static/javascripts/admin-blocks.js every time a block is switched from
     edit mode back to view mode -- renders exactly what's currently typed in that one
     block's textarea, saving nothing. Stateless; doesn't touch the database.
+
+    slug (the post being edited, blank for a brand new one) must be passed through so an
+    already-saved matplotlib block's preview looks in the right place -- see
+    _render_segment_preview.
     """
-    return Response(content=_render_segment_preview(text) if text.strip() else "", media_type="text/html")
+    return Response(
+        content=_render_segment_preview(text, slug or None) if text.strip() else "", media_type="text/html",
+    )
 
 
 @app.post("/admin/generate-graph")
@@ -388,7 +411,7 @@ def admin_edit_form(request: Request, post_id: int):
         request, "admin_form.html",
         _admin_context(
             request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post,
-            segments=_segments_for(post["body_markdown"]), error=None,
+            segments=_segments_for(post["body_markdown"], slug=post["slug"]), error=None,
             show_all_posts_header_link=False,
         ),
     ))
@@ -408,12 +431,13 @@ def admin_edit_submit(
     except db.PostNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except render_plots.PlotError as e:
+        existing = db.get_post(post_id=post_id)
         return templates.TemplateResponse(
             request, "admin_form.html",
             _admin_context(
                 request, "Edit post", action=f"/admin/{post_id}/edit", error=str(e),
                 post={"title": title, "category": category},
-                segments=[_segment_dict(s) for s in segments],
+                segments=[_segment_dict(s, existing["slug"]) for s in segments],
                 show_all_posts_header_link=False,
             ),
             status_code=422,

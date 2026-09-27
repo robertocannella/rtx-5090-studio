@@ -214,7 +214,10 @@ with LaTeX.
 
 Write real matplotlib code in a fenced block tagged `matplotlib`, with a
 required `name` (used for the image filename and the button's target) and
-an optional `title` (the button's label, defaults to "Show graph"):
+an optional `title` (the button's label, defaults to "Show graph"). `name`
+only needs to be unique *within this post* -- two different posts can each
+use `name="trajectory"` without conflicting, since each post's graphs are
+stored under its own slug:
 
 ````
 ```matplotlib name="projectile-trajectory" title="Show trajectory"

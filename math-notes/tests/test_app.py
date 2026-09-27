@@ -113,10 +113,37 @@ def test_matplotlib_post_renders_button_and_serves_image(client):
     resp = client.get("/blog/graph-post/")
     assert resp.status_code == 200
     assert 'data-plot="test-graph"' in resp.text
+    assert 'src="/assets/plots/graph-post/test-graph.png"' in resp.text
 
-    image_resp = client.get("/assets/plots/test-graph.png")
+    image_resp = client.get("/assets/plots/graph-post/test-graph.png")
     assert image_resp.status_code == 200
     assert image_resp.headers["content-type"] == "image/png"
+
+
+def test_two_posts_can_reuse_the_same_graph_name_without_colliding(client):
+    # A graph's `name` only has to be unique within one post -- db._render() namespaces
+    # every graph under its own post's slug specifically so two unrelated posts can each
+    # use the same name without one silently overwriting the other's image.
+    body_a = '```matplotlib name="shared" title="Post A"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    body_b = '```matplotlib name="shared" title="Post B"\nax = plt.gca()\nax.bar(["x"], [5])\n```'
+    db.create_post("First Post", "Meta", body_a)
+    db.create_post("Second Post", "Meta", body_b)
+
+    resp_a = client.get("/blog/first-post/")
+    resp_b = client.get("/blog/second-post/")
+    assert 'src="/assets/plots/first-post/shared.png"' in resp_a.text
+    assert 'src="/assets/plots/second-post/shared.png"' in resp_b.text
+
+    image_a = client.get("/assets/plots/first-post/shared.png")
+    image_b = client.get("/assets/plots/second-post/shared.png")
+    assert image_a.status_code == 200
+    assert image_b.status_code == 200
+    assert image_a.content != image_b.content  # genuinely two different images, not one overwriting the other
+
+
+def test_plot_image_404s_for_unknown_slug(client):
+    resp = client.get("/assets/plots/no-such-post/whatever.png")
+    assert resp.status_code == 404
 
 
 def test_vendor_asset_path_traversal_rejected(client):
@@ -252,10 +279,25 @@ def test_admin_preview_segment_shows_graph_image_directly_not_behind_a_button(cl
         '```matplotlib name="preview-visible-test"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```',
     )
     post = db.get_post(post_id=post_id)
-    resp = client.post("/admin/preview-segment", data={"text": post["body_markdown"]})
+    resp = client.post("/admin/preview-segment", data={"text": post["body_markdown"], "slug": post["slug"]})
     assert resp.status_code == 200
-    assert 'src="/assets/plots/preview-visible-test.png"' in resp.text
+    assert f'src="/assets/plots/{post["slug"]}/preview-visible-test.png"' in resp.text
     assert "plot-widget__toggle" not in resp.text  # not hidden behind a click-to-reveal button
+
+
+def test_admin_preview_segment_without_slug_shows_placeholder_for_unsaved_graph(client):
+    # No slug means "not saved yet" (a brand new post) -- even a name that happens to
+    # match some other post's already-saved graph must not accidentally show that image.
+    db.create_post(
+        "Existing Graph Owner", "Meta",
+        '```matplotlib name="shared-name-test"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```',
+    )
+    resp = client.post(
+        "/admin/preview-segment",
+        data={"text": '```matplotlib name="shared-name-test"\nax = plt.gca()\n```'},
+    )
+    assert resp.status_code == 200
+    assert "will render here after you save" in resp.text
 
 
 def test_admin_preview_segment_empty_text_returns_empty_body(client):
@@ -293,13 +335,14 @@ def test_admin_generate_graph_never_touches_the_real_saved_image(client):
         '```matplotlib name="real-graph"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```',
     )
     post = db.get_post(post_id=post_id)
-    real_image_before = db.PLOTS_DIR.joinpath("real-graph.png").read_bytes()
+    real_image_path = db.PLOTS_DIR / post["slug"] / "real-graph.png"
+    real_image_before = real_image_path.read_bytes()
 
-    edited_text = '```matplotlib name="real-graph"\nax = plt.gca()\nax.plot([1, 0], [1, 0])\n```'
+    edited_text = '```matplotlib name="real-graph"\nax = plt.gca()\nax.bar(["x"], [5])\n```'
     resp = client.post("/admin/generate-graph", data={"text": edited_text})
     assert resp.status_code == 200
 
-    real_image_after = db.PLOTS_DIR.joinpath("real-graph.png").read_bytes()
+    real_image_after = real_image_path.read_bytes()
     assert real_image_after == real_image_before  # untouched by the un-saved preview
 
 

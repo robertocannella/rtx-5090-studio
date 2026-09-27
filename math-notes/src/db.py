@@ -75,9 +75,9 @@ def init_db():
         # Posts migrated from a schema before toc_json/reading_minutes existed (or from
         # the pre-database static site) got the column defaults above -- backfill real
         # values for each one now, in place, without touching created_at/updated_at.
-        rows = conn.execute("SELECT id, body_markdown FROM posts").fetchall()
+        rows = conn.execute("SELECT id, slug, body_markdown FROM posts").fetchall()
         for row in rows:
-            excerpt_html, body_html, toc_json, reading_minutes = _render(row["body_markdown"])
+            excerpt_html, body_html, toc_json, reading_minutes = _render(row["body_markdown"], row["slug"])
             conn.execute(
                 "UPDATE posts SET body_html=?, excerpt_html=?, toc_json=?, reading_minutes=? WHERE id=?",
                 (body_html, excerpt_html, toc_json, reading_minutes, row["id"]),
@@ -105,17 +105,29 @@ def _normalize_newlines(text):
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _render(body_markdown):
+def _render(body_markdown, slug):
+    """slug scopes where this post's matplotlib graphs get written/served
+    (PLOTS_DIR/<slug>/<name>.png, /assets/plots/<slug>/<name>.png) -- a graph's `name`
+    only has to be unique *within* one post, not across the whole site, since two
+    different posts can never share a slug (enforced by the `posts.slug` UNIQUE
+    constraint). slug is used rather than the post's own id because it's already known
+    before this ever runs: create_post() computes it before calling this, and an
+    existing post's slug never changes on update -- the id, by contrast, doesn't exist
+    yet for a brand new post at this point (the INSERT that assigns one hasn't happened).
+    """
+    post_plots_dir = PLOTS_DIR / slug
+    assets_url_prefix = f"/assets/plots/{slug}"
+
     excerpt_md, full_md = render.split_excerpt(body_markdown)
     full_md = render.normalize_display_math_spacing(full_md)
-    full_md = render_plots.process(full_md, PLOTS_DIR)
+    full_md = render_plots.process(full_md, post_plots_dir, assets_url_prefix=assets_url_prefix)
     # The excerpt is a prefix of the full text (see split_excerpt) -- reprocessing it
     # through normalize_display_math_spacing/render_plots.process a second time is only a
     # concern if a graph's own `name` somehow appeared before the <!-- more --> marker,
     # which just re-renders the same image to the same path a second time (harmless, not
     # a correctness issue).
     excerpt_md = render.normalize_display_math_spacing(excerpt_md)
-    excerpt_md = render_plots.process(excerpt_md, PLOTS_DIR)
+    excerpt_md = render_plots.process(excerpt_md, post_plots_dir, assets_url_prefix=assets_url_prefix)
     excerpt_html, _ = render.render_markdown(excerpt_md)
     body_html, toc_tokens = render.render_markdown(full_md)
     reading_minutes = render.reading_time_minutes(body_html)
@@ -129,7 +141,7 @@ def create_post(title, category, body_markdown, slug=None, created_at=None):
     """
     slug = (slug or "").strip() or slugify(title)
     body_markdown = _normalize_newlines(body_markdown)
-    excerpt_html, body_html, toc_json, reading_minutes = _render(body_markdown)
+    excerpt_html, body_html, toc_json, reading_minutes = _render(body_markdown, slug)
     now = _now()
     created_at = created_at or now
     conn = get_connection()
@@ -160,7 +172,7 @@ def update_post(post_id, title=None, category=None, body_markdown=None):
 
     if body_markdown is not None:
         body_markdown = _normalize_newlines(body_markdown)
-        excerpt_html, body_html, toc_json, reading_minutes = _render(body_markdown)
+        excerpt_html, body_html, toc_json, reading_minutes = _render(body_markdown, row["slug"])
         new_body_markdown = body_markdown
     else:
         excerpt_html, body_html, new_body_markdown = row["excerpt_html"], row["body_html"], row["body_markdown"]

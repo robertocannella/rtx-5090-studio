@@ -34,10 +34,11 @@ def test_split_and_join_roundtrip_renders_identically_for_every_real_post():
     # never actually renders as-is (the raw, not-yet-excerpt-split text).
     for post in REAL_POSTS:
         body = post["body_markdown"]
-        _, original_html, _, _ = db._render(body)
+        slug = post["slug"]
+        _, original_html, _, _ = db._render(body, slug)
         segments = render.split_into_segments(body)
         rejoined = render.join_segments(segments)
-        _, rejoined_html, _, _ = db._render(rejoined)
+        _, rejoined_html, _, _ = db._render(rejoined, slug)
         assert _normalize_whitespace(rejoined_html) == _normalize_whitespace(original_html), \
             f"mismatch for {post['slug']}"
 

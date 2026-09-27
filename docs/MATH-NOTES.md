@@ -223,18 +223,28 @@ ax.plot(x, y)
 step) finds every such block via regex, `exec`s its code in a namespace with `plt` already
 imported (`matplotlib.use("Agg")` first, since there's no display server in the
 container), grabs whatever figure the code produced (`plt.gcf()`), saves it as
-`/app/data/assets/plots/<name>.png`, and rewrites the block in the stored Markdown into a
-button + hidden `<div class="plot-widget__modal">` containing the image
-(`app.py`'s `/assets/plots/{filename}` route serves it back out).
+`/app/data/assets/plots/<slug>/<name>.png`, and rewrites the block in the stored Markdown
+into a button + hidden `<div class="plot-widget__modal">` containing the image
+(`app.py`'s `/assets/plots/{slug}/{filename}` route serves it back out).
+
+**`name` only has to be unique within one post, not site-wide** -- `db.py`'s `_render()`
+namespaces every graph under the post's own `slug` (`PLOTS_DIR/<slug>/`, not a flat
+`PLOTS_DIR/`), so two unrelated posts can each use `name="trajectory"` without one
+silently overwriting the other's image. `slug` is used rather than the post's own
+database `id` specifically because it's already known before this ever runs
+(`create_post()` computes it before rendering) and never changes on update, whereas a
+brand new post's `id` doesn't exist yet at render time -- the `INSERT` that assigns one
+hasn't happened. Reusing the same `name` twice *within* one post still means the second
+one silently overwrites the first, same as ever.
 
 **The popup**: the image is never shown inline -- only a button, so a post's graph doesn't
 clutter or spoil anything until a reader deliberately asks for it.
 `static/javascripts/plot-modal.js` wires this with plain event delegation on `document`.
 
-**Failure mode**: a mistake in the plotting code (a typo, two graphs reusing the same
-`name`, code that never actually calls a plotting function) raises `render_plots.PlotError`,
-which the admin form displays as a validation error -- the post is not saved, so there is
-never a live page with a broken graph on it.
+**Failure mode**: a mistake in the plotting code (a typo, code that never actually calls a
+plotting function) raises `render_plots.PlotError`, which the admin form displays as a
+validation error -- the post is not saved, so there is never a live page with a broken
+graph on it.
 
 ## Admin visibility on public pages
 
