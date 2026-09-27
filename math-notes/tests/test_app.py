@@ -39,6 +39,23 @@ def test_katex_zoom_controls_render_on_public_and_admin_pages(client):
         assert "/javascripts/katex-zoom.js" in resp.text
 
 
+def test_katex_zoom_js_supports_tapping_a_formula_to_zoom(client):
+    # Right half of a rendered formula zooms in, left half zooms out -- in addition to
+    # the header A-/A+ buttons -- and a tap on the copy-LaTeX button must never also
+    # count as a formula tap (see katex-zoom.js's click handler).
+    resp = client.get("/javascripts/katex-zoom.js")
+    assert resp.status_code == 200
+    assert "clickedRightHalf" in resp.text
+    assert ".katex-copy" in resp.text
+
+    # The admin block editor's "click the rendered view to start editing" handler must
+    # exclude formulas too, so tapping one to zoom doesn't also drop the block into edit
+    # mode (see admin-blocks.js).
+    admin_js = client.get("/javascripts/admin-blocks.js")
+    assert admin_js.status_code == 200
+    assert '"summary, a, button, img, .katex"' in admin_js.text
+
+
 def test_katex_copy_button_script_and_style_are_served(client):
     # The actual copy behavior (reading KaTeX's own embedded LaTeX annotation, writing to
     # the clipboard) only runs in a real browser -- this just confirms the pieces it

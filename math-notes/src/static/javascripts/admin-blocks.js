@@ -238,13 +238,14 @@ document.addEventListener("click", (event) => {
   // for editing -- the Edit button is there for discoverability, but most block editors
   // let you just click into the content itself. This must NOT fire for a click on
   // something natively interactive inside the rendered content itself (a <summary>
-  // toggling a details block open/closed again, a link, an image) -- those clicks bubble
-  // up here the same as any other click in the view pane, and should do their own native
-  // thing rather than being read as "enter edit mode" (render.expand_details_blocks
-  // starts every details block open specifically to avoid needing this click in the
-  // first place, but the native toggle remains clickable regardless of its initial state).
+  // toggling a details block open/closed again, a link, an image, a rendered formula
+  // tapped to zoom it -- see katex-zoom.js) -- those clicks bubble up here the same as
+  // any other click in the view pane, and should do their own native thing rather than
+  // being read as "enter edit mode" (render.expand_details_blocks starts every details
+  // block open specifically to avoid needing this click in the first place, but the
+  // native toggle remains clickable regardless of its initial state).
   const view = event.target.closest(".admin-block__view");
-  if (view && !event.target.closest("summary, a, button, img")) {
+  if (view && !event.target.closest("summary, a, button, img, .katex")) {
     const block = view.closest(".admin-block");
     if (block.dataset.mode === "view") {
       adminBlockEnterEditMode(block);
