@@ -1,5 +1,32 @@
-/* Material's own default article text size is 0.8rem (confirmed by reading the actual
-   compiled theme CSS, not guessed) -- bumped up a bit for easier reading. */
+/* Material's own root font-size is deliberately aggressive: 125% at narrow/mobile
+   widths, stepping up to 137.5% and 150% at wider breakpoints (confirmed by reading the
+   actual compiled theme CSS, not guessed) -- since virtually everything else in the
+   theme is sized in rem/em relative to this, that scaling cascades into every heading,
+   button, and spacing value on the page, not just body text. Reported live as
+   "everything feels zoomed in", confirmed by "zooming out to 75% looks right" -- so
+   these three rules counter Material's own root scaling by that same 75% factor at each
+   of its own breakpoints, which (being the root) shrinks the whole page proportionally,
+   including the .md-typeset rule below, without needing to touch anything else.
+   Overrides win by cascade order (this file loads after main.css), not specificity --
+   each selector here matches Material's own exactly. */
+html {
+  font-size: 94%;
+}
+
+@media screen and (min-width: 100em) {
+  html {
+    font-size: 103%;
+  }
+}
+
+@media screen and (min-width: 125em) {
+  html {
+    font-size: 112.5%;
+  }
+}
+
+/* Material's own default article text size is 0.8rem -- bumped up a bit for easier
+   reading (this is on top of, not instead of, the root-level scale-down above). */
 .md-typeset {
   font-size: 0.9rem;
 }

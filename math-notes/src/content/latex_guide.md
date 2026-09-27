@@ -107,6 +107,48 @@ $$
 x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
 $$
 
+## A table of values (arrays)
+
+A row of numbers -- like a table of `t`/`v` data points -- uses the `array`
+environment inside a display-math block (either `$$ ... $$` or `\[ ... \]`
+work identically):
+
+```
+\[
+\begin{array}{c|rrrrrrr}
+t&0&1&2&3&4&5&6\\
+\hline
+v&4&6&8&10&12&14&16
+\end{array}
+\]
+```
+
+\[
+\begin{array}{c|rrrrrrr}
+t&0&1&2&3&4&5&6\\
+\hline
+v&4&6&8&10&12&14&16
+\end{array}
+\]
+
+- `{c|rrrrrrr}` is the column spec: one letter per column (`c` centered, `l`
+  left-aligned, `r` right-aligned), and a `|` between two letters draws a
+  vertical rule between those columns. This example has 1 centered column
+  (the `t`/`v` labels) then 7 right-aligned columns, with a rule after the
+  first.
+- `&` separates columns within a row.
+- `\\` (the same double-backslash used elsewhere for a manual line break)
+  ends a row.
+- `\hline` draws a horizontal rule under the row it follows -- useful for
+  separating a header row (here, the `t`/`v` labels) from the data.
+
+This is the same `array` environment used for matrices -- a plain
+Markdown table (`| col | col |` syntax, also supported on this site) is
+usually simpler for anything that doesn't need to sit inside a math
+expression, but `array` is what you want when the numbers themselves are
+part of the math (aligned columns of a derivation, a matrix, this kind of
+data table written in the same LaTeX as the rest of a post).
+
 ## Greek letters, operators, and other symbols
 
 | What you want | You write | Renders as |
