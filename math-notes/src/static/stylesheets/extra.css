@@ -63,9 +63,11 @@ html {
    --md-clipboard-icon (the exact icon its code-block copy button uses, already defined
    site-wide) rather than shipping a second icon asset, but with this site's own
    positioning/visibility rules instead of depending on Material's own .md-clipboard
-   conditional-display CSS, which is written for its code-block markup, not this. Hidden
-   until the block is hovered/focused, same "don't clutter until wanted" idea as the
-   public site's own graph-image click-to-reveal buttons. */
+   conditional-display CSS, which is written for its code-block markup, not this.
+
+   Always at least faintly visible (not opacity: 0 until hover) -- a hover-only reveal is
+   invisible by construction on any touch device (no hover state exists at all) and easy
+   to miss even on desktop, since nothing hints a hidden button is there to find. */
 .katex-display {
   position: relative;
 }
@@ -80,7 +82,7 @@ html {
   border: none;
   background: none;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.45;
   transition: opacity 0.15s, color 0.15s;
   color: var(--md-default-fg-color--light);
 }
