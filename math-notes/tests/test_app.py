@@ -234,6 +234,29 @@ def test_admin_preview_segment_renders_admonitions_and_math(client):
     assert 'class="arithmatex"' in resp.text
 
 
+def test_admin_preview_segment_renders_collapsible_blocks_expanded_by_default(client):
+    # ??? blocks render as <details>, collapsed by default on the public site -- the
+    # editor's view mode shows them expanded, both so nothing needs manually expanding to
+    # review it and because clicking a collapsed block's <summary> to open it would
+    # otherwise bubble up as "click the view pane -> enter edit mode".
+    text = '??? success "Solution"\n    The answer.'
+    resp = client.post("/admin/preview-segment", data={"text": text})
+    assert resp.status_code == 200
+    assert "<details open" in resp.text
+
+
+def test_admin_preview_segment_shows_graph_image_directly_not_behind_a_button(client):
+    post_id = db.create_post(
+        "Graph Preview Post", "Meta",
+        '```matplotlib name="preview-visible-test"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```',
+    )
+    post = db.get_post(post_id=post_id)
+    resp = client.post("/admin/preview-segment", data={"text": post["body_markdown"]})
+    assert resp.status_code == 200
+    assert 'src="/assets/plots/preview-visible-test.png"' in resp.text
+    assert "plot-widget__toggle" not in resp.text  # not hidden behind a click-to-reveal button
+
+
 def test_admin_preview_segment_empty_text_returns_empty_body(client):
     resp = client.post("/admin/preview-segment", data={"text": "   "})
     assert resp.status_code == 200

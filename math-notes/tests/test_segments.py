@@ -131,3 +131,22 @@ def test_classify_segment_labels():
     assert render.classify_segment("\\[\nx\n\\]") == "Math block"
     assert render.classify_segment('!!! question "Problem"\n    Body.') == "Admonition (question)"
     assert render.classify_segment('??? success "Solution"\n    Body.') == "Collapsible (success)"
+
+
+def test_expand_details_blocks_adds_open_attribute():
+    html = '<details class="success"><summary>Solution</summary><p>Body.</p></details>'
+    assert render.expand_details_blocks(html) == (
+        '<details open class="success"><summary>Solution</summary><p>Body.</p></details>'
+    )
+
+
+def test_expand_details_blocks_handles_multiple_and_leaves_other_tags_alone():
+    html = "<p>Text.</p><details><summary>A</summary></details><details><summary>B</summary></details>"
+    result = render.expand_details_blocks(html)
+    assert result.count("<details open") == 2
+    assert "<p>Text.</p>" in result
+
+
+def test_expand_details_blocks_noop_on_html_with_no_details():
+    html = "<p>Just a paragraph.</p>"
+    assert render.expand_details_blocks(html) == html

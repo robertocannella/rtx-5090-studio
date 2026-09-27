@@ -238,6 +238,27 @@ def classify_segment(segment):
     return "Paragraph"
 
 
+_DETAILS_TAG_RE = re.compile(r"<details\b")
+
+
+def expand_details_blocks(html):
+    """Forces every `??? type "Title"` collapsible block (rendered as <details> by
+    pymdownx.details) open -- used only for the admin editor's per-block view-mode
+    preview (app.py's _render_segment_preview), never for the public site, where staying
+    collapsed by default is the whole point (so a reader can attempt a problem before
+    revealing the solution).
+
+    The editor's view mode is meant to show a block fully expanded, both so nothing needs
+    manually expanding to review it and because clicking a native <summary> toggle (which
+    lives inside the view pane) bubbles up like any other click there -- without this, the
+    very click meant to reveal a collapsed block's content was instead read as "click the
+    view pane -> enter edit mode" (admin-blocks.js's view-click handler also explicitly
+    excludes summary/button/link clicks from that, as defense in depth against the same
+    bubbling for whatever's still natively clickable after this).
+    """
+    return _DETAILS_TAG_RE.sub("<details open", html)
+
+
 def secondary_toc(toc_tokens):
     """Material's secondary sidebar never lists the page's own top-level heading (its
     title is already shown as the page heading itself) -- only what's nested under it.

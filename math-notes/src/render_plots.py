@@ -80,21 +80,26 @@ def process(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
 
 
 def process_preview(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
-    """Same substitution as process(), for the admin editor's per-block view-mode preview
+    """Renders a ```matplotlib block for the admin editor's per-block view-mode preview
     (app.py's _render_segment_preview) -- but never executes the block's code, only ever
     points at whatever PNG a real save has already produced for that `name`. Previewing
     an edit is not saving it, and a block's code can be mid-edit/syntactically broken at
     any moment while its view is being rendered, so this must never have the side effects
     (or failure modes) that actually running arbitrary matplotlib code has. If a block's
     name has never been saved yet, shows a placeholder instead of a broken <img>.
+
+    Unlike process() (the public site's click-to-reveal button+modal), this renders the
+    image directly and visibly -- the editor's view mode is meant to show a block fully
+    expanded by default, not require a click to reveal it while reviewing/editing.
     """
     plots_dir = Path(plots_dir)
 
     def replace(match):
         name = match.group("name")
-        title = match.group("title")
+        title = match.group("title") or "Graph"
         if (plots_dir / f"{name}.png").exists():
-            return _widget_html(name, title, f"{assets_url_prefix}/{name}.png")
+            src = f"{assets_url_prefix}/{name}.png"
+            return f'<p class="plot-widget__preview"><img src="{src}" alt="{title}"></p>'
         return (
             '<p class="plot-widget__pending"><em>'
             f"Graph {name!r} will render here after you save."

@@ -113,7 +113,7 @@ def _render_segment_preview(text):
     processed = render.normalize_display_math_spacing(text)
     processed = render_plots.process_preview(processed, db.PLOTS_DIR)
     html, _ = render.render_markdown(processed)
-    return html
+    return render.expand_details_blocks(html)
 
 
 def _segment_dict(text):

@@ -72,6 +72,9 @@ def test_process_preview_uses_existing_image_without_regenerating(tmp_path):
     (tmp_path / "already-saved.png").write_bytes(b"fake png bytes")
     text = '```matplotlib name="already-saved" title="Show it"\nraise RuntimeError("must not run")\n```'
     result = render_plots.process_preview(text, tmp_path)
-    assert 'data-plot="already-saved"' in result
-    assert "/assets/plots/already-saved.png" in result
+    # Rendered directly and visibly (not the public site's click-to-reveal button+modal)
+    # -- the editor's view mode is meant to show a block expanded by default.
+    assert "plot-widget__preview" in result
+    assert '<img src="/assets/plots/already-saved.png" alt="Show it">' in result
+    assert "plot-widget__toggle" not in result
     assert (tmp_path / "already-saved.png").read_bytes() == b"fake png bytes"  # untouched
