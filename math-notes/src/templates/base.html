@@ -16,7 +16,17 @@
     <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <link rel="stylesheet" href="/stylesheets/extra.css">
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <!-- __md_scope is deliberately new URL("/", location), not Material's own default of
+    new URL(".", location) -- the default resolves to the CURRENT PAGE's own directory
+    (every page/post here uses a directory-style URL, so every one is its own "directory"),
+    which means __md_get/__md_set (which bundle.js uses for palette, TOC state, and search
+    history -- keyed on scope.pathname) store under a different key depending on which page
+    happened to be loaded when the preference was set or read. Material's own instant-nav
+    normally hides this (it never re-runs this script on in-app link clicks), but any full
+    page load -- a new tab, a hard refresh, a bookmark -- recomputes it fresh from the
+    current URL, making the dark/light toggle appear inconsistent between pages. Pinning
+    this to the site root gives every page the same scope, and therefore the same key. -->
+    <script>__md_scope=new URL("/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
   </head>
   <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">

@@ -25,6 +25,16 @@ def test_home_page_renders_material_chrome(client):
     assert "assets/stylesheets/main." in resp.text
 
 
+def test_palette_scope_is_pinned_to_site_root_on_every_page(client):
+    # __md_scope must resolve the same way regardless of which page happens to load it,
+    # otherwise the palette (dark/light) preference and other persisted UI state end up
+    # keyed differently per page -- see base.html's comment for the full explanation.
+    db.create_post("Scope Test", "Meta", "Body.")
+    for path in ("/", "/blog/", "/blog/scope-test/", "/latex-guide/", "/admin/"):
+        resp = client.get(path)
+        assert '__md_scope=new URL("/",location)' in resp.text, path
+
+
 def test_latex_guide_page_renders_markdown_and_katex(client):
     resp = client.get("/latex-guide/")
     assert resp.status_code == 200
