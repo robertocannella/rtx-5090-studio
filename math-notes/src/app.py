@@ -265,6 +265,18 @@ def admin_new_submit(
     return RedirectResponse("/admin/", status_code=303)
 
 
+@app.get("/admin/{post_id}")
+def admin_view(request: Request, post_id: int):
+    post = db.get_post(post_id=post_id)
+    if not post:
+        raise HTTPException(status_code=404, detail="no such post")
+    saved = request.query_params.get("saved") == "1"
+    return _set_admin_cookie(templates.TemplateResponse(
+        request, "admin_view.html",
+        _admin_context(request, post["title"], post=post, saved=saved),
+    ))
+
+
 @app.get("/admin/{post_id}/edit")
 def admin_edit_form(request: Request, post_id: int):
     post = db.get_post(post_id=post_id)
@@ -297,14 +309,11 @@ def admin_edit_submit(
             ),
             status_code=422,
         )
-    # Stay on the edit page instead of redirecting to the listing, showing the
-    # just-saved post's own rendered preview -- re-fetched so the preview and the
-    # form both reflect the update that was just written, not the pre-save request data.
-    post = db.get_post(post_id=post_id)
-    return _set_admin_cookie(templates.TemplateResponse(
-        request, "admin_form.html",
-        _admin_context(request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post, error=None, saved=True),
-    ))
+    # Switch to view mode instead of the listing -- editing an existing post is a "keep
+    # iterating on this one" workflow, not "go manage the whole list", so landing back on
+    # a rendered view of exactly what was just saved (with a quick way back into Edit)
+    # avoids a detour through the list on every single save.
+    return RedirectResponse(f"/admin/{post_id}?saved=1", status_code=303)
 
 
 @app.post("/admin/{post_id}/delete")

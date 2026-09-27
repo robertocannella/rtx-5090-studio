@@ -1,6 +1,5 @@
 {% extends "admin_base.html" %}
 {% block admin_content %}
-{% if saved %}<p class="admin-saved">Saved.</p>{% endif %}
 <form class="admin-form" method="post" action="{{ action }}">
   <label>Title
     <input type="text" name="title" value="{{ post.title if post else '' }}" required>
@@ -21,11 +20,4 @@
     <a href="/admin/">Cancel</a>
   </div>
 </form>
-{% if post and post.body_html %}
-  <h2 class="admin-preview-heading">Preview</h2>
-  <article class="admin-preview md-typeset">
-    <h1>{{ post.title }}</h1>
-    {{ post.body_html | safe }}
-  </article>
-{% endif %}
 {% endblock %}

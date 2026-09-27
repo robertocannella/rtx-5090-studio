@@ -1,0 +1,15 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+{% if saved %}<p class="admin-saved">Saved.</p>{% endif %}
+<div class="admin-actions">
+  <a href="/admin/{{ post.id }}/edit" class="md-button md-button--primary">Edit</a>
+  <a href="/blog/{{ post.slug }}/" class="md-button">View live</a>
+  <form method="post" action="/admin/{{ post.id }}/delete" onsubmit="return confirm('Delete this post?')">
+    <button type="submit" class="md-button">Delete</button>
+  </form>
+</div>
+<article class="admin-preview md-typeset">
+  <h1>{{ post.title }}</h1>
+  {{ post.body_html | safe }}
+</article>
+{% endblock %}

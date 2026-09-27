@@ -175,46 +175,58 @@ def test_admin_create_broken_plot_shows_error(client):
     assert "matplotlib block" in resp.text
 
 
-def test_admin_edit_post(client):
+def test_admin_edit_post_redirects_to_view_mode(client):
     post_id = db.create_post("Editable", "Meta", "Old body.")
     resp = client.post(
         f"/admin/{post_id}/edit",
         data={"title": "Edited", "category": "Meta", "body_markdown": "New body."},
         follow_redirects=False,
     )
-    # Saving in edit mode stays on the edit page (with a live preview of the save),
-    # rather than redirecting to the listing -- so a run of edits doesn't require
-    # navigating back to the list and clicking Edit again each time.
-    assert resp.status_code == 200
-    assert "Saved." in resp.text
-    assert "New body." in resp.text  # shown in both the textarea and the preview
+    # Saving switches the page from edit mode to view mode (a rendered read of exactly
+    # what was saved, with a way back into Edit) instead of the listing -- so a run of
+    # edits doesn't require navigating back to the list and clicking Edit again each time.
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/admin/{post_id}?saved=1"
     post = db.get_post(post_id=post_id)
     assert post["title"] == "Edited"
     assert "New body." in post["body_html"]
 
 
-def test_admin_edit_post_shows_rendered_preview(client):
-    post_id = db.create_post("Preview Post", "Meta", "Old body.")
-    resp = client.post(
-        f"/admin/{post_id}/edit",
-        data={"title": "Preview Post", "category": "Meta", "body_markdown": "**Bold new body.**"},
-    )
-    assert resp.status_code == 200
-    assert 'class="admin-preview' in resp.text
-    assert "<strong>Bold new body.</strong>" in resp.text
-
-
-def test_admin_edit_form_shows_preview_on_plain_get_too(client):
+def test_admin_edit_form_has_no_preview(client):
+    # The edit FORM itself stays a plain form -- the rendered view lives on its own page
+    # (/admin/{id}), not appended below the textarea.
     post_id = db.create_post("Existing Post", "Meta", "Already **saved** body.")
     resp = client.get(f"/admin/{post_id}/edit")
     assert resp.status_code == 200
-    assert 'class="admin-preview' in resp.text
-    assert "<strong>saved</strong>" in resp.text
+    assert 'class="admin-preview' not in resp.text
+
+
+def test_admin_view_page_shows_rendered_post_and_actions(client):
+    post_id = db.create_post("View Mode Post", "Meta", "Some **bold** body.")
+    resp = client.get(f"/admin/{post_id}")
+    assert resp.status_code == 200
+    assert "<strong>bold</strong>" in resp.text
+    assert f'href="/admin/{post_id}/edit"' in resp.text
+    assert 'href="/blog/view-mode-post/"' in resp.text
+    assert f'action="/admin/{post_id}/delete"' in resp.text
+    assert "Saved." not in resp.text  # no ?saved=1 on a plain visit
+
+
+def test_admin_view_page_shows_saved_banner_after_redirect(client):
+    post_id = db.create_post("Saved Banner Post", "Meta", "Body.")
+    resp = client.get(f"/admin/{post_id}?saved=1")
+    assert resp.status_code == 200
+    assert "Saved." in resp.text
+
+
+def test_admin_view_nonexistent_post_404s(client):
+    resp = client.get("/admin/9999")
+    assert resp.status_code == 404
 
 
 def test_admin_new_post_still_redirects_to_listing(client):
-    # Only edit-mode saves stay on the page -- creating a brand new post still goes to
-    # the listing, since there's no "keep iterating on this one" context yet.
+    # Only editing an existing post switches to view mode -- creating a brand new post
+    # still goes to the listing, since there's no "keep iterating on this one" context yet.
     resp = client.post(
         "/admin/new",
         data={"title": "Fresh Post", "category": "Meta", "body_markdown": "Body."},
