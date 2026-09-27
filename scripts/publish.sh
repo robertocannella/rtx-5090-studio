@@ -21,6 +21,25 @@ SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHOWCASE="${3:-$HOME/history-generator-showcase}"
 TITLE="$(echo "$MSG" | head -1)"
 
+# A relative $SHOWCASE is always a mistake -- there's no legitimate case for it, and one
+# has already caused real damage: a stray quote inside a commit message argument once
+# split it off the message string as its own word, silently turning $SHOWCASE into a
+# short relative fragment. That resolved under $SRC (since the script cd's there and
+# never leaves), so the showcase export wrote into a brand new subdirectory of THIS repo
+# instead of the separate public repo, and the commit/push below then pushed it straight
+# to master. Refusing early makes that fail loudly instead.
+case "$SHOWCASE" in
+  /*) ;;
+  *)
+    echo "SHOWCASE must be an absolute path, got: $SHOWCASE" >&2
+    exit 1
+    ;;
+esac
+if [ ! -d "$SHOWCASE/.git" ]; then
+  echo "SHOWCASE does not look like a git repo (no .git found): $SHOWCASE" >&2
+  exit 1
+fi
+
 if [ -n "${2:-}" ]; then
   BRANCH="$2"
 else
