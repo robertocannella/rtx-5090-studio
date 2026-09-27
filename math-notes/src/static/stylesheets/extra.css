@@ -2,26 +2,27 @@
    widths, stepping up to 137.5% and 150% at wider breakpoints (confirmed by reading the
    actual compiled theme CSS, not guessed) -- since virtually everything else in the
    theme is sized in rem/em relative to this, that scaling cascades into every heading,
-   button, and spacing value on the page, not just body text. Reported live as
-   "everything feels zoomed in", confirmed by "zooming out to 75% looks right" -- so
-   these three rules counter Material's own root scaling by that same 75% factor at each
-   of its own breakpoints, which (being the root) shrinks the whole page proportionally,
-   including the .md-typeset rule below, without needing to touch anything else.
-   Overrides win by cascade order (this file loads after main.css), not specificity --
-   each selector here matches Material's own exactly. */
+   button, and spacing value on the page, not just body text. First reported live as
+   "everything feels zoomed in", corrected by countering Material's own values with a flat
+   75% factor at each breakpoint (94/103/112.5) -- then reported as having overshot
+   the other way ("a bit too small"). These three rules keep the same 100/110/120 ratio
+   Material's own breakpoints use (1 : 1.1 : 1.2), just anchored at 100% instead of
+   Material's 125%, splitting the difference between the two reports. Overrides win by
+   cascade order (this file loads after main.css), not specificity -- each selector here
+   matches Material's own exactly. */
 html {
-  font-size: 94%;
+  font-size: 100%;
 }
 
 @media screen and (min-width: 100em) {
   html {
-    font-size: 103%;
+    font-size: 110%;
   }
 }
 
 @media screen and (min-width: 125em) {
   html {
-    font-size: 112.5%;
+    font-size: 120%;
   }
 }
 
@@ -29,6 +30,20 @@ html {
    reading (this is on top of, not instead of, the root-level scale-down above). */
 .md-typeset {
   font-size: 0.9rem;
+}
+
+/* KaTeX-rendered math (both inline $...$ and display $$...$$/\[...\]) defaults to the
+   surrounding text's own font-size, which reads small for actual formulas -- math is
+   large by default here instead: inline math is bumped, and a display equation (KaTeX's
+   own .katex-display wrapper, applied automatically whenever auto-render.js is called
+   with displayMode: true, i.e. every block delimiter) gets an even larger bump on top of
+   that, since a standalone equation is normally the main thing on its line. */
+.katex {
+  font-size: 1.15em;
+}
+
+.katex-display > .katex {
+  font-size: 1.3em;
 }
 
 /* Minimal, collapsed-by-default categories panel pinned to the right edge of the
