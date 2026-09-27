@@ -80,7 +80,15 @@ credentials as `docs.example.com`), click **New post**, and fill in:
 - **Title** -- also becomes the page's `<h1>`.
 - **Category** -- freeform text; every distinct category used across all posts
   automatically gets a `/blog/category/<name>/` archive page and shows up in the
-  categories sidebar (see below). No separate list to maintain.
+  browse sidebar (see below). No separate list to maintain.
+- **Tags** (optional) -- comma-separated, many-per-post, for topics that cut across
+  categories (e.g. a "Kinematics" category post might be tagged "constant acceleration").
+  Stored as a JSON array in `posts.tags_json`; `db._normalize_tags()` trims whitespace,
+  drops empties, and dedupes case-insensitively (keeping whichever casing was typed
+  first) whether it's given a list or one comma-separated string. Each distinct tag gets
+  a `/blog/tag/<name>/` archive page (`db.list_posts(tag=...)`, a Python-side filter over
+  `tags_json` rather than a SQL `json_each` query -- simpler, and fast enough at this
+  site's scale, without needing to confirm SQLite's JSON1 extension is compiled in).
 - **Slug** (optional, new posts only) -- derived from the title if left blank
   (`db.slugify`). Editing an existing post's title does not change its slug, so existing
   links never break.
@@ -162,13 +170,19 @@ tab bar and the primary sidebar's nav tree -- adding a new non-blog page means a
 entry there and a route; blog posts and categories need neither, both are already
 data-driven from whatever exists in the database.
 
-### Categories sidebar
+### Browse sidebar (categories and tags)
 
 A small, custom, collapsed-by-default panel pinned to the right edge of every page,
-listing every distinct category across all posts (`db.list_categories()`, passed into
-every template as `all_categories`), each linking to its `/blog/category/<name>/` archive
-page. Material has no built-in widget for this -- it's two pieces, both carried over
-unchanged from the original static site:
+listing every distinct category (`db.list_categories()`, passed into every template as
+`all_categories`) and every distinct tag (`db.list_tags()`, as `all_tags`) across all
+posts, each linking to its `/blog/category/<name>/` or `/blog/tag/<name>/` archive page.
+A name with a space in it (e.g. "Constant Acceleration") is joined with dashes in the URL
+by every link that builds one (`name | lower | replace(' ', '-')`), and the two archive
+routes match an incoming path segment the same way (`app.py`'s `_topic_slug`) rather than
+a plain `.lower()` -- otherwise a multi-word category or tag would 404 by way of an empty
+post list, since a raw space and a dash don't compare equal. Material has no built-in
+widget for this -- it's two pieces, both carried over unchanged from the original static
+site:
 
 - The panel's markup, rendered directly in `templates/base.html` (not a Jinja block
   override anymore -- there's no separate Material base template to extend now that this

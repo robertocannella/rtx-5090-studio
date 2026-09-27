@@ -15,6 +15,10 @@ it's live immediately.
 
 - **Category** is freeform text; every distinct value in use automatically gets a
   `/blog/category/<name>/` archive page and shows up in the categories sidebar.
+- **Tags** are optional, comma-separated, and many-per-post (unlike category, which is
+  one-per-post) -- for topics that cut across categories, like "constant acceleration" or
+  "limits". Each distinct tag gets a `/blog/tag/<name>/` archive page and shows up in the
+  browse sidebar, same as categories.
 - **Slug** is optional on a new post -- left blank, it's derived from the title. Editing a
   post's title later never changes its existing slug/URL.
 - A `<!-- more -->` marker in the body splits "excerpt shown on the index" from "rest of
@@ -62,14 +66,20 @@ These are plain Markdown files under `src/content/`, rendered once at app startu
 in `app.py`'s `NAV_ITEMS` (which drives both the top tab bar and the primary sidebar) --
 add the file, add a route in `app.py`, add an entry to `NAV_ITEMS`.
 
-## Categories sidebar
+## Browse sidebar (categories and tags)
 
 A small, collapsed-by-default panel on the right edge of every page lists every category
-in use, linking to its `/blog/category/<name>/` archive -- fully data-driven from
-`db.list_categories()`, nothing to maintain by hand. See `templates/base.html` for the
-markup and `static/javascripts/categories-panel.js` for the toggle behavior; see
+and every tag in use, each linking to its `/blog/category/<name>/` or `/blog/tag/<name>/`
+archive -- fully data-driven from `db.list_categories()`/`db.list_tags()`, nothing to
+maintain by hand. See `templates/base.html` for the markup and
+`static/javascripts/categories-panel.js` for the toggle behavior; see
 `/srv/apps/docs/MATH-NOTES.md` for why that script uses plain event delegation instead of
 Material's `document$.subscribe`.
+
+A category or tag with a space in its name (e.g. "Constant Acceleration") gets a
+dash-joined URL (`/blog/tag/constant-acceleration/`), not a raw space -- every link is
+built that way (see `_topic_slug` in `app.py`), and the route handlers match against the
+same slug, not a plain `.lower()`.
 
 ## Deploying a code change
 

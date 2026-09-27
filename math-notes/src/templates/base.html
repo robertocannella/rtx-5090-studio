@@ -237,16 +237,26 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
-    {% if all_categories %}
+    {% if all_categories or all_tags %}
       <aside class="categories-panel" data-md-component="categories-panel">
-        <button type="button" class="categories-panel__toggle" aria-expanded="false" aria-controls="categories-panel__body">Categories</button>
+        <button type="button" class="categories-panel__toggle" aria-expanded="false" aria-controls="categories-panel__body">Browse</button>
         <div class="categories-panel__body" id="categories-panel__body" hidden>
-          <p class="categories-panel__title">Categories</p>
-          <ul class="categories-panel__list">
-            {% for cat in all_categories %}
-              <li><a href="/blog/category/{{ cat | lower | replace(' ', '-') }}/">{{ cat }}</a></li>
-            {% endfor %}
-          </ul>
+          {% if all_categories %}
+            <p class="categories-panel__title">Categories</p>
+            <ul class="categories-panel__list">
+              {% for cat in all_categories %}
+                <li><a href="/blog/category/{{ cat | lower | replace(' ', '-') }}/">{{ cat }}</a></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          {% if all_tags %}
+            <p class="categories-panel__title">Tags</p>
+            <ul class="categories-panel__list">
+              {% for t in all_tags %}
+                <li><a href="/blog/tag/{{ t | lower | replace(' ', '-') }}/">{{ t }}</a></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
         </div>
       </aside>
     {% endif %}

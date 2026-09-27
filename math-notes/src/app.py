@@ -99,6 +99,7 @@ def _base_context(request, active_nav, header_topic, title, is_admin=None):
         "toc_tokens": [],
         "primary_sidebar_hidden": False,
         "all_categories": db.list_categories(),
+        "all_tags": db.list_tags(),
         "is_admin": is_admin,
         "extra_sidebar_links": [],
     }
@@ -227,14 +228,36 @@ def blog_index(request: Request):
     return templates.TemplateResponse(request, "blog_index.html", ctx)
 
 
+def _topic_slug(value):
+    """How every category/tag link in the templates builds its URL (see base.html's
+    categories panel, post.html, blog_index.html) -- a multi-word value like "constant
+    acceleration" becomes "constant-acceleration", not something with a raw space that'd
+    only work by accident of browser percent-encoding. Route handlers below match an
+    incoming path segment against this, not a plain .lower(), so a category/tag with
+    spaces in it actually resolves instead of 404ing-by-empty-list.
+    """
+    return value.lower().replace(" ", "-")
+
+
 @app.get("/blog/category/{category}/")
 def blog_category(request: Request, category: str):
     all_categories = db.list_categories()
-    matched = next((c for c in all_categories if c.lower() == category.lower()), None)
+    matched = next((c for c in all_categories if _topic_slug(c) == category.lower()), None)
     posts = [_with_display_date(p) for p in db.list_posts(category=matched)] if matched else []
     heading = matched or category
     ctx = _base_context(request, "blog", heading, f"{heading} - Math Notes")
     ctx.update({"heading": heading, "posts": posts, "category": matched or category})
+    return templates.TemplateResponse(request, "blog_index.html", ctx)
+
+
+@app.get("/blog/tag/{tag}/")
+def blog_tag(request: Request, tag: str):
+    all_tags = db.list_tags()
+    matched = next((t for t in all_tags if _topic_slug(t) == tag.lower()), None)
+    posts = [_with_display_date(p) for p in db.list_posts(tag=matched)] if matched else []
+    heading = matched or tag
+    ctx = _base_context(request, "blog", heading, f"{heading} - Math Notes")
+    ctx.update({"heading": heading, "posts": posts, "category": None, "tag": matched or tag})
     return templates.TemplateResponse(request, "blog_index.html", ctx)
 
 
@@ -294,7 +317,8 @@ def feed():
         f"<guid>{SITE_URL}/blog/{p['slug']}/</guid>"
         f"<pubDate>{datetime.fromisoformat(p['created_at']).strftime('%a, %d %b %Y %H:%M:%S +0000')}</pubDate>"
         f"<category>{xml_escape(p['category'])}</category>"
-        f"</item>"
+        + "".join(f"<category>{xml_escape(t)}</category>" for t in p["tags"])
+        + f"</item>"
         for p in posts
     )
     xml = (
@@ -371,18 +395,19 @@ def admin_new_submit(
     request: Request,
     title: str = Form(...),
     category: str = Form(...),
+    tags: str = Form(""),
     segments: list[str] = Form(...),
     slug: str = Form(""),
 ):
     body_markdown = render.join_segments(segments)
     try:
-        db.create_post(title.strip(), category.strip(), body_markdown, slug=slug.strip() or None)
+        db.create_post(title.strip(), category.strip(), body_markdown, tags=tags, slug=slug.strip() or None)
     except (db.DuplicateSlugError, render_plots.PlotError) as e:
         return templates.TemplateResponse(
             request, "admin_form.html",
             _admin_context(
                 request, "New post", action="/admin/new", error=str(e),
-                post={"title": title, "category": category},
+                post={"title": title, "category": category, "tags": [t.strip() for t in tags.split(",") if t.strip()]},
                 segments=[_segment_dict(s) for s in segments],
                 show_all_posts_header_link=False,
             ),
@@ -423,11 +448,12 @@ def admin_edit_submit(
     post_id: int,
     title: str = Form(...),
     category: str = Form(...),
+    tags: str = Form(""),
     segments: list[str] = Form(...),
 ):
     body_markdown = render.join_segments(segments)
     try:
-        db.update_post(post_id, title=title.strip(), category=category.strip(), body_markdown=body_markdown)
+        db.update_post(post_id, title=title.strip(), category=category.strip(), body_markdown=body_markdown, tags=tags)
     except db.PostNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except render_plots.PlotError as e:
@@ -436,7 +462,7 @@ def admin_edit_submit(
             request, "admin_form.html",
             _admin_context(
                 request, "Edit post", action=f"/admin/{post_id}/edit", error=str(e),
-                post={"title": title, "category": category},
+                post={"title": title, "category": category, "tags": [t.strip() for t in tags.split(",") if t.strip()]},
                 segments=[_segment_dict(s, existing["slug"]) for s in segments],
                 show_all_posts_header_link=False,
             ),

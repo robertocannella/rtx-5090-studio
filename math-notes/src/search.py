@@ -41,5 +41,6 @@ def build_index(home_html, latex_guide_html, posts):
             "location": f"blog/{post['slug']}/",
             "title": post["title"],
             "text": _plain_text(post["body_html"]),
+            "tags": post["tags"],
         })
     return {"config": CONFIG, "docs": docs}

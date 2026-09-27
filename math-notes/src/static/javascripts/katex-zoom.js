@@ -51,6 +51,11 @@
     saveZoom(currentZoom);
   }
 
+  function isRightHalf(formula, clientX) {
+    const rect = formula.getBoundingClientRect();
+    return clientX - rect.left > rect.width / 2;
+  }
+
   document.addEventListener("click", (event) => {
     const zoomInButton = event.target.closest("[data-katex-zoom-in]");
     const zoomOutButton = event.target.closest("[data-katex-zoom-out]");
@@ -66,8 +71,28 @@
     if (event.target.closest(".katex-copy")) return;
     const formula = event.target.closest(".katex");
     if (!formula) return;
-    const rect = formula.getBoundingClientRect();
-    const clickedRightHalf = event.clientX - rect.left > rect.width / 2;
-    stepZoom(clickedRightHalf ? STEP : -STEP);
+    stepZoom(isRightHalf(formula, event.clientX) ? STEP : -STEP);
+  });
+
+  // A faint -/+ near the formula's own left/right edge previews which half you're over,
+  // before you click -- otherwise "tap a formula to zoom it" has no visible affordance at
+  // all. Pure CSS (extra.css's .katex-zoom-hover--left/--right rules, gated to
+  // hover-capable pointers) driven by these two classes; this only ever toggles them, it
+  // never touches opacity/positioning directly. mouseout's relatedTarget check is the
+  // standard way to get mouseleave-like behavior (fires once when the pointer truly
+  // leaves .katex, not on every move between its inner glyph spans) out of a single
+  // delegated listener, rather than binding enter/leave per formula.
+  document.addEventListener("mousemove", (event) => {
+    const formula = event.target.closest(".katex");
+    if (!formula) return;
+    const rightHalf = isRightHalf(formula, event.clientX);
+    formula.classList.toggle("katex-zoom-hover--left", !rightHalf);
+    formula.classList.toggle("katex-zoom-hover--right", rightHalf);
+  });
+
+  document.addEventListener("mouseout", (event) => {
+    const formula = event.target.closest(".katex");
+    if (!formula || formula.contains(event.relatedTarget)) return;
+    formula.classList.remove("katex-zoom-hover--left", "katex-zoom-hover--right");
   });
 })();

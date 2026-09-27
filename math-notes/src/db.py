@@ -58,6 +58,7 @@ def init_db():
             excerpt_html TEXT NOT NULL,
             toc_json TEXT NOT NULL DEFAULT '[]',
             reading_minutes INTEGER NOT NULL DEFAULT 1,
+            tags_json TEXT NOT NULL DEFAULT '[]',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )
@@ -70,6 +71,11 @@ def init_db():
     if "reading_minutes" not in existing_cols:
         conn.execute("ALTER TABLE posts ADD COLUMN reading_minutes INTEGER NOT NULL DEFAULT 1")
         added_toc_columns = True
+    if "tags_json" not in existing_cols:
+        # No re-render needed here (unlike toc_json/reading_minutes above) -- '[]' is
+        # already the correct, final value for every post that predates tags, not just a
+        # placeholder waiting to be backfilled.
+        conn.execute("ALTER TABLE posts ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
     conn.commit()
     if added_toc_columns:
         # Posts migrated from a schema before toc_json/reading_minutes existed (or from
@@ -93,6 +99,34 @@ def slugify(title):
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_tags(tags):
+    """Accepts either a list of tag strings or one comma-separated string (the admin
+    form's own representation -- see app.py) and returns a clean list: whitespace
+    trimmed, empties dropped, duplicates removed case-insensitively while keeping
+    whichever casing was typed first, order otherwise preserved (not alphabetized --
+    that's a display-time choice, made by whoever's listing them, e.g. list_tags()).
+    """
+    if tags is None:
+        return []
+    if isinstance(tags, str):
+        tags = tags.split(",")
+    seen_lower = set()
+    result = []
+    for tag in tags:
+        tag = tag.strip()
+        if not tag or tag.lower() in seen_lower:
+            continue
+        seen_lower.add(tag.lower())
+        result.append(tag)
+    return result
+
+
+def _row_to_post(row):
+    post = dict(row)
+    post["tags"] = json.loads(post["tags_json"])
+    return post
 
 
 def _normalize_newlines(text):
@@ -134,7 +168,7 @@ def _render(body_markdown, slug):
     return excerpt_html, body_html, json.dumps(toc_tokens), reading_minutes
 
 
-def create_post(title, category, body_markdown, slug=None, created_at=None):
+def create_post(title, category, body_markdown, tags=None, slug=None, created_at=None):
     """created_at defaults to now -- only overridden by migrate_posts.py, to preserve
     each existing post's real original date instead of resetting every migrated post to
     "just now" and scrambling the blog's chronological order.
@@ -142,15 +176,17 @@ def create_post(title, category, body_markdown, slug=None, created_at=None):
     slug = (slug or "").strip() or slugify(title)
     body_markdown = _normalize_newlines(body_markdown)
     excerpt_html, body_html, toc_json, reading_minutes = _render(body_markdown, slug)
+    tags_json = json.dumps(_normalize_tags(tags))
     now = _now()
     created_at = created_at or now
     conn = get_connection()
     try:
         cur = conn.execute(
             "INSERT INTO posts (slug, title, category, body_markdown, body_html, excerpt_html, "
-            "toc_json, reading_minutes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "toc_json, reading_minutes, tags_json, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (slug, title, category, body_markdown, body_html, excerpt_html,
-             toc_json, reading_minutes, created_at, now),
+             toc_json, reading_minutes, tags_json, created_at, now),
         )
         conn.commit()
         return cur.lastrowid
@@ -160,7 +196,7 @@ def create_post(title, category, body_markdown, slug=None, created_at=None):
         conn.close()
 
 
-def update_post(post_id, title=None, category=None, body_markdown=None):
+def update_post(post_id, title=None, category=None, body_markdown=None, tags=None):
     conn = get_connection()
     row = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
     if row is None:
@@ -169,6 +205,7 @@ def update_post(post_id, title=None, category=None, body_markdown=None):
 
     new_title = title if title is not None else row["title"]
     new_category = category if category is not None else row["category"]
+    new_tags_json = json.dumps(_normalize_tags(tags)) if tags is not None else row["tags_json"]
 
     if body_markdown is not None:
         body_markdown = _normalize_newlines(body_markdown)
@@ -180,9 +217,9 @@ def update_post(post_id, title=None, category=None, body_markdown=None):
 
     conn.execute(
         "UPDATE posts SET title=?, category=?, body_markdown=?, body_html=?, excerpt_html=?, "
-        "toc_json=?, reading_minutes=?, updated_at=? WHERE id=?",
+        "toc_json=?, reading_minutes=?, tags_json=?, updated_at=? WHERE id=?",
         (new_title, new_category, new_body_markdown, body_html, excerpt_html,
-         toc_json, reading_minutes, _now(), post_id),
+         toc_json, reading_minutes, new_tags_json, _now(), post_id),
     )
     conn.commit()
     conn.close()
@@ -202,10 +239,17 @@ def get_post(slug=None, post_id=None):
     else:
         row = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_post(row) if row else None
 
 
-def list_posts(category=None):
+def list_posts(category=None, tag=None):
+    """tag filtering happens in Python, not SQL -- tags_json is a plain JSON array
+    column (see _normalize_tags), and at this site's scale (a handful of posts) a
+    per-request Python filter is simpler and just as fast as relying on SQLite's json1
+    extension, without needing to confirm that extension is compiled into whatever
+    Python/SQLite build this runs on. Matching is case-insensitive, same as
+    list_categories()/blog_category's own lookup.
+    """
     conn = get_connection()
     if category:
         rows = conn.execute(
@@ -214,7 +258,10 @@ def list_posts(category=None):
     else:
         rows = conn.execute("SELECT * FROM posts ORDER BY created_at DESC").fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    posts = [_row_to_post(r) for r in rows]
+    if tag:
+        posts = [p for p in posts if tag.lower() in (t.lower() for t in p["tags"])]
+    return posts
 
 
 def list_categories():
@@ -222,3 +269,21 @@ def list_categories():
     rows = conn.execute("SELECT DISTINCT category FROM posts ORDER BY category").fetchall()
     conn.close()
     return [r["category"] for r in rows]
+
+
+def list_tags():
+    """Every distinct tag in use, across every post, sorted case-insensitively --
+    powers the tags list in the categories panel and validates /blog/tag/{tag}/ lookups
+    (see app.py). Case-insensitive dedup keeps whichever casing was stored on the post
+    that happened to come back from the database first; two posts spelling the same tag
+    differently (\"Limits\" vs \"limits\") intentionally collapse to one entry rather
+    than showing both.
+    """
+    conn = get_connection()
+    rows = conn.execute("SELECT tags_json FROM posts").fetchall()
+    conn.close()
+    seen_lower = {}
+    for row in rows:
+        for tag in json.loads(row["tags_json"]):
+            seen_lower.setdefault(tag.lower(), tag)
+    return sorted(seen_lower.values(), key=str.lower)

@@ -85,6 +85,64 @@ def test_list_categories_distinct_and_sorted():
     assert db.list_categories() == ["Meta", "Physics"]
 
 
+def test_create_post_normalizes_tags():
+    # Whitespace trimmed, empties dropped, case-insensitive duplicates collapsed to
+    # whichever casing was typed first (see db._normalize_tags).
+    post_id = db.create_post(
+        "Tagged", "Physics", "Body.", tags=[" Limits ", "", "limits", "Continuity"],
+    )
+    post = db.get_post(post_id=post_id)
+    assert post["tags"] == ["Limits", "Continuity"]
+
+
+def test_create_post_accepts_comma_separated_tags_string():
+    # The admin form submits one comma-separated string, not a list -- same normalization
+    # rules apply either way.
+    post_id = db.create_post("Tagged", "Physics", "Body.", tags="limits, continuity ,, limits")
+    post = db.get_post(post_id=post_id)
+    assert post["tags"] == ["limits", "continuity"]
+
+
+def test_create_post_with_no_tags_defaults_to_empty_list():
+    post_id = db.create_post("Untagged", "Physics", "Body.")
+    post = db.get_post(post_id=post_id)
+    assert post["tags"] == []
+
+
+def test_update_post_changes_tags():
+    post_id = db.create_post("Tagged", "Physics", "Body.", tags="limits")
+    db.update_post(post_id, tags="continuity, derivatives")
+    post = db.get_post(post_id=post_id)
+    assert post["tags"] == ["continuity", "derivatives"]
+
+
+def test_update_post_without_tags_argument_leaves_tags_unchanged():
+    post_id = db.create_post("Tagged", "Physics", "Body.", tags="limits")
+    db.update_post(post_id, title="Retitled")
+    post = db.get_post(post_id=post_id)
+    assert post["tags"] == ["limits"]
+
+
+def test_update_post_can_clear_tags_with_empty_string():
+    post_id = db.create_post("Tagged", "Physics", "Body.", tags="limits")
+    db.update_post(post_id, tags="")
+    post = db.get_post(post_id=post_id)
+    assert post["tags"] == []
+
+
+def test_list_posts_filters_by_tag_case_insensitively():
+    db.create_post("A", "Physics", "Body.", tags="Constant Acceleration")
+    db.create_post("B", "Physics", "Body.", tags="limits")
+    posts = db.list_posts(tag="constant acceleration")
+    assert [p["title"] for p in posts] == ["A"]
+
+
+def test_list_tags_distinct_case_insensitive_and_sorted():
+    db.create_post("A", "Physics", "Body.", tags="Limits, Continuity")
+    db.create_post("B", "Physics", "Body.", tags="limits, Derivatives")
+    assert db.list_tags() == ["Continuity", "Derivatives", "Limits"]
+
+
 def test_create_post_normalizes_crlf_line_endings():
     # HTML <textarea> submissions always use \r\n, regardless of OS -- a matplotlib
     # fenced block must still be recognized (its regex matches a literal \n).

@@ -45,7 +45,7 @@ def test_katex_zoom_js_supports_tapping_a_formula_to_zoom(client):
     # count as a formula tap (see katex-zoom.js's click handler).
     resp = client.get("/javascripts/katex-zoom.js")
     assert resp.status_code == 200
-    assert "clickedRightHalf" in resp.text
+    assert "isRightHalf" in resp.text
     assert ".katex-copy" in resp.text
 
     # The admin block editor's "click the rendered view to start editing" handler must
@@ -54,6 +54,21 @@ def test_katex_zoom_js_supports_tapping_a_formula_to_zoom(client):
     admin_js = client.get("/javascripts/admin-blocks.js")
     assert admin_js.status_code == 200
     assert '"summary, a, button, img, .katex"' in admin_js.text
+
+
+def test_katex_zoom_hover_indicator_script_and_style_are_served(client):
+    # A faint -/+ near a formula's own edge previews which half a tap would zoom --
+    # mouse/trackpad only (see extra.css's hover/pointer media query), driven by two
+    # classes katex-zoom.js toggles on mousemove/mouseout.
+    js_resp = client.get("/javascripts/katex-zoom.js")
+    assert js_resp.status_code == 200
+    assert "katex-zoom-hover--left" in js_resp.text
+    assert "katex-zoom-hover--right" in js_resp.text
+
+    css_resp = client.get("/stylesheets/extra.css")
+    assert css_resp.status_code == 200
+    assert "katex-zoom-hover--left" in css_resp.text
+    assert "hover: hover" in css_resp.text
 
 
 def test_katex_copy_button_script_and_style_are_served(client):
@@ -137,6 +152,16 @@ def test_feed_xml_lists_posts(client):
     assert "<rss" in resp.text
 
 
+def test_feed_xml_includes_tags_as_extra_category_elements(client):
+    # RSS's <category> element is legitimately repeatable per item -- one for the post's
+    # real category, plus one more per tag, rather than inventing a separate element.
+    db.create_post("Feed Post", "Physics", "Body.", tags="limits, continuity")
+    resp = client.get("/feed.xml")
+    assert "<category>Physics</category>" in resp.text
+    assert "<category>limits</category>" in resp.text
+    assert "<category>continuity</category>" in resp.text
+
+
 def test_search_index_includes_posts(client):
     db.create_post("Searchable Post", "Physics", "Findable body text.")
     resp = client.get("/search/search_index.json")
@@ -144,6 +169,45 @@ def test_search_index_includes_posts(client):
     data = resp.json()
     locations = {d["location"] for d in data["docs"]}
     assert "blog/searchable-post/" in locations
+
+
+def test_search_index_includes_post_tags(client):
+    db.create_post("Searchable Post", "Physics", "Findable body text.", tags="limits, continuity")
+    resp = client.get("/search/search_index.json")
+    data = resp.json()
+    doc = next(d for d in data["docs"] if d["location"] == "blog/searchable-post/")
+    assert doc["tags"] == ["limits", "continuity"]
+
+
+def test_tag_page_filters_posts_and_handles_multiword_tags(client):
+    # "Constant Acceleration" is exactly the multi-word case that plain .lower()
+    # matching would break (a raw space in the URL doesn't equal a dash) -- see
+    # app.py's _topic_slug.
+    db.create_post("Kinematics Post", "Physics", "Body.", tags="Constant Acceleration")
+    db.create_post("Calculus Post", "Physics", "Body.", tags="Limits")
+    resp = client.get("/blog/tag/constant-acceleration/")
+    assert resp.status_code == 200
+    assert "Kinematics Post" in resp.text
+    assert "Calculus Post" not in resp.text
+
+
+def test_tag_page_for_unknown_tag_shows_no_posts(client):
+    resp = client.get("/blog/tag/nope/")
+    assert resp.status_code == 200
+    assert "No posts" in resp.text
+
+
+def test_post_page_links_to_its_tags(client):
+    db.create_post("Tagged Post", "Physics", "Body.", tags="Constant Acceleration, Limits")
+    resp = client.get("/blog/tagged-post/")
+    assert 'href="/blog/tag/constant-acceleration/"' in resp.text
+    assert 'href="/blog/tag/limits/"' in resp.text
+
+
+def test_categories_panel_lists_all_tags(client):
+    db.create_post("Tagged Post", "Physics", "Body.", tags="Limits")
+    resp = client.get("/")
+    assert 'href="/blog/tag/limits/"' in resp.text
 
 
 def test_matplotlib_post_renders_button_and_serves_image(client):
@@ -222,6 +286,35 @@ def test_admin_create_post(client):
     assert resp.status_code == 303
     assert resp.headers["location"] == "/admin/"
     assert client.get("/blog/new-post/").status_code == 200
+
+
+def test_admin_create_post_with_tags(client):
+    resp = client.post(
+        "/admin/new",
+        data={"title": "New Post", "category": "Meta", "tags": "Limits, Continuity", "segments": ["Body text."]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    post = db.get_post(slug="new-post")
+    assert post["tags"] == ["Limits", "Continuity"]
+
+
+def test_admin_edit_form_prefills_tags_input(client):
+    post_id = db.create_post("Tagged", "Meta", "Body.", tags="Limits, Continuity")
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert 'name="tags" value="Limits, Continuity"' in resp.text
+
+
+def test_admin_edit_post_updates_tags(client):
+    post_id = db.create_post("Editable", "Meta", "Old body.", tags="Limits")
+    resp = client.post(
+        f"/admin/{post_id}/edit",
+        data={"title": "Editable", "category": "Meta", "tags": "Continuity", "segments": ["Old body."]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    post = db.get_post(post_id=post_id)
+    assert post["tags"] == ["Continuity"]
 
 
 def test_admin_create_duplicate_slug_shows_error(client):

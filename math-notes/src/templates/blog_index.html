@@ -6,7 +6,7 @@
       <h1>{{ heading }}</h1>
     </header>
     {% if not posts %}
-      <p class="md-typeset">No posts {% if category %}in this category {% endif %}yet.</p>
+      <p class="md-typeset">No posts {% if category %}in this category {% elif tag %}with this tag {% endif %}yet.</p>
     {% endif %}
     {% for post in posts %}
       <article class="md-post md-post--excerpt">
@@ -16,9 +16,14 @@
               <li class="md-meta__item"><time>{{ post.created_at_display }}</time></li>
               <li class="md-meta__item">
                 in
-                <a href="/blog/category/{{ post.category | lower }}/" class="md-meta__link">{{ post.category }}</a>
+                <a href="/blog/category/{{ post.category | lower | replace(' ', '-') }}/" class="md-meta__link">{{ post.category }}</a>
               </li>
               <li class="md-meta__item">{{ post.reading_minutes }} min read</li>
+              {% if post.tags %}
+                <li class="md-meta__item">
+                  {% for t in post.tags %}<a href="/blog/tag/{{ t | lower | replace(' ', '-') }}/" class="md-meta__link">{{ t }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+                </li>
+              {% endif %}
             </ul>
           </div>
         </header>

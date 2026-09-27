@@ -7,6 +7,9 @@
   <label>Category
     <input type="text" name="category" value="{{ post.category if post else '' }}" required>
   </label>
+  <label>Tags (comma-separated, optional -- e.g. "constant acceleration, limits")
+    <input type="text" name="tags" value="{{ post.tags | join(', ') if post else '' }}">
+  </label>
   {% if not post %}
     <label>Slug (optional -- derived from the title if left blank)
       <input type="text" name="slug" value="">

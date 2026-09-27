@@ -3,13 +3,14 @@
 <p><a class="md-button" href="/admin/new">New post</a></p>
 <table>
   <thead>
-    <tr><th>Title</th><th>Category</th><th>Slug</th><th>Updated</th><th></th></tr>
+    <tr><th>Title</th><th>Category</th><th>Tags</th><th>Slug</th><th>Updated</th><th></th></tr>
   </thead>
   <tbody>
     {% for post in posts %}
       <tr>
         <td><a href="/blog/{{ post.slug }}/">{{ post.title }}</a></td>
         <td>{{ post.category }}</td>
+        <td>{{ post.tags | join(', ') }}</td>
         <td>{{ post.slug }}</td>
         <td>{{ post.updated_at[:10] }}</td>
         <td class="admin-row-actions">
@@ -20,7 +21,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="5">No posts yet.</td></tr>
+      <tr><td colspan="6">No posts yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

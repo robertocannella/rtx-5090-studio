@@ -58,6 +58,50 @@ html {
   font-size: calc(1.3em * var(--katex-zoom));
 }
 
+/* Hover affordance for the tap-a-formula-to-zoom-it feature (static/javascripts/
+   katex-zoom.js) -- a faint -/+ right at the formula's own edge previews which half
+   you're over, before you click. Mouse/trackpad only (hover: hover, pointer: fine):
+   touch devices have no real "hover", and iOS in particular can leave a :hover-driven
+   indicator stuck on-screen after a tap since there's no pointer to move away and clear
+   it -- gating on real hover support sidesteps that entirely rather than working around
+   it after the fact. Pure CSS -- the JS above only ever toggles these two classes, never
+   touches opacity/position itself. */
+@media (hover: hover) and (pointer: fine) {
+  .katex {
+    position: relative;
+  }
+
+  .katex::before,
+  .katex::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--md-default-fg-color--light);
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+
+  .katex::before {
+    content: "\2212";
+    left: -1rem;
+  }
+
+  .katex::after {
+    content: "+";
+    right: -1rem;
+  }
+
+  .katex-zoom-hover--left::before,
+  .katex-zoom-hover--right::after {
+    opacity: 0.55;
+  }
+}
+
 /* A copy-the-source button on every *display* math block, injected by
    static/javascripts/katex.js's mnInjectKatexCopyButtons() -- reuses Material's own
    --md-clipboard-icon (the exact icon its code-block copy button uses, already defined
