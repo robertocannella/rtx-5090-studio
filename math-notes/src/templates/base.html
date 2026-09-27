@@ -115,6 +115,14 @@
               <li class="md-tabs__item{% if request.url.path.startswith('/admin') %} md-tabs__item--active{% endif %}">
                 <a href="/admin/" class="md-tabs__link">Admin</a>
               </li>
+            {% else %}
+              <li class="md-tabs__item">
+                {# Not a real login form -- there's nothing here for the app to check.
+                   Caddy's basic_auth in front of /admin/* is the actual gate; this link
+                   just gets the site owner to that prompt without having to remember or
+                   type the URL themselves. See admin_auth.py for the full model. #}
+                <a href="/admin/" class="md-tabs__link">Login</a>
+              </li>
             {% endif %}
           </ul>
         </div>
@@ -144,6 +152,12 @@
                       <li class="md-nav__item{% if request.url.path.startswith('/admin') %} md-nav__item--active{% endif %}">
                         <a href="/admin/" class="md-nav__link{% if request.url.path.startswith('/admin') %} md-nav__link--active{% endif %}">
                           <span class="md-ellipsis">Admin</span>
+                        </a>
+                      </li>
+                    {% else %}
+                      <li class="md-nav__item">
+                        <a href="/admin/" class="md-nav__link">
+                          <span class="md-ellipsis">Login</span>
                         </a>
                       </li>
                     {% endif %}

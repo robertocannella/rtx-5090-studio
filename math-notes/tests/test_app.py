@@ -536,6 +536,20 @@ def test_anonymous_visitor_does_not_see_admin_nav_or_edit_link(client):
     assert f'href="/admin/{post_id}/edit"' not in post.text
 
 
+def test_anonymous_visitor_sees_a_login_link_to_admin(client):
+    # There's no real login form to submit -- Caddy's basic_auth in front of /admin/* is
+    # the actual gate (see admin_auth.py) -- this link just gets the site owner to that
+    # prompt without needing to remember or type the URL. Must disappear once the cosmetic
+    # admin cookie is set, same as the "Admin" nav item it's standing in for.
+    home = client.get("/")
+    assert '>Login<' in home.text
+    assert 'href="/admin/" class="md-tabs__link">Login<' in home.text
+
+    client.cookies.set(admin_auth.COOKIE_NAME, admin_auth.make_cookie_value())
+    home = client.get("/")
+    assert ">Login<" not in home.text
+
+
 def test_visiting_admin_sets_the_admin_cookie(client):
     resp = client.get("/admin/")
     assert admin_auth.COOKIE_NAME in resp.cookies
