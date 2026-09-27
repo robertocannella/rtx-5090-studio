@@ -2,8 +2,8 @@
 routes that read/write through this module).
 
 A post's Markdown is rendered to HTML exactly once, here, whenever it's created or
-updated (see render.py, render_latex.py, and render_plots.py) -- every read is then a
-plain row fetch, no per-request Markdown parsing or matplotlib execution.
+updated (see render.py and render_plots.py) -- every read is then a plain row fetch, no
+per-request Markdown parsing or matplotlib execution.
 """
 
 import json
@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import render
-import render_latex
 import render_plots
 
 DB_PATH = os.environ.get("MATH_NOTES_DB_PATH", "/app/data/math-notes.db")
@@ -99,23 +98,23 @@ def _now():
 def _normalize_newlines(text):
     """HTML <textarea> form submissions always use CRLF line endings, regardless of the
     submitting OS (that's the HTML spec's behavior, not a quirk of any one browser) --
-    normalized here, once, so every regex-based preprocessor downstream (render_latex.py,
-    render_plots.py, both of which match a literal \\n) sees plain \\n consistently,
-    whether a post came from the admin form, migrate_posts.py, or anywhere else.
+    normalized here, once, so render_plots.py's regex (which matches a literal \\n) sees
+    plain \\n consistently, whether a post came from the admin form, migrate_posts.py, or
+    anywhere else.
     """
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _render(body_markdown):
     excerpt_md, full_md = render.split_excerpt(body_markdown)
-    full_md = render_latex.process(full_md)
+    full_md = render.normalize_display_math_spacing(full_md)
     full_md = render_plots.process(full_md, PLOTS_DIR)
     # The excerpt is a prefix of the full text (see split_excerpt) -- reprocessing it
-    # through render_latex.process/render_plots.process a second time is only a concern
-    # if a graph's own `name` somehow appeared before the <!-- more --> marker, which
-    # just re-renders the same image to the same path a second time (harmless, not a
-    # correctness issue).
-    excerpt_md = render_latex.process(excerpt_md)
+    # through normalize_display_math_spacing/render_plots.process a second time is only a
+    # concern if a graph's own `name` somehow appeared before the <!-- more --> marker,
+    # which just re-renders the same image to the same path a second time (harmless, not
+    # a correctness issue).
+    excerpt_md = render.normalize_display_math_spacing(excerpt_md)
     excerpt_md = render_plots.process(excerpt_md, PLOTS_DIR)
     excerpt_html, _ = render.render_markdown(excerpt_md)
     body_html, toc_tokens = render.render_markdown(full_md)

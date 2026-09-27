@@ -67,6 +67,47 @@ def split_excerpt(raw_markdown):
     return raw_markdown.strip(), raw_markdown.strip()
 
 
+def normalize_display_math_spacing(text):
+    """Both `$$...$$` and `\\[...\\]` display-math blocks (pymdownx.arithmatex's "dollar"
+    and "square" block_syntax) only get recognized when the *pair* of markers is isolated
+    from surrounding text by a blank line, exactly like any other block-level Markdown
+    construct (a fenced code block, a blockquote) -- a blank line before the opening
+    marker and after the closing one, but never between a marker and the content next to
+    it inside the pair. Content pasted from ChatGPT (which writes \\[ ... \\] immediately
+    butted up against the surrounding prose, no blank line at all) fails that requirement
+    silently: arithmatex's block processor just doesn't match, core Markdown's ordinary
+    backslash-escape handling strips the backslash instead, and `\\[x\\]` renders as the
+    literal text `[x]`.
+
+    This inserts the missing blank line on the *outside* of each pair, so the author
+    never has to remember to add it by hand -- purely whitespace normalization, no change
+    to any actual math content. `\\[`/`\\]` are unambiguous; `$$` uses the same string for
+    both ends of a pair, so occurrences are tracked in order (1st = open, 2nd = close, ...).
+    """
+    lines = text.split("\n")
+    out = []
+    in_dollar_block = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        nxt = lines[i + 1] if i + 1 < len(lines) else None
+
+        if stripped == "\\[" or (stripped == "$$" and not in_dollar_block):
+            if out and out[-1].strip() != "":
+                out.append("")
+            out.append(line)
+            if stripped == "$$":
+                in_dollar_block = True
+        elif stripped == "\\]" or (stripped == "$$" and in_dollar_block):
+            out.append(line)
+            if stripped == "$$":
+                in_dollar_block = False
+            if nxt is not None and nxt.strip() != "":
+                out.append("")
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 def secondary_toc(toc_tokens):
     """Material's secondary sidebar never lists the page's own top-level heading (its
     title is already shown as the page heading itself) -- only what's nested under it.

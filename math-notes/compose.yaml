@@ -9,6 +9,7 @@ services:
       MATH_NOTES_DB_PATH: /app/data/math-notes.db
       MATH_NOTES_PLOTS_DIR: /app/data/assets/plots
       MPLCONFIGDIR: /app/data/.matplotlib
+      ADMIN_COOKIE_SECRET: ${ADMIN_COOKIE_SECRET}
     volumes:
       - ./data:/app/data
     networks:

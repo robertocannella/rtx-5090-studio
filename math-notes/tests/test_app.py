@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import admin_auth
 import db
 from app import app
 
@@ -60,13 +61,12 @@ def test_blog_index_lists_created_post(client):
 
 
 def test_individual_post_page(client):
-    post_id = db.create_post("My First Post", "Physics", "Intro.\n\n<!-- more -->\n\nFull body text.")
+    db.create_post("My First Post", "Physics", "Intro.\n\n<!-- more -->\n\nFull body text.")
     resp = client.get("/blog/my-first-post/")
     assert resp.status_code == 200
     assert "My First Post" in resp.text
     assert "Full body text." in resp.text
     assert 'class="md-content md-content--post"' in resp.text
-    assert f'href="/admin/{post_id}/edit"' in resp.text
 
 
 def test_individual_post_404_for_unknown_slug(client):
@@ -198,3 +198,42 @@ def test_admin_delete_post(client):
 def test_admin_edit_nonexistent_post_404s(client):
     resp = client.get("/admin/9999/edit")
     assert resp.status_code == 404
+
+
+def test_anonymous_visitor_does_not_see_admin_nav_or_edit_link(client):
+    post_id = db.create_post("Anon View", "Meta", "Body.")
+    home = client.get("/")
+    assert ">Admin<" not in home.text
+    post = client.get("/blog/anon-view/")
+    assert f'href="/admin/{post_id}/edit"' not in post.text
+
+
+def test_visiting_admin_sets_the_admin_cookie(client):
+    resp = client.get("/admin/")
+    assert admin_auth.COOKIE_NAME in resp.cookies
+
+
+def test_admin_cookie_makes_admin_nav_and_edit_link_visible_on_public_pages(client):
+    post_id = db.create_post("Cookie View", "Meta", "Body.")
+    client.cookies.set(admin_auth.COOKIE_NAME, admin_auth.make_cookie_value())
+    home = client.get("/")
+    assert ">Admin<" in home.text
+    post = client.get("/blog/cookie-view/")
+    assert f'href="/admin/{post_id}/edit"' in post.text
+
+
+def test_forged_admin_cookie_does_not_grant_admin_visibility(client):
+    client.cookies.set(admin_auth.COOKIE_NAME, "9999999999.not-a-real-signature")
+    home = client.get("/")
+    assert ">Admin<" not in home.text
+
+
+def test_expired_admin_cookie_does_not_grant_admin_visibility(client):
+    # A correctly-signed value (using the module's real signing function, not a guess)
+    # but with an expiry timestamp in the past -- must be rejected on expiry, not just
+    # on a bad signature.
+    expired_at = "1"
+    expired_cookie = f"{expired_at}.{admin_auth._sign(expired_at)}"
+    client.cookies.set(admin_auth.COOKIE_NAME, expired_cookie)
+    home = client.get("/")
+    assert ">Admin<" not in home.text

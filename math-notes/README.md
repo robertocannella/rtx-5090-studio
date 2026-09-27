@@ -27,6 +27,17 @@ See the live **[LaTeX Guide](https://math.example.com/latex-guide/)**
 syntax, and the `!!! question` / `??? success` problem/solution pattern used throughout
 the posts here.
 
+Pasting math straight out of ChatGPT (which writes `\[ ... \]` with no blank line around
+it) works as-is -- saving a post automatically fixes the spacing display math needs to be
+recognized (`render.normalize_display_math_spacing`), same as `$$ ... $$`.
+
+## Admin nav item and Edit links only show once you've logged in
+
+The "Admin" tab and each post's "Edit post" link are hidden from anonymous visitors --
+they appear after your first visit to `/admin/` in that browser (see
+`/srv/apps/docs/MATH-NOTES.md`'s "Admin visibility on public pages" for how). The real
+protection on `/admin/*` is still Caddy's `basic_auth`, unaffected by any of this.
+
 ## Adding a graph
 
 Write a fenced ` ```matplotlib name="..." ` code block in a post's body -- saving the post

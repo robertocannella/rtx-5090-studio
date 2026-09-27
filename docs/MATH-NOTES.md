@@ -93,18 +93,22 @@ Saving re-renders the post immediately -- no build step, no waiting. A mistake i
 matplotlib block (see below) is reported right there on the form and the post is not
 saved, rather than silently shipping a broken page.
 
-**LaTeX**: inline math is `$...$`, display math is a `$$ ... $$` block on its own lines,
-exactly like writing real LaTeX. This is `pymdownx.arithmatex` (`generic: true`) wrapping
-the math in spans/divs that `static/javascripts/katex.js` finds and renders via KaTeX
-after each page load -- including Material's instant-navigation page swaps
-(`document$.subscribe`, not a plain `DOMContentLoaded` listener, is what makes math still
-render on a page reached without a full reload).
+**LaTeX**: inline math is `$...$`, display math is a `$$ ... $$` or `\[ ... \]` block on
+its own lines, exactly like writing real LaTeX. This is `pymdownx.arithmatex`
+(`generic: true`) wrapping the math in spans/divs that `static/javascripts/katex.js` finds
+and renders via KaTeX after each page load -- including Material's instant-navigation page
+swaps (`document$.subscribe`, not a plain `DOMContentLoaded` listener, is what makes math
+still render on a page reached without a full reload).
 
-A display-math block can also be written as a fenced ` ```latex ` block instead of a
-literal `$$` pair -- `render_latex.py` rewrites it to `$$ ... $$` before the post ever
-reaches `pymdownx.arithmatex`, so it renders identically either way. Purely a
-save-time text substitution to save the author from matching delimiters by hand; there is
-no separate LaTeX rendering path for it.
+A display-math block only gets recognized when its markers are isolated from surrounding
+text by a blank line -- that's Markdown's normal rule for any block-level construct, not
+special to math, but content pasted straight from ChatGPT (which writes `\[ ... \]`
+immediately butted up against the surrounding prose, no blank line at all) never follows
+it. `render.normalize_display_math_spacing()` inserts the missing blank line automatically
+at save time, so pasting ChatGPT's own math formatting in verbatim just works -- see that
+function's docstring for exactly why the un-isolated form silently renders as literal `[x]`
+text instead of math (core Markdown's backslash-escape handling wins the race against
+arithmatex's block processor when the block isn't isolated).
 
 **Word problems**: state the problem in a `!!! question "Problem"` admonition, then the
 answer in a `??? success "Solution"` block -- the `???` (vs `!!!`) makes it collapsed by
@@ -196,6 +200,33 @@ clutter or spoil anything until a reader deliberately asks for it.
 `name`, code that never actually calls a plotting function) raises `render_plots.PlotError`,
 which the admin form displays as a validation error -- the post is not saved, so there is
 never a live page with a broken graph on it.
+
+## Admin visibility on public pages
+
+An "Admin" nav item (next to Home/Blog/LaTeX Guide) and an "Edit post" link in every
+post's metadata sidebar only appear once you've visited `/admin/*` -- to an anonymous
+visitor, neither exists at all. This is purely cosmetic, not the actual access control:
+Caddy's `basic_auth` on `/admin/*` (see `gateway/Caddyfile`) is what actually protects
+every admin action, checked independently on every single request to that path prefix,
+exactly as it always was.
+
+The wrinkle is that `basic_auth` is scoped to `/admin/*` -- the browser has no reason to
+send those credentials on a request to `/`, and this app has no way to see them there
+either, so it can't know "is this visitor logged in" on a public page by itself.
+`admin_auth.py` bridges that gap with a small signed cookie: every `/admin/*` GET request
+that reaches this app has, by construction, already passed Caddy's `basic_auth` (nothing
+else can reach this app on that path), so those routes set a cookie
+(`admin_auth.make_cookie_value()`, HMAC-signed with `ADMIN_COOKIE_SECRET`) on their
+response, scoped site-wide (`Path=/`). Public routes check for it
+(`admin_auth.is_valid()`) to decide whether to render the Admin nav item/Edit links.
+Forging this cookie would only change what a visitor **sees**, never what they can **do**
+-- every real admin action still requires passing Caddy's `basic_auth` independently, so
+it doesn't need to be bulletproof, just signed well enough to keep a random visitor from
+casually spoofing it.
+
+Requires `ADMIN_COOKIE_SECRET` set in `math-notes/.env` (hand-created on the server, not
+committed -- see `.gitignore`'s `**/.env` rule). Without it, the app still runs, but signs
+every cookie with an empty key, which is fine for local testing and wrong for production.
 
 ## Deploying a code change
 

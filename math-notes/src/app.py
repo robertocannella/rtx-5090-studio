@@ -7,9 +7,12 @@ static MkDocs build -- rendering is now per-request from the database (db.py) in
 a static Docker build step, but nothing about how a page *looks* changed.
 
 /admin/* is a plain server-rendered CRUD UI for posts, gated entirely at the Caddy layer
-(basic_auth on that one path prefix, see gateway/Caddyfile) -- this app does no
+(basic_auth on that one path prefix, see gateway/Caddyfile) -- this app does no real
 authentication of its own, matching every other basic_auth-gated app on this server
-(docs.example.com, generator.example.com).
+(docs.example.com, generator.example.com). See admin_auth.py for the one
+exception: a cosmetic "am I logged in" cookie, set on /admin/* responses, that lets public
+pages show an Admin nav item and per-post Edit links -- it changes what's shown, never
+what's allowed.
 """
 
 import json
@@ -23,6 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+import admin_auth
 import db
 import render
 import render_plots
@@ -66,7 +70,13 @@ def _nav_tabs(active):
     return [{"label": label, "href": href, "active": key == active} for key, label, href in NAV_ITEMS]
 
 
-def _base_context(request, active_nav, header_topic, title):
+def _base_context(request, active_nav, header_topic, title, is_admin=None):
+    # is_admin=None means "figure it out from the cookie" (every public route); admin
+    # routes pass is_admin=True explicitly instead, since reaching them at all already
+    # proves Caddy validated basic_auth for this exact request, regardless of whether the
+    # cookie (set on a *previous* /admin/* response) has propagated yet.
+    if is_admin is None:
+        is_admin = admin_auth.is_valid(request.cookies.get(admin_auth.COOKIE_NAME))
     return {
         "request": request,
         "site_url": SITE_URL,
@@ -76,14 +86,27 @@ def _base_context(request, active_nav, header_topic, title):
         "toc_tokens": [],
         "primary_sidebar_hidden": False,
         "all_categories": db.list_categories(),
+        "is_admin": is_admin,
     }
+
+
+def _set_admin_cookie(response):
+    """Called on every /admin/* GET response -- reaching this app on that path at all
+    already proves Caddy validated basic_auth for this request, so it's safe to (re)issue
+    this cookie here. See admin_auth.py for what it does and doesn't grant.
+    """
+    response.set_cookie(
+        admin_auth.COOKIE_NAME, admin_auth.make_cookie_value(),
+        max_age=admin_auth.MAX_AGE_SECONDS, path="/", secure=True, httponly=True, samesite="lax",
+    )
+    return response
 
 
 def _admin_context(request, title, **extra):
     # active_nav="admin" matches none of NAV_ITEMS, so the real site header renders with
     # no tab marked active -- admin isn't Home/Blog/LaTeX Guide, it's a separate surface
     # that happens to share the same chrome.
-    ctx = _base_context(request, "admin", title, f"{title} - Math Notes Admin")
+    ctx = _base_context(request, "admin", title, f"{title} - Math Notes Admin", is_admin=True)
     ctx.update(extra)
     return ctx
 
@@ -207,17 +230,17 @@ def feed():
 
 @app.get("/admin/")
 def admin_list(request: Request):
-    return templates.TemplateResponse(
+    return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_list.html", _admin_context(request, "Posts", posts=db.list_posts(), error=None),
-    )
+    ))
 
 
 @app.get("/admin/new")
 def admin_new_form(request: Request):
-    return templates.TemplateResponse(
+    return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_form.html",
         _admin_context(request, "New post", action="/admin/new", post=None, error=None),
-    )
+    ))
 
 
 @app.post("/admin/new")
@@ -247,10 +270,10 @@ def admin_edit_form(request: Request, post_id: int):
     post = db.get_post(post_id=post_id)
     if not post:
         raise HTTPException(status_code=404, detail="no such post")
-    return templates.TemplateResponse(
+    return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_form.html",
         _admin_context(request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post, error=None),
-    )
+    ))
 
 
 @app.post("/admin/{post_id}/edit")

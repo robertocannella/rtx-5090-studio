@@ -107,6 +107,11 @@
                 <a href="{{ tab.href }}" class="md-tabs__link">{{ tab.label }}</a>
               </li>
             {% endfor %}
+            {% if is_admin %}
+              <li class="md-tabs__item{% if request.url.path.startswith('/admin') %} md-tabs__item--active{% endif %}">
+                <a href="/admin/" class="md-tabs__link">Admin</a>
+              </li>
+            {% endif %}
           </ul>
         </div>
       </nav>
@@ -131,6 +136,13 @@
                         </a>
                       </li>
                     {% endfor %}
+                    {% if is_admin %}
+                      <li class="md-nav__item{% if request.url.path.startswith('/admin') %} md-nav__item--active{% endif %}">
+                        <a href="/admin/" class="md-nav__link{% if request.url.path.startswith('/admin') %} md-nav__link--active{% endif %}">
+                          <span class="md-ellipsis">Admin</span>
+                        </a>
+                      </li>
+                    {% endif %}
                   </ul>
                 </nav>
               </div>

@@ -37,6 +37,38 @@ def test_split_excerpt_without_marker_returns_whole_text_twice():
     assert excerpt == full == "Just one paragraph."
 
 
+def test_normalize_display_math_spacing_isolates_tight_bracket_block():
+    text = "Intro.\n\\[\nx^2\n\\]\nOutro."
+    normalized = render.normalize_display_math_spacing(text)
+    html, _ = render.render_markdown(normalized)
+    assert 'class="arithmatex"' in html
+    assert "<p>[" not in html  # the un-isolated, broken-escaping failure mode
+
+
+def test_normalize_display_math_spacing_isolates_tight_dollar_block():
+    text = "Intro.\n$$\nx^2\n$$\nOutro."
+    html, _ = render.render_markdown(render.normalize_display_math_spacing(text))
+    assert 'class="arithmatex"' in html
+
+
+def test_normalize_display_math_spacing_handles_back_to_back_blocks():
+    text = "\\[\na\n\\]\n\\[\nb\n\\]"
+    html, _ = render.render_markdown(render.normalize_display_math_spacing(text))
+    assert html.count('class="arithmatex"') == 2
+
+
+def test_normalize_display_math_spacing_leaves_already_spaced_text_working():
+    text = "Intro.\n\n$$\nx^2\n$$\n\nOutro."
+    html, _ = render.render_markdown(render.normalize_display_math_spacing(text))
+    assert 'class="arithmatex"' in html
+    assert "Intro." in html and "Outro." in html
+
+
+def test_normalize_display_math_spacing_does_not_touch_inline_math():
+    text = "The value $x^2$ is inline."
+    assert render.normalize_display_math_spacing(text) == text
+
+
 def test_secondary_toc_unwraps_single_root_heading():
     toc_tokens = [
         {

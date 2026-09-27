@@ -16,6 +16,17 @@ def test_create_and_get_post_roundtrip():
     assert post["reading_minutes"] >= 1
 
 
+def test_chatgpt_style_bracket_math_renders_without_blank_lines():
+    # No blank lines around \[ ... \], matching exactly how ChatGPT outputs display math
+    # -- must still render as real math, not literal "[x]" text (see render.py's
+    # normalize_display_math_spacing for why this fails without that step).
+    body = "Speed is:\n\\[\nv=12\\text{ m/s}\n\\]\nThat is the answer."
+    post_id = db.create_post("Bracket Math Post", "Physics", body)
+    post = db.get_post(post_id=post_id)
+    assert 'class="arithmatex"' in post["body_html"]
+    assert "<p>[" not in post["body_html"]
+
+
 def test_slugify_from_title_when_not_given():
     assert db.slugify("Constant Acceleration: Airplane Takeoff!") == "constant-acceleration-airplane-takeoff"
 
@@ -75,8 +86,8 @@ def test_list_categories_distinct_and_sorted():
 
 
 def test_create_post_normalizes_crlf_line_endings():
-    # HTML <textarea> submissions always use \r\n, regardless of OS -- a matplotlib or
-    # latex fenced block must still be recognized (their regexes match a literal \n).
+    # HTML <textarea> submissions always use \r\n, regardless of OS -- a matplotlib
+    # fenced block must still be recognized (its regex matches a literal \n).
     body = (
         'Intro.\r\n\r\n```matplotlib name="crlf-test"\r\n'
         "ax = plt.gca()\r\nax.plot([0, 1], [0, 1])\r\n```"
@@ -89,22 +100,11 @@ def test_create_post_normalizes_crlf_line_endings():
 
 def test_update_post_normalizes_crlf_line_endings():
     post_id = db.create_post("CRLF Update", "Meta", "Original.")
-    body = '```latex\r\n\\frac{a}{b}\r\n```'
+    body = "Line one.\r\n\r\nLine two.\r\n"
     db.update_post(post_id, body_markdown=body)
     post = db.get_post(post_id=post_id)
     assert "\r" not in post["body_markdown"]
-    assert 'class="arithmatex"' in post["body_html"]
-
-
-def test_latex_block_renders_as_display_math():
-    post_id = db.create_post(
-        "Latex Block Post", "Meta",
-        '```latex\n\\frac{a}{b}\n```',
-    )
-    post = db.get_post(post_id=post_id)
-    assert "```latex" not in post["body_html"]
-    assert 'class="arithmatex"' in post["body_html"]
-    assert "\\frac{a}{b}" in post["body_html"]
+    assert "Line two." in post["body_html"]
 
 
 def test_toc_json_reflects_headings_in_body():
