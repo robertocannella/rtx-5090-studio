@@ -178,6 +178,77 @@ ax.grid(True)
 track colors by hand, matplotlib assigns each line its own and the legend matches them
 automatically.
 
+Different units (displacement and velocity, say) *can* still share one panel this way --
+it's a deliberate simplification, not dimensionally rigorous, and only reads well when
+the two happen to land in a comparable numeric range (as in free fall, below). Combine it
+with labeling sample points (see "Labeling several points along a curve" below) and each
+series gets its own labeled points too -- just loop over each series' own samples
+separately:
+
+````
+```matplotlib name="freefall-displacement-and-velocity" title="Show displacement and velocity"
+import numpy as np
+
+g = 9.8
+t_f = 3.19
+t = np.linspace(0, t_f, 100)
+y = -0.5 * g * t**2
+v = -g * t
+
+t_samples = np.linspace(0, t_f, 3)
+y_samples = -0.5 * g * t_samples**2
+v_samples = -g * t_samples
+
+fig, ax = plt.subplots(figsize=(8, 6))
+
+ax.plot(t, y, label="Displacement")
+ax.scatter(t_samples, y_samples)
+
+ax.plot(t, v, label="Velocity")
+ax.scatter(t_samples, v_samples)
+
+for time, position in zip(t_samples, y_samples):
+    ax.annotate(
+        f"({time:.1f}, {position:.1f})",
+        (time, position),
+        xytext=(5, 5),
+        textcoords="offset points",
+    )
+
+for time, velocity in zip(t_samples, v_samples):
+    ax.annotate(
+        f"({time:.1f}, {velocity:.1f})",
+        (time, velocity),
+        xytext=(5, -15),
+        textcoords="offset points",
+    )
+
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Displacement (m) / Velocity (m/s)")
+ax.set_title("Free fall: displacement and velocity vs. time")
+
+ax.axhline(0, color="gray", linewidth=0.8)
+ax.grid(True)
+ax.legend()
+```
+````
+
+- Two separate `for` loops, one per series -- `y_samples` and `v_samples` each need their
+  own labels at their own points, same reasoning as looping once per series in "Labeling
+  several points" below, just done twice here.
+- `xytext=(5, 5)` for displacement's labels and `xytext=(5, -15)` for velocity's -- offset
+  in *different* directions so the two series' labels don't land on top of each other
+  where the curves happen to cross or run close together.
+- `ax.axhline(0, color="gray", linewidth=0.8)` draws a thin horizontal reference line at
+  $y=0$ -- useful here since both series (falling below the start point, speeding up in
+  the negative direction) cross or hug zero, giving the reader a baseline to read values
+  against. Set explicitly to a neutral gray, not left to the default color cycle, so it
+  reads as a reference line rather than a third data series.
+- One shared `ax.set_ylabel("Displacement (m) / Velocity (m/s)")` naming both units --
+  there's no way to give two truly independent, correctly-labeled y-axes without either
+  stacked panels (above) or a twin axis (`ax.twinx()`, not covered in this quick
+  reference, for a single panel with two independently-scaled y-axes).
+
 ## Marking a specific point (e.g. $x_f$, $v_f$)
 
 A curve alone doesn't call out the value that actually answers the problem -- mark the
