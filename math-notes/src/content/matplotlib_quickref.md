@@ -154,3 +154,51 @@ ax.grid(True)
   superscript, Greek letters like `\alpha`) -- but it's a different, smaller renderer than
   the KaTeX this site uses for the surrounding prose, so don't expect every LaTeX command
   to work inside a matplotlib label.
+
+## Labeling several points along a curve
+
+Sometimes one endpoint isn't enough -- a few sample points along the curve, each labeled
+with its own coordinates, shows how the value grows over time rather than just where it
+ends up. Scatter all of them in one call, then label each one individually in a loop
+(each point needs its *own* text, so there's no way around looping for the labels, even
+though the dots themselves don't need one):
+
+````
+```matplotlib name="distance-with-sample-points" title="Distance with sample points"
+import numpy as np
+
+v_i = 10
+a = 3
+t_f = 2.81
+
+t = np.linspace(0, t_f, 100)
+x = v_i * t + 0.5 * a * t**2
+
+t_samples = np.linspace(0, t_f, 3)
+x_samples = v_i * t_samples + 0.5 * a * t_samples**2
+
+fig, ax = plt.subplots()
+ax.plot(t, x)
+ax.scatter(t_samples, x_samples, color="red", zorder=3)
+for t_i, x_i in zip(t_samples, x_samples):
+    ax.text(t_i + 0.05, x_i, f"({t_i:.2f}, {x_i:.2f})", fontsize=9, verticalalignment="center")
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Distance (m)")
+ax.set_title("Distance with sample points")
+ax.grid(True)
+```
+````
+
+- `np.linspace(0, t_f, 3)` for `t_samples` -- a separate, *coarser* linspace than the one
+  used for the smooth curve (`t`, 100 points) -- pick however many points you want
+  labeled; 3 gives the start, middle, and end.
+- `ax.scatter(t_samples, x_samples, ...)` marks all of them in a single call -- plain
+  arrays this time, not wrapped in an extra `[...]` like the single-point example above,
+  since scatter already treats each array as the collection of points to plot.
+- `for t_i, x_i in zip(t_samples, x_samples): ax.text(...)` -- `zip` pairs the two arrays
+  up point-by-point, so each label gets its *own* point's coordinates; there's no way to
+  do this with one `ax.text` call since every label's text is different. `ax.text` (not
+  `ax.annotate`) since there's nothing to offset away from here -- just a small `+ 0.05`
+  nudge on the x position so the label doesn't sit directly on top of its dot.
+- `verticalalignment="center"` keeps each label vertically centered on its point instead
+  of sitting noticeably above or below it.
