@@ -295,6 +295,50 @@ def test_admin_pages_render_the_real_site_header(client):
         assert 'class="admin-header"' in resp.text
 
 
+def test_matplotlib_quickref_panel_shows_on_new_and_edit_forms_only(client):
+    # The block editor (new/edit forms) is where someone would actually want this
+    # reference open while typing a ```matplotlib block -- not the read-only list, the
+    # read-only saved-post view, or any public page.
+    post_id = db.create_post("Some Post", "Meta", "Body.")
+    should_have_it = ("/admin/new", f"/admin/{post_id}/edit")
+    should_not_have_it = ("/", "/admin/", f"/admin/{post_id}", f"/blog/{db.get_post(post_id=post_id)['slug']}/")
+
+    for path in should_have_it:
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert 'data-md-component="matplotlib-help-panel"' in resp.text
+        assert ">Matplotlib<" in resp.text
+        assert 'name="projectile-trajectory"' in resp.text  # the worked example
+
+    for path in should_not_have_it:
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert 'data-md-component="matplotlib-help-panel"' not in resp.text
+
+
+def test_matplotlib_quickref_panel_survives_form_error_redisplay(client):
+    # A duplicate-slug or broken-plot error re-renders admin_form.html directly (not a
+    # fresh GET) -- the reference panel needs to still be there mid-error, not just on
+    # the initial page load.
+    db.create_post("Existing", "Meta", "Body.", slug="dup")
+    resp = client.post(
+        "/admin/new",
+        data={"title": "Other", "category": "Meta", "segments": ["Body."], "slug": "dup"},
+    )
+    assert resp.status_code == 422
+    assert 'data-md-component="matplotlib-help-panel"' in resp.text
+
+
+def test_categories_panel_toggle_scopes_to_its_own_panel(client):
+    # Two independent side panels (Browse, Matplotlib) share the same generic
+    # .categories-panel/__toggle/__body classes -- the JS must resolve each toggle's own
+    # body via its own parent, not a document-wide first-match lookup, or clicking one
+    # toggle would open/close the other panel instead.
+    resp = client.get("/javascripts/categories-panel.js")
+    assert resp.status_code == 200
+    assert "toggle.parentElement.querySelector" in resp.text
+
+
 def test_admin_create_post(client):
     resp = client.post(
         "/admin/new",

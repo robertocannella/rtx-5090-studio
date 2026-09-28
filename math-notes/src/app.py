@@ -53,15 +53,19 @@ _home_html = None
 _home_toc = None
 _latex_guide_html = None
 _latex_guide_toc = None
+_matplotlib_quickref_html = None
 
 
 @asynccontextmanager
 async def lifespan(app):
-    global _home_html, _home_toc, _latex_guide_html, _latex_guide_toc
+    global _home_html, _home_toc, _latex_guide_html, _latex_guide_toc, _matplotlib_quickref_html
     db.init_db()
     _home_html, _home_toc = render.render_markdown((CONTENT_DIR / "index.md").read_text(encoding="utf-8"))
     _latex_guide_html, _latex_guide_toc = render.render_markdown(
         (CONTENT_DIR / "latex_guide.md").read_text(encoding="utf-8")
+    )
+    _matplotlib_quickref_html, _ = render.render_markdown(
+        (CONTENT_DIR / "matplotlib_quickref.md").read_text(encoding="utf-8")
     )
     yield
 
@@ -385,7 +389,8 @@ def admin_new_form(request: Request):
         request, "admin_form.html",
         _admin_context(
             request, "New post", action="/admin/new", post=None, segments=_segments_for(""), error=None,
-            show_all_posts_header_link=False,
+            show_all_posts_header_link=False, show_matplotlib_help=True,
+            matplotlib_help_html=_matplotlib_quickref_html,
         ),
     ))
 
@@ -409,7 +414,8 @@ def admin_new_submit(
                 request, "New post", action="/admin/new", error=str(e),
                 post={"title": title, "category": category, "tags": [t.strip() for t in tags.split(",") if t.strip()]},
                 segments=[_segment_dict(s) for s in segments],
-                show_all_posts_header_link=False,
+                show_all_posts_header_link=False, show_matplotlib_help=True,
+                matplotlib_help_html=_matplotlib_quickref_html,
             ),
             status_code=422,
         )
@@ -437,7 +443,8 @@ def admin_edit_form(request: Request, post_id: int):
         _admin_context(
             request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post,
             segments=_segments_for(post["body_markdown"], slug=post["slug"]), error=None,
-            show_all_posts_header_link=False,
+            show_all_posts_header_link=False, show_matplotlib_help=True,
+            matplotlib_help_html=_matplotlib_quickref_html,
         ),
     ))
 
@@ -464,7 +471,8 @@ def admin_edit_submit(
                 request, "Edit post", action=f"/admin/{post_id}/edit", error=str(e),
                 post={"title": title, "category": category, "tags": [t.strip() for t in tags.split(",") if t.strip()]},
                 segments=[_segment_dict(s, existing["slug"]) for s in segments],
-                show_all_posts_header_link=False,
+                show_all_posts_header_link=False, show_matplotlib_help=True,
+                matplotlib_help_html=_matplotlib_quickref_html,
             ),
             status_code=422,
         )

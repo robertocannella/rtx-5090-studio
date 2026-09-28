@@ -1,5 +1,9 @@
-// Wires the collapsed-by-default categories panel's toggle button (see
-// overrides/main.html for the markup, stylesheets/extra.css for the styling).
+// Wires the toggle button on each collapsed-by-default side panel (Browse, and -- admin
+// editor only -- Matplotlib; see base.html for the markup, stylesheets/extra.css for the
+// styling). One shared, generic .categories-panel/__toggle/__body structure, however many
+// panels exist -- each toggle's own body is found via the toggle's parent element, not a
+// document-wide lookup, so multiple independent panels don't fight over which one a click
+// opens or closes.
 //
 // This used to re-wire itself inside document$.subscribe, on the assumption that
 // Material's instant navigation replaces the panel's DOM on every page swap the same way
@@ -21,7 +25,7 @@
 document.addEventListener("click", (event) => {
   const toggle = event.target.closest(".categories-panel__toggle");
   if (!toggle) return;
-  const body = document.querySelector(".categories-panel__body");
+  const body = toggle.parentElement.querySelector(".categories-panel__body");
   if (!body) return;
   const collapsed = body.hasAttribute("hidden");
   if (collapsed) {

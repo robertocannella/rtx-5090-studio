@@ -234,17 +234,28 @@ html {
   color: var(--md-accent-fg-color);
 }
 
-/* Minimal, collapsed-by-default categories panel pinned to the right edge of the
-   viewport (overrides/main.html renders the markup; categories-panel.js wires the
-   toggle). Deliberately outside Material's own primary/secondary sidebar grid columns
-   -- a fixed-position panel is simpler and more robust than trying to inject a fourth
-   column into Material's layout, and doesn't depend on undocumented internal block
-   names that could change between theme versions. */
-.categories-panel {
+/* Minimal, collapsed-by-default panels pinned to the right edge of the viewport
+   (base.html renders the markup; categories-panel.js wires the toggles). Deliberately
+   outside Material's own primary/secondary sidebar grid columns -- a fixed-position
+   stack is simpler and more robust than trying to inject a fourth column into
+   Material's layout, and doesn't depend on undocumented internal block names that could
+   change between theme versions.
+
+   .side-panels is the fixed-position anchor; each .categories-panel inside it (Browse,
+   and -- admin editor only -- Matplotlib) is a plain flex item, so a panel added later
+   just stacks below the existing ones instead of needing its own hardcoded offset. */
+.side-panels {
   position: fixed;
   top: 4.8rem;
   right: 0;
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.categories-panel {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -280,6 +291,22 @@ html {
 
 .categories-panel__body[hidden] {
   display: none;
+}
+
+/* The admin editor's Matplotlib quick-reference panel needs real room for a code
+   sample and prose (content/matplotlib_quickref.md), unlike Browse's short link lists --
+   scrollable rather than letting a long reference run off the bottom of the viewport.
+   The .md-typeset class alongside it (see base.html) gives the rendered markdown its
+   normal paragraph/code-block/list structure for free; this just re-tunes the size back
+   down for a narrow floating panel instead of full article width. */
+.categories-panel__body--wide {
+  max-width: 26rem;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.categories-panel__body.md-typeset {
+  font-size: 0.8rem;
 }
 
 .categories-panel__title {
