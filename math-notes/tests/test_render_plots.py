@@ -1,3 +1,6 @@
+import os
+import re
+
 import pytest
 
 import render_plots
@@ -75,7 +78,10 @@ def test_process_preview_uses_existing_image_without_regenerating(tmp_path):
     # Rendered directly and visibly (not the public site's click-to-reveal button+modal)
     # -- the editor's view mode is meant to show a block expanded by default.
     assert "plot-widget__preview" in result
-    assert '<img src="/assets/plots/already-saved.png" alt="Show it">' in result
+    # A ?v=<mtime> cache-busting suffix is expected (see _versioned_src) -- not an exact
+    # src match -- so a browser can't keep showing a stale image after a regeneration.
+    assert '<img src="/assets/plots/already-saved.png?v=' in result
+    assert 'alt="Show it">' in result
     assert "plot-widget__toggle" not in result
     assert (tmp_path / "already-saved.png").read_bytes() == b"fake png bytes"  # untouched
 
@@ -90,7 +96,8 @@ def test_process_live_executes_code_and_renders_visible_image(tmp_path):
     result = render_plots.process_live(text, tmp_path)
     assert "```matplotlib" not in result
     assert "plot-widget__preview" in result
-    assert '<img src="/assets/plots/live-test.png" alt="Show live">' in result
+    assert '<img src="/assets/plots/live-test.png?v=' in result
+    assert 'alt="Show live">' in result
     assert "plot-widget__toggle" not in result  # visible directly, not behind a button
     assert (tmp_path / "live-test.png").exists()
     assert (tmp_path / "live-test.png").stat().st_size > 0
@@ -109,6 +116,39 @@ def test_process_live_overwrites_existing_image_in_its_own_directory(tmp_path):
     text = '```matplotlib name="regen"\nax = plt.gca()\nax.plot([0, 1], [1, 0])\n```'
     render_plots.process_live(text, tmp_path)
     assert (tmp_path / "regen.png").read_bytes() != b"stale bytes"
+
+
+def test_image_url_changes_when_a_graph_is_regenerated(tmp_path):
+    # The whole point of the ?v=<mtime> suffix (_versioned_src) is that regenerating a
+    # graph under the same `name` produces a different <img src>, so a browser can't
+    # keep showing bytes from before the edit -- reported live as "sometimes it's
+    # cached and doesn't update," most noticeably right after Generate graph.
+    text = '```matplotlib name="versioned"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    first = render_plots.process_live(text, tmp_path)
+    second = render_plots.process_live(text, tmp_path)
+    first_src = re.search(r'src="([^"]+)"', first).group(1)
+    second_src = re.search(r'src="([^"]+)"', second).group(1)
+    assert "?v=" in first_src
+    assert first_src != second_src
+
+
+def test_process_preview_url_reflects_the_saved_image_current_mtime(tmp_path):
+    # process_preview never re-executes code, but its ?v= must still track whatever a
+    # real save most recently wrote -- otherwise switching a block to view mode after a
+    # save could still show a cached pre-save image.
+    png_path = tmp_path / "saved.png"
+    png_path.write_bytes(b"first version")
+    text = '```matplotlib name="saved" title="Show it"\nraise RuntimeError("must not run")\n```'
+    first = render_plots.process_preview(text, tmp_path)
+    first_src = re.search(r'src="([^"]+)"', first).group(1)
+
+    # Simulate a later real save rewriting the same file with a distinctly newer mtime.
+    new_mtime = png_path.stat().st_mtime + 5
+    os.utime(png_path, (new_mtime, new_mtime))
+
+    second = render_plots.process_preview(text, tmp_path)
+    second_src = re.search(r'src="([^"]+)"', second).group(1)
+    assert first_src != second_src
 
 
 def test_process_includes_printed_output_next_to_the_image(tmp_path):

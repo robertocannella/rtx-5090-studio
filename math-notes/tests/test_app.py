@@ -364,7 +364,8 @@ def test_matplotlib_post_renders_button_and_serves_image(client):
     resp = client.get("/blog/graph-post/")
     assert resp.status_code == 200
     assert 'data-plot="test-graph"' in resp.text
-    assert 'src="/assets/plots/graph-post/test-graph.png"' in resp.text
+    # A ?v=<mtime> cache-busting suffix is expected (see render_plots._versioned_src).
+    assert 'src="/assets/plots/graph-post/test-graph.png?v=' in resp.text
 
     image_resp = client.get("/assets/plots/graph-post/test-graph.png")
     assert image_resp.status_code == 200
@@ -397,8 +398,8 @@ def test_two_posts_can_reuse_the_same_graph_name_without_colliding(client):
 
     resp_a = client.get("/blog/first-post/")
     resp_b = client.get("/blog/second-post/")
-    assert 'src="/assets/plots/first-post/shared.png"' in resp_a.text
-    assert 'src="/assets/plots/second-post/shared.png"' in resp_b.text
+    assert 'src="/assets/plots/first-post/shared.png?v=' in resp_a.text
+    assert 'src="/assets/plots/second-post/shared.png?v=' in resp_b.text
 
     image_a = client.get("/assets/plots/first-post/shared.png")
     image_b = client.get("/assets/plots/second-post/shared.png")
@@ -634,7 +635,7 @@ def test_admin_preview_segment_shows_graph_image_directly_not_behind_a_button(cl
     post = db.get_post(post_id=post_id)
     resp = client.post("/admin/preview-segment", data={"text": post["body_markdown"], "slug": post["slug"]})
     assert resp.status_code == 200
-    assert f'src="/assets/plots/{post["slug"]}/preview-visible-test.png"' in resp.text
+    assert f'src="/assets/plots/{post["slug"]}/preview-visible-test.png?v=' in resp.text
     assert "plot-widget__toggle" not in resp.text  # not hidden behind a click-to-reveal button
 
 
@@ -672,7 +673,7 @@ def test_admin_generate_graph_executes_code_and_serves_the_image(client):
     text = '```matplotlib name="gen-graph-test" title="Show it"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
     resp = client.post("/admin/generate-graph", data={"text": text})
     assert resp.status_code == 200
-    assert 'src="/admin/preview-plots/gen-graph-test.png"' in resp.text
+    assert 'src="/admin/preview-plots/gen-graph-test.png?v=' in resp.text
     assert "plot-widget__toggle" not in resp.text  # visible directly, not behind a button
 
     image_resp = client.get("/admin/preview-plots/gen-graph-test.png")

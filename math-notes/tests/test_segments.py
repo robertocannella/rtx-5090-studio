@@ -24,7 +24,14 @@ def _normalize_whitespace(html):
     # bar here, not incidental byte-for-byte identity.
     html = re.sub(r"\s+<", "<", html)
     html = re.sub(r">\s+", ">", html)
-    return " ".join(html.split())
+    html = " ".join(html.split())
+    # A matplotlib block's image URL carries a ?v=<mtime> cache-busting suffix
+    # (render_plots._versioned_src) -- this test calls db._render() twice for the same
+    # post (once directly, once through split/join), genuinely re-executing and
+    # re-saving any graph each time, so its real, correctly-changing mtime naturally
+    # differs between the two calls even though the rendered content is otherwise
+    # identical. Not a regression to catch here -- strip it before comparing.
+    return re.sub(r"(\.png)\?v=\d+", r"\1", html)
 
 
 def test_split_and_join_roundtrip_renders_identically_for_every_real_post():

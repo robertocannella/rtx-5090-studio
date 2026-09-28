@@ -72,6 +72,19 @@ def _output_html(output):
     return f'<pre class="plot-widget__output">{_escape(output.rstrip())}</pre>' if output.strip() else ""
 
 
+def _versioned_src(png_path, assets_url_prefix, name):
+    """A `?v=<mtime>` query string on every graph image's URL -- the filename itself
+    never changes across regenerations (same `name` every time, by design), so without
+    this a browser can keep showing bytes from before the latest edit: reported live as
+    "sometimes it's cached and doesn't update," most noticeably right after clicking
+    Generate graph and expecting the preview to reflect a just-made code change. Tied to
+    the PNG's own mtime (not a fresh timestamp computed here) so process_preview -- which
+    never re-executes code, only ever points at whatever a real save already produced --
+    still busts the cache correctly after a save changed the file out from under it.
+    """
+    return f"{assets_url_prefix}/{name}.png?v={int(png_path.stat().st_mtime_ns)}"
+
+
 def _widget_html(name, title, src, output=""):
     label = title or "Show graph"
     return (
@@ -98,8 +111,8 @@ def process(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
         name = match.group("name")
         title = match.group("title")
         code = match.group("code")
-        _, output = _render_one(name, code, plots_dir)
-        return _widget_html(name, title, f"{assets_url_prefix}/{name}.png", output)
+        out_path, output = _render_one(name, code, plots_dir)
+        return _widget_html(name, title, _versioned_src(out_path, assets_url_prefix, name), output)
 
     return FENCE_RE.sub(replace, markdown_text)
 
@@ -124,11 +137,9 @@ def process_live(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
         name = match.group("name")
         title = match.group("title") or "Graph"
         code = match.group("code")
-        _, output = _render_one(name, code, plots_dir)
-        return (
-            f'<div class="plot-widget__preview"><img src="{assets_url_prefix}/{name}.png" alt="{title}">'
-            f"{_output_html(output)}</div>"
-        )
+        out_path, output = _render_one(name, code, plots_dir)
+        src = _versioned_src(out_path, assets_url_prefix, name)
+        return f'<div class="plot-widget__preview"><img src="{src}" alt="{title}">{_output_html(output)}</div>'
 
     return FENCE_RE.sub(replace, markdown_text)
 
@@ -151,8 +162,9 @@ def process_preview(markdown_text, plots_dir, assets_url_prefix="/assets/plots")
     def replace(match):
         name = match.group("name")
         title = match.group("title") or "Graph"
-        if (plots_dir / f"{name}.png").exists():
-            src = f"{assets_url_prefix}/{name}.png"
+        png_path = plots_dir / f"{name}.png"
+        if png_path.exists():
+            src = _versioned_src(png_path, assets_url_prefix, name)
             output_path = plots_dir / f"{name}.txt"
             output = output_path.read_text() if output_path.exists() else ""
             return (
