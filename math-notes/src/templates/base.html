@@ -239,37 +239,43 @@
 
     {% if all_categories or all_tags or show_matplotlib_help %}
       <div class="side-panels">
-        {% if all_categories or all_tags %}
-          <aside class="categories-panel" data-md-component="categories-panel">
-            <button type="button" class="categories-panel__toggle" aria-expanded="false" aria-controls="categories-panel__body">Browse</button>
-            <div class="categories-panel__body" id="categories-panel__body" hidden>
-              {% if all_categories %}
-                <p class="categories-panel__title">Categories</p>
-                <ul class="categories-panel__list">
-                  {% for cat in all_categories %}
-                    <li><a href="/blog/category/{{ cat | lower | replace(' ', '-') }}/">{{ cat }}</a></li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-              {% if all_tags %}
-                <p class="categories-panel__title">Tags</p>
-                <ul class="categories-panel__list">
-                  {% for t in all_tags %}
-                    <li><a href="/blog/tag/{{ t | lower | replace(' ', '-') }}/">{{ t }}</a></li>
-                  {% endfor %}
-                </ul>
-              {% endif %}
-            </div>
-          </aside>
-        {% endif %}
-        {% if show_matplotlib_help %}
-          <aside class="categories-panel" data-md-component="matplotlib-help-panel">
-            <button type="button" class="categories-panel__toggle" aria-expanded="false" aria-controls="matplotlib-help-panel__body">Matplotlib</button>
-            <div class="categories-panel__body categories-panel__body--wide md-typeset" id="matplotlib-help-panel__body" hidden>
-              {{ matplotlib_help_html | safe }}
-            </div>
-          </aside>
-        {% endif %}
+        <aside class="categories-panel" data-md-component="categories-panel">
+          <div class="categories-panel__tabs">
+            {% if all_categories or all_tags %}
+              <button type="button" class="categories-panel__toggle" data-panel-tab="browse" aria-expanded="false" aria-controls="side-panel__body">Browse</button>
+            {% endif %}
+            {% if show_matplotlib_help %}
+              <button type="button" class="categories-panel__toggle" data-panel-tab="matplotlib" aria-expanded="false" aria-controls="side-panel__body">Matplotlib</button>
+            {% endif %}
+          </div>
+          <div class="categories-panel__body" id="side-panel__body" hidden>
+            {% if all_categories or all_tags %}
+              <div class="categories-panel__pane categories-panel__pane--narrow" data-panel-pane="browse">
+                {% if all_categories %}
+                  <p class="categories-panel__title">Categories</p>
+                  <ul class="categories-panel__list">
+                    {% for cat in all_categories %}
+                      <li><a href="/blog/category/{{ cat | lower | replace(' ', '-') }}/">{{ cat }}</a></li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+                {% if all_tags %}
+                  <p class="categories-panel__title">Tags</p>
+                  <ul class="categories-panel__list">
+                    {% for t in all_tags %}
+                      <li><a href="/blog/tag/{{ t | lower | replace(' ', '-') }}/">{{ t }}</a></li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+              </div>
+            {% endif %}
+            {% if show_matplotlib_help %}
+              <div class="categories-panel__pane categories-panel__pane--wide md-typeset" data-panel-pane="matplotlib" hidden>
+                {{ matplotlib_help_html | safe }}
+              </div>
+            {% endif %}
+          </div>
+        </aside>
       </div>
     {% endif %}
   </body>

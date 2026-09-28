@@ -109,3 +109,62 @@ def test_process_live_overwrites_existing_image_in_its_own_directory(tmp_path):
     text = '```matplotlib name="regen"\nax = plt.gca()\nax.plot([0, 1], [1, 0])\n```'
     render_plots.process_live(text, tmp_path)
     assert (tmp_path / "regen.png").read_bytes() != b"stale bytes"
+
+
+def test_process_includes_printed_output_next_to_the_image(tmp_path):
+    text = (
+        '```matplotlib name="printy"\n'
+        "a = 2.31\n"
+        'print(f"acceleration = {a} m/s^2")\n'
+        "ax = plt.gca()\n"
+        "ax.plot([0, 1], [0, 1])\n"
+        "```"
+    )
+    result = render_plots.process(text, tmp_path)
+    assert 'class="plot-widget__output"' in result
+    assert "acceleration = 2.31 m/s^2" in result
+    assert (tmp_path / "printy.txt").read_text().strip() == "acceleration = 2.31 m/s^2"
+
+
+def test_process_omits_output_block_when_nothing_was_printed(tmp_path):
+    text = '```matplotlib name="quiet"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    result = render_plots.process(text, tmp_path)
+    assert "plot-widget__output" not in result
+    assert not (tmp_path / "quiet.txt").exists()
+
+
+def test_process_escapes_printed_output(tmp_path):
+    text = '```matplotlib name="unsafe"\nprint("<script>alert(1)</script>")\nplt.gca().plot([0, 1])\n```'
+    result = render_plots.process(text, tmp_path)
+    assert "<script>alert(1)</script>" not in result
+    assert "&lt;script&gt;" in result
+
+
+def test_process_removes_stale_output_file_once_code_stops_printing(tmp_path):
+    (tmp_path / "was-printy.txt").write_text("old output")
+    text = '```matplotlib name="was-printy"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    render_plots.process(text, tmp_path)
+    assert not (tmp_path / "was-printy.txt").exists()
+
+
+def test_process_preview_shows_previously_saved_output(tmp_path):
+    # process_preview never re-executes code -- it must read back whatever a real save
+    # already printed and persisted, not just the image.
+    (tmp_path / "cached.png").write_bytes(b"fake png bytes")
+    (tmp_path / "cached.txt").write_text("distance = 240.0 m")
+    text = '```matplotlib name="cached" title="Show it"\nraise RuntimeError("must not run")\n```'
+    result = render_plots.process_preview(text, tmp_path)
+    assert "distance = 240.0 m" in result
+
+
+def test_process_live_includes_printed_output(tmp_path):
+    text = (
+        '```matplotlib name="live-printy"\n'
+        'print("checked: ok")\n'
+        "ax = plt.gca()\n"
+        "ax.plot([0, 1], [0, 1])\n"
+        "```"
+    )
+    result = render_plots.process_live(text, tmp_path)
+    assert 'class="plot-widget__output"' in result
+    assert "checked: ok" in result

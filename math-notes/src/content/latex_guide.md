@@ -250,3 +250,7 @@ A mistake in the plotting code (a typo, a name reused by two different
 graphs, code that never actually calls a plotting function) is reported
 back on the admin save form as an error, and the post is not saved -- not a
 silently broken page on the live site.
+
+A plain `print(...)` in the code shows up in a small monospace block right
+next to the graph in the popup -- useful for a computed value the graph
+itself doesn't label, like `print(f"time to land: {t_land:.2f} s")`.

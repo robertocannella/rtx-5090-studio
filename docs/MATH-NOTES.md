@@ -209,6 +209,32 @@ visited, regardless of whether the button's own node persists or gets recreated.
 `plot-modal.js` (below) uses this same delegated pattern from the start, so it never had
 this bug.
 
+**Admin editor only -- a Matplotlib tab in the same panel**: alongside Browse, a
+**Matplotlib** tab shows a quick reference for the ` ```matplotlib ` syntax
+(`content/matplotlib_quickref.md`, rendered once at startup like `index.md`/
+`latex_guide.md`; `show_matplotlib_help`/`matplotlib_help_html` are only set on the four
+`admin_form.html` render sites -- new/edit forms and their error re-renders -- not the
+list or read-only saved-post view). Browse and Matplotlib are tabs sharing *one* panel
+body, not two independent popouts: each tab shows/hides its own `.categories-panel__pane`
+inside that shared body (`data-panel-tab`/`data-panel-pane` attributes, matched in
+`categories-panel.js`), so opening either tab always starts at the same height. An
+earlier version gave each tab its own separate toggle+body pair, stacked one below the
+other in the flex column -- which pushed a later tab's popup down by however tall the
+earlier tabs' own toggles (and, if open, their bodies) happened to be, reported live as
+the popup opening too low on the page and running off the bottom of the viewport with no
+way to scroll to the rest of it.
+
+The quick reference's own matplotlib examples have to be wrapped in an outer 4-backtick
+fence (the same trick this section's own code sample above uses) so the literal
+` ```matplotlib name="..." ` syntax inside displays as an inert code sample. Without that
+outer fence, `pymdownx.superfences` tries to parse the inner 3-backtick line as a real
+fence header -- it isn't valid fence syntax on its own (the `name="..." title="..."`
+attribute syntax is `render_plots.py`'s own regex convention, matched and stripped out of
+real post content *before* Markdown ever runs; this panel renders straight through plain
+`render.render_markdown()` with no such preprocessing step) -- which corrupts the
+rendering of the whole block, in a way that got dramatically worse (an entire second
+example's content bleeding into the first) once a second such example was added nearby.
+
 ## Matplotlib graphs
 
 A post can embed a real matplotlib figure, shown only on demand in a popup -- e.g. the
@@ -259,6 +285,16 @@ clutter or spoil anything until a reader deliberately asks for it.
 plotting function) raises `render_plots.PlotError`, which the admin form displays as a
 validation error -- the post is not saved, so there is never a live page with a broken
 graph on it.
+
+**Printed output**: `_render_one` captures the block's stdout via
+`contextlib.redirect_stdout` during the `exec`, so a plain `print(...)` (e.g. a computed
+acceleration or a sanity-checked value) shows up as a small monospace
+`<pre class="plot-widget__output">` right next to the image, in both the public popup and
+the admin editor's preview -- HTML-escaped, since it's raw `print()` text, not authored
+Markdown/LaTeX. Non-empty output is also written to `<name>.txt` next to the PNG (and a
+stale one removed if the code no longer prints anything), because `process_preview` never
+re-executes code and needs to show whatever the *last real save* actually printed, not
+re-run anything to find out.
 
 ## Admin visibility on public pages
 

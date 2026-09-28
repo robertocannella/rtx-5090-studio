@@ -3,7 +3,10 @@ time (create/update, not per page view) -- see the LaTeX Guide's "Adding a graph
 section for the author-facing syntax.
 """
 
+import contextlib
+import io
 import re
+from html import escape as _escape
 from pathlib import Path
 
 import matplotlib
@@ -31,11 +34,21 @@ def _render_one(name, code, plots_dir):
     -- this always saves the current figure to a path this function controls, keyed only
     on the block's own `name`, so the image location stays deterministic regardless of
     what the author's code does.
+
+    Returns (out_path, output) -- output is whatever the code printed (e.g. a computed
+    acceleration or a checked value), captured rather than left to go to the container's
+    own stdout/logs where a reader would never see it. Persisted alongside the PNG as
+    `{name}.txt` so process_preview (which never re-executes code) can show the same
+    printed output a previous real save produced, not just the image -- and removed if a
+    block that used to print something no longer does, so a stale value never lingers
+    after the code that produced it is gone.
     """
     plt.close("all")
     namespace = {"plt": plt}
+    buf = io.StringIO()
     try:
-        exec(compile(code, f"<matplotlib block: {name}>", "exec"), namespace)  # noqa: S102 - trusted, self-authored post content, not arbitrary user input
+        with contextlib.redirect_stdout(buf):
+            exec(compile(code, f"<matplotlib block: {name}>", "exec"), namespace)  # noqa: S102 - trusted, self-authored post content, not arbitrary user input
     except Exception as e:  # noqa: BLE001 - want to report exactly which block failed
         raise PlotError(f"matplotlib block {name!r} failed: {e}") from e
     fig = plt.gcf()
@@ -45,10 +58,21 @@ def _render_one(name, code, plots_dir):
     out_path = plots_dir / f"{name}.png"
     fig.savefig(out_path, bbox_inches="tight", dpi=150)
     plt.close(fig)
-    return out_path
+
+    output = buf.getvalue()
+    output_path = plots_dir / f"{name}.txt"
+    if output.strip():
+        output_path.write_text(output)
+    elif output_path.exists():
+        output_path.unlink()
+    return out_path, output
 
 
-def _widget_html(name, title, src):
+def _output_html(output):
+    return f'<pre class="plot-widget__output">{_escape(output.rstrip())}</pre>' if output.strip() else ""
+
+
+def _widget_html(name, title, src, output=""):
     label = title or "Show graph"
     return (
         f'<div class="plot-widget">\n'
@@ -58,6 +82,7 @@ def _widget_html(name, title, src):
         f'<div class="plot-widget__box">\n'
         f'<button type="button" class="plot-widget__close" data-plot-close="{name}" aria-label="Close">&times;</button>\n'
         f'<img src="{src}" alt="{label}">\n'
+        f"{_output_html(output)}"
         f"</div>\n</div>\n</div>\n"
     )
 
@@ -73,8 +98,8 @@ def process(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
         name = match.group("name")
         title = match.group("title")
         code = match.group("code")
-        _render_one(name, code, plots_dir)
-        return _widget_html(name, title, f"{assets_url_prefix}/{name}.png")
+        _, output = _render_one(name, code, plots_dir)
+        return _widget_html(name, title, f"{assets_url_prefix}/{name}.png", output)
 
     return FENCE_RE.sub(replace, markdown_text)
 
@@ -99,8 +124,11 @@ def process_live(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
         name = match.group("name")
         title = match.group("title") or "Graph"
         code = match.group("code")
-        _render_one(name, code, plots_dir)
-        return f'<p class="plot-widget__preview"><img src="{assets_url_prefix}/{name}.png" alt="{title}"></p>'
+        _, output = _render_one(name, code, plots_dir)
+        return (
+            f'<div class="plot-widget__preview"><img src="{assets_url_prefix}/{name}.png" alt="{title}">'
+            f"{_output_html(output)}</div>"
+        )
 
     return FENCE_RE.sub(replace, markdown_text)
 
@@ -125,7 +153,12 @@ def process_preview(markdown_text, plots_dir, assets_url_prefix="/assets/plots")
         title = match.group("title") or "Graph"
         if (plots_dir / f"{name}.png").exists():
             src = f"{assets_url_prefix}/{name}.png"
-            return f'<p class="plot-widget__preview"><img src="{src}" alt="{title}"></p>'
+            output_path = plots_dir / f"{name}.txt"
+            output = output_path.read_text() if output_path.exists() else ""
+            return (
+                f'<div class="plot-widget__preview"><img src="{src}" alt="{title}">'
+                f"{_output_html(output)}</div>"
+            )
         return (
             '<p class="plot-widget__pending"><em>'
             f"Graph {name!r} will render here after you save."

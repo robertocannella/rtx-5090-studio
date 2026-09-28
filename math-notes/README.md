@@ -60,6 +60,12 @@ button that pops the image open in a modal. See the live
 section for the exact syntax and a full example. A mistake in the plotting code is
 reported right on the admin save form -- the post isn't saved until it's fixed.
 
+A plain `print(...)` in the block's code is captured and shown in a small monospace
+block right next to the image (both in the public popup and the admin editor's preview) --
+persisted alongside the PNG as `{name}.txt` so the editor's view-mode preview can show it
+without re-running any code. The admin editor also has its own quick reference for this
+syntax -- see "Matplotlib quick-reference panel" below.
+
 ## Adding a non-blog page (Home, LaTeX Guide)
 
 These are plain Markdown files under `src/content/`, rendered once at app startup, listed
@@ -80,6 +86,24 @@ A category or tag with a space in its name (e.g. "Constant Acceleration") gets a
 dash-joined URL (`/blog/tag/constant-acceleration/`), not a raw space -- every link is
 built that way (see `_topic_slug` in `app.py`), and the route handlers match against the
 same slug, not a plain `.lower()`.
+
+Same panel, admin editor only: a **Matplotlib** tab alongside Browse, showing a quick
+reference for the ` ```matplotlib ` syntax (`content/matplotlib_quickref.md`) while
+you're writing a post. Browse and Matplotlib are tabs sharing one panel body, not two
+independent popouts -- each tab shows/hides its own `.categories-panel__pane` inside that
+shared body (`static/javascripts/categories-panel.js`), so opening either one always
+starts at the same height regardless of how many tabs exist. An earlier version gave each
+tab its own separate toggle+body pair stacked one below the other, which pushed a later
+tab's popup down by however tall the earlier ones were -- it opened too low on the page
+and ran off the bottom of the viewport.
+
+The quick reference's own matplotlib examples are wrapped in an outer 4-backtick fence
+(see the file itself) so the literal ` ```matplotlib name="..." ` syntax inside displays
+as an inert code sample -- without that outer fence, `pymdownx.superfences` tries to
+parse the inner 3-backtick line as a real fence (it isn't valid fence syntax on its own,
+just a marker `render_plots.py`'s own regex looks for in real post content before
+Markdown ever runs) and corrupts the rendering of the whole example, in a way that gets
+dramatically worse with a second example nearby.
 
 ## Deploying a code change
 

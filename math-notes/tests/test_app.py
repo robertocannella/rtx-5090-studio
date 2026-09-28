@@ -246,6 +246,21 @@ def test_matplotlib_post_renders_button_and_serves_image(client):
     assert image_resp.headers["content-type"] == "image/png"
 
 
+def test_matplotlib_post_shows_printed_output_next_to_the_graph(client):
+    body = (
+        '```matplotlib name="printy-graph"\n'
+        'print(f"acceleration = {2.31} m/s^2")\n'
+        "ax = plt.gca()\n"
+        "ax.plot([0, 1], [0, 1])\n"
+        "```"
+    )
+    db.create_post("Printy Post", "Physics", body)
+    resp = client.get("/blog/printy-post/")
+    assert resp.status_code == 200
+    assert 'class="plot-widget__output"' in resp.text
+    assert "acceleration = 2.31 m/s^2" in resp.text
+
+
 def test_two_posts_can_reuse_the_same_graph_name_without_colliding(client):
     # A graph's `name` only has to be unique within one post -- db._render() namespaces
     # every graph under its own post's slug specifically so two unrelated posts can each
@@ -306,14 +321,17 @@ def test_matplotlib_quickref_panel_shows_on_new_and_edit_forms_only(client):
     for path in should_have_it:
         resp = client.get(path)
         assert resp.status_code == 200
-        assert 'data-md-component="matplotlib-help-panel"' in resp.text
+        assert 'data-panel-tab="matplotlib"' in resp.text
+        assert 'data-panel-pane="matplotlib"' in resp.text
         assert ">Matplotlib<" in resp.text
         assert 'name="projectile-trajectory"' in resp.text  # the worked example
+        assert 'name="distance-vs-time"' in resp.text  # common physics plots
+        assert 'name="velocity-vs-time"' in resp.text
 
     for path in should_not_have_it:
         resp = client.get(path)
         assert resp.status_code == 200
-        assert 'data-md-component="matplotlib-help-panel"' not in resp.text
+        assert 'data-panel-tab="matplotlib"' not in resp.text
 
 
 def test_matplotlib_quickref_panel_survives_form_error_redisplay(client):
@@ -326,17 +344,26 @@ def test_matplotlib_quickref_panel_survives_form_error_redisplay(client):
         data={"title": "Other", "category": "Meta", "segments": ["Body."], "slug": "dup"},
     )
     assert resp.status_code == 422
-    assert 'data-md-component="matplotlib-help-panel"' in resp.text
+    assert 'data-panel-tab="matplotlib"' in resp.text
 
 
-def test_categories_panel_toggle_scopes_to_its_own_panel(client):
-    # Two independent side panels (Browse, Matplotlib) share the same generic
-    # .categories-panel/__toggle/__body classes -- the JS must resolve each toggle's own
-    # body via its own parent, not a document-wide first-match lookup, or clicking one
-    # toggle would open/close the other panel instead.
-    resp = client.get("/javascripts/categories-panel.js")
+def test_categories_panel_tabs_share_one_body_not_independent_popouts(client):
+    # Browse and (admin-only) Matplotlib are tabs in *one* shared panel, not two
+    # independent toggle+body pairs stacked on top of each other -- a second popout
+    # stacked below the first opened too low on the page and ran off the bottom of the
+    # viewport (reported live). The JS switches which .categories-panel__pane is visible
+    # inside the one shared body rather than resolving a body per toggle.
+    db.create_post("Some Post", "Meta", "Body.")
+    resp = client.get("/admin/new")
     assert resp.status_code == 200
-    assert "toggle.parentElement.querySelector" in resp.text
+    assert resp.text.count('id="side-panel__body"') == 1
+    assert 'data-panel-pane="browse"' in resp.text
+    assert 'data-panel-pane="matplotlib"' in resp.text
+
+    js_resp = client.get("/javascripts/categories-panel.js")
+    assert js_resp.status_code == 200
+    assert "data-panel-tab" in js_resp.text
+    assert "data-panel-pane" in js_resp.text
 
 
 def test_admin_create_post(client):

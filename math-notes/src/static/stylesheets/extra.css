@@ -234,31 +234,39 @@ html {
   color: var(--md-accent-fg-color);
 }
 
-/* Minimal, collapsed-by-default panels pinned to the right edge of the viewport
-   (base.html renders the markup; categories-panel.js wires the toggles). Deliberately
+/* Minimal, collapsed-by-default tabbed panel pinned to the right edge of the viewport
+   (base.html renders the markup; categories-panel.js wires the tabs). Deliberately
    outside Material's own primary/secondary sidebar grid columns -- a fixed-position
-   stack is simpler and more robust than trying to inject a fourth column into
+   panel is simpler and more robust than trying to inject a fourth column into
    Material's layout, and doesn't depend on undocumented internal block names that could
    change between theme versions.
 
-   .side-panels is the fixed-position anchor; each .categories-panel inside it (Browse,
-   and -- admin editor only -- Matplotlib) is a plain flex item, so a panel added later
-   just stacks below the existing ones instead of needing its own hardcoded offset. */
+   One shared panel, one shared body, several tabs (Browse, and -- admin editor only --
+   Matplotlib) each showing/hiding their own .categories-panel__pane inside it (see
+   categories-panel.js) -- not one independent popout per tab. An earlier version gave
+   Matplotlib its own separate toggle+body stacked below Browse's, which pushed its body
+   down by however tall Browse's own toggle (and, if open, its body) happened to be --
+   reported live as the popup opening too low on the page and its content being
+   unreachable below the bottom of the viewport. Sharing one body anchored right after
+   the tab row fixes both: it always opens at the same height, however many tabs exist. */
 .side-panels {
   position: fixed;
   top: 4.8rem;
   right: 0;
   z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
 }
 
 .categories-panel {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+}
+
+.categories-panel__tabs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
 }
 
 .categories-panel__toggle {
@@ -278,34 +286,46 @@ html {
   filter: brightness(1.1);
 }
 
-.categories-panel__body {
-  background: var(--md-default-bg-color);
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-right: none;
-  border-radius: 0.2rem 0 0 0.2rem;
-  padding: 0.75rem 1rem;
-  min-width: 140px;
-  max-width: 200px;
-  box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.15);
+.categories-panel__toggle[aria-expanded="true"] {
+  filter: brightness(1.15);
 }
 
 .categories-panel__body[hidden] {
   display: none;
 }
 
-/* The admin editor's Matplotlib quick-reference panel needs real room for a code
-   sample and prose (content/matplotlib_quickref.md), unlike Browse's short link lists --
-   scrollable rather than letting a long reference run off the bottom of the viewport.
-   The .md-typeset class alongside it (see base.html) gives the rendered markdown its
-   normal paragraph/code-block/list structure for free; this just re-tunes the size back
-   down for a narrow floating panel instead of full article width. */
-.categories-panel__body--wide {
-  max-width: 26rem;
-  max-height: 75vh;
+/* Each pane carries its own box chrome (rather than one shared box on .body) since
+   Browse's short link list and the Matplotlib quick reference's prose/code sample need
+   very different widths -- .categories-panel__body itself is just a hidden/shown
+   wrapper, sized by whichever one pane is currently visible. Every pane also gets the
+   same max-height/scroll treatment: the panel always opens right below the tab row now
+   (see the comment above), but a reference long enough to exceed the viewport's
+   remaining height should still scroll internally instead of running off the bottom. */
+.categories-panel__pane {
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-right: none;
+  border-radius: 0.2rem 0 0 0.2rem;
+  padding: 0.75rem 1rem;
+  box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.15);
+  max-height: calc(100vh - 7rem);
   overflow-y: auto;
 }
 
-.categories-panel__body.md-typeset {
+.categories-panel__pane[hidden] {
+  display: none;
+}
+
+.categories-panel__pane--narrow {
+  min-width: 140px;
+  max-width: 200px;
+}
+
+.categories-panel__pane--wide {
+  max-width: 26rem;
+}
+
+.categories-panel__pane.md-typeset {
   font-size: 0.8rem;
 }
 
@@ -383,4 +403,19 @@ html {
   cursor: pointer;
   color: var(--md-default-fg-color);
   padding: 0.25rem 0.5rem;
+}
+
+/* Whatever a matplotlib block's own code printed (see render_plots.py's stdout capture)
+   -- a computed value like an acceleration or a sanity-checked number is often just as
+   useful next to the graph as the graph itself. Shown as-is in a monospace block, not
+   run through KaTeX or Markdown -- it's raw print() output, not authored prose. */
+.plot-widget__output {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--md-code-bg-color);
+  color: var(--md-code-fg-color);
+  border-radius: 0.2rem;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
