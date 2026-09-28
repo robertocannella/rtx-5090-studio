@@ -190,6 +190,10 @@ def test_matplotlib_guide_page_renders_the_full_reference(client):
     assert 'name="distance-with-sample-points"' in resp.text  # labeling several points
     assert "ax.scatter(t_samples, x_samples" in resp.text
     assert "zip(t_samples, x_samples)" in resp.text
+    assert 'name="distance-and-velocity"' in resp.text  # plotting two y-variables together
+    assert "sharex=True" in resp.text
+    assert 'name="two-runners"' in resp.text
+    assert "ax.legend()" in resp.text
 
 
 def test_matplotlib_guide_page_is_not_admin_only(client):
@@ -456,6 +460,7 @@ def test_matplotlib_quickref_panel_shows_on_new_and_edit_forms_only(client):
         assert 'name="projectile-trajectory"' in resp.text  # the worked example
         assert 'name="distance-vs-time"' in resp.text  # common physics plots
         assert 'name="velocity-vs-time"' in resp.text
+        assert 'name="distance-and-velocity"' in resp.text  # plotting two y-variables together
         assert 'name="distance-with-final-point"' in resp.text  # marking a specific point
         assert "ax.annotate" in resp.text
         assert 'name="distance-with-sample-points"' in resp.text  # labeling several points

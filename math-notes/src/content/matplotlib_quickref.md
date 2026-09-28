@@ -109,6 +109,75 @@ A few things worth knowing:
   for a smooth curve -- `num=100` (as above) is plenty for a curve this simple; don't
   reach for a Python loop to build the points by hand.
 
+## Plotting position and velocity together
+
+Distance and velocity above are two separate blocks -- two separate buttons/popups. To
+show them together against the same time axis in *one* graph, the usual approach is two
+stacked panels sharing an x-axis, not one panel with both lines on it -- position (m) and
+velocity (m/s) are different units on very different scales, so overlaying them directly
+would make one line look flat next to the other.
+
+````
+```matplotlib name="distance-and-velocity" title="Show distance and velocity"
+import numpy as np
+
+a = 2.31
+t = np.linspace(0, 14.4, 100)
+x = 0.5 * a * t**2
+v = a * t
+
+fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(6, 6))
+
+ax1.plot(t, x)
+ax1.set_ylabel("Distance (m)")
+ax1.grid(True)
+
+ax2.plot(t, v)
+ax2.set_ylabel("Velocity (m/s)")
+ax2.set_xlabel("Time (s)")
+ax2.grid(True)
+
+fig.suptitle("Distance and velocity vs. time")
+```
+````
+
+- `fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(6, 6))` -- `2, 1` means two
+  rows, one column (stacked, not side by side -- that would be `1, 2`). `sharex=True`
+  locks both panels' time axes to the same range, so a point at $t=10$ lines up
+  vertically between the two.
+- Each panel is its own independent `Axes` (`ax1`, `ax2`) -- its own `set_ylabel`/`grid`,
+  since distance and velocity need different y-axis labels and ranges. Only `set_xlabel`
+  on the *bottom* panel (`ax2`) -- both share one x-axis, so labeling it twice would be
+  redundant.
+- `fig.suptitle(...)` for one title over both panels, instead of `ax.set_title(...)` on
+  just one of them -- this is a title for the whole figure, not either individual panel.
+
+If the two quantities share the same units and a comparable scale (two different
+distances, say, not distance and velocity), a single overlaid panel usually reads better
+than two stacked ones -- just call `ax.plot` twice on the same `ax` and add a legend:
+
+````
+```matplotlib name="two-runners" title="Show two runners' positions"
+import numpy as np
+
+t = np.linspace(0, 10, 100)
+x_a = 3 * t
+x_b = 2 * t + 5
+
+fig, ax = plt.subplots()
+ax.plot(t, x_a, label="Runner A")
+ax.plot(t, x_b, label="Runner B")
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Distance (m)")
+ax.legend()
+ax.grid(True)
+```
+````
+
+`label="..."` on each `ax.plot` call plus one `ax.legend()` is all it takes -- no need to
+track colors by hand, matplotlib assigns each line its own and the legend matches them
+automatically.
+
 ## Marking a specific point (e.g. $x_f$, $v_f$)
 
 A curve alone doesn't call out the value that actually answers the problem -- mark the
