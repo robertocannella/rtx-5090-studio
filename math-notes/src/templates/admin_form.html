@@ -1,4 +1,15 @@
 {% extends "admin_base.html" %}
+{% macro admin_block_controls(hide_generate_graph, toggle_label) %}
+  <div class="admin-block__controls">
+    <button type="button" data-katex-zoom-out title="Shrink math">&minus;</button>
+    <button type="button" data-katex-zoom-in title="Enlarge math">&plus;</button>
+    <button type="button" class="admin-block__generate-graph"{% if hide_generate_graph %} hidden{% endif %}>Generate graph</button>
+    <button type="button" class="admin-block__toggle">{{ toggle_label }}</button>
+    <button type="button" class="admin-block__move-up" title="Move block up">&uarr;</button>
+    <button type="button" class="admin-block__move-down" title="Move block down">&darr;</button>
+    <button type="button" class="admin-block__delete" title="Delete block">&times;</button>
+  </div>
+{% endmacro %}
 {% block admin_content %}
 <form class="admin-form" method="post" action="{{ action }}">
   <label>Title
@@ -21,18 +32,13 @@
       <div class="admin-block" data-mode="{{ 'view' if seg.view_html else 'edit' }}">
         <div class="admin-block__header">
           <span class="admin-block__label">{{ seg.label }}</span>
-          <div class="admin-block__controls">
-            <button type="button" data-katex-zoom-out title="Shrink math">&minus;</button>
-            <button type="button" data-katex-zoom-in title="Enlarge math">&plus;</button>
-            <button type="button" class="admin-block__generate-graph"{% if seg.label != 'Matplotlib graph' %} hidden{% endif %}>Generate graph</button>
-            <button type="button" class="admin-block__toggle">{{ 'Edit' if seg.view_html else 'Done' }}</button>
-            <button type="button" class="admin-block__move-up" title="Move block up">&uarr;</button>
-            <button type="button" class="admin-block__move-down" title="Move block down">&darr;</button>
-            <button type="button" class="admin-block__delete" title="Delete block">&times;</button>
-          </div>
+          {{ admin_block_controls(seg.label != 'Matplotlib graph', 'Edit' if seg.view_html else 'Done') }}
         </div>
         <div class="admin-block__view md-typeset">{{ seg.view_html | safe }}</div>
         <textarea name="segments" rows="{{ seg.rows }}">{{ seg.text }}</textarea>
+        <div class="admin-block__footer">
+          {{ admin_block_controls(seg.label != 'Matplotlib graph', 'Edit' if seg.view_html else 'Done') }}
+        </div>
       </div>
     {% endfor %}
   </div>
@@ -49,18 +55,13 @@
   <div class="admin-block" data-mode="edit">
     <div class="admin-block__header">
       <span class="admin-block__label">Paragraph</span>
-      <div class="admin-block__controls">
-        <button type="button" data-katex-zoom-out title="Shrink math">&minus;</button>
-        <button type="button" data-katex-zoom-in title="Enlarge math">&plus;</button>
-        <button type="button" class="admin-block__generate-graph" hidden>Generate graph</button>
-        <button type="button" class="admin-block__toggle">Done</button>
-        <button type="button" class="admin-block__move-up" title="Move block up">&uarr;</button>
-        <button type="button" class="admin-block__move-down" title="Move block down">&darr;</button>
-        <button type="button" class="admin-block__delete" title="Delete block">&times;</button>
-      </div>
+      {{ admin_block_controls(true, 'Done') }}
     </div>
     <div class="admin-block__view md-typeset"></div>
     <textarea name="segments" rows="4"></textarea>
+    <div class="admin-block__footer">
+      {{ admin_block_controls(true, 'Done') }}
+    </div>
   </div>
 </template>
 

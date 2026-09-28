@@ -121,6 +121,16 @@ async function adminBlockRenderInto(view, text, url, extraParams = {}) {
   }
 }
 
+// A block's header and footer each carry their own full copy of the controls (see
+// admin_form.html/admin_block_controls) -- these two helpers keep both copies' toggle
+// label / generate-graph visibility in sync, since a plain querySelector would only ever
+// find (and update) the first one.
+function adminBlockSetToggleLabel(block, label) {
+  block.querySelectorAll(".admin-block__toggle").forEach((toggle) => {
+    toggle.textContent = label;
+  });
+}
+
 async function adminBlockSwitchToView(block) {
   const textarea = block.querySelector("textarea");
   const view = block.querySelector(".admin-block__view");
@@ -130,7 +140,7 @@ async function adminBlockSwitchToView(block) {
   const slug = document.getElementById("admin-blocks").dataset.postSlug || "";
   await adminBlockRenderInto(view, textarea.value, "/admin/preview-segment", { slug });
   block.dataset.mode = "view";
-  block.querySelector(".admin-block__toggle").textContent = "Edit";
+  adminBlockSetToggleLabel(block, "Edit");
 }
 
 // A ```matplotlib block's code is never executed just by looking at it (see
@@ -142,8 +152,10 @@ const ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE = /```matplotlib\s+name="/;
 
 function adminBlockUpdateGenerateGraphVisibility(block) {
   const textarea = block.querySelector("textarea");
-  const button = block.querySelector(".admin-block__generate-graph");
-  button.hidden = !ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE.test(textarea.value);
+  const isMatplotlibBlock = ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE.test(textarea.value);
+  block.querySelectorAll(".admin-block__generate-graph").forEach((button) => {
+    button.hidden = !isMatplotlibBlock;
+  });
 }
 
 document.addEventListener("input", (event) => {
@@ -155,7 +167,7 @@ document.addEventListener("input", (event) => {
 
 function adminBlockSwitchToEdit(block) {
   block.dataset.mode = "edit";
-  block.querySelector(".admin-block__toggle").textContent = "Done";
+  adminBlockSetToggleLabel(block, "Done");
   block.querySelector("textarea").focus();
 }
 
@@ -218,7 +230,7 @@ document.addEventListener("click", (event) => {
     const view = block.querySelector(".admin-block__view");
     adminBlockRenderInto(view, textarea.value, "/admin/generate-graph").then(() => {
       block.dataset.mode = "view";
-      block.querySelector(".admin-block__toggle").textContent = "Edit";
+      adminBlockSetToggleLabel(block, "Edit");
     });
     return;
   }

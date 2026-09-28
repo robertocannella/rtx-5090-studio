@@ -57,6 +57,17 @@
   .admin-block__controls button:hover { border-color: var(--md-primary-fg-color); color: var(--md-primary-fg-color); }
   .admin-block textarea { width: 100%; }
 
+  /* A second copy of the same controls below the textarea -- editing a long block (a
+     multi-paragraph solution, a big matplotlib script) means the header row with Done/
+     zoom/etc. can scroll out of view while typing; this puts them back within reach
+     without scrolling up. Only shown in edit mode -- in view mode it'd just be a second,
+     redundant copy sitting below content that's already short enough to not need it.
+     static/javascripts/admin-blocks.js updates both copies' toggle text/generate-graph
+     visibility together (querySelectorAll, not querySelector) since there are now two of
+     each per block. */
+  .admin-block__footer { margin-top: 0.4rem; }
+  .admin-block[data-mode="view"] .admin-block__footer { display: none; }
+
   /* Each block shows either its rendered view or its raw textarea, never both -- only
      one block is ever in edit mode at once (static/javascripts/admin-blocks.js enforces
      that), so the rest of the post always reads as it will actually look, exactly what

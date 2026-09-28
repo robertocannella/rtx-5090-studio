@@ -78,6 +78,36 @@ def test_admin_block_header_has_its_own_zoom_buttons(client):
     assert resp.text.count("data-katex-zoom-in") >= 3
 
 
+def test_admin_block_controls_also_appear_below_the_textarea(client):
+    # Editing a long block can scroll the header row (with Done/zoom/etc.) out of view --
+    # a second copy right below the textarea keeps them reachable without scrolling back
+    # up. Both admin_form.html's loop (existing segments) and its <template> (brand-new
+    # "+ Add block" blocks) get one each.
+    post_id = db.create_post("Footer Controls Post", "Meta", "Body.")
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    assert resp.text.count('class="admin-block__footer"') == 2  # this post's segment + the template
+    # Each .admin-block__footer carries the exact same controls as the header: toggle,
+    # move up/down, delete, zoom -- not a stripped-down subset.
+    footer_start = resp.text.find('class="admin-block__footer"')
+    footer_html = resp.text[footer_start:footer_start + 700]
+    assert "admin-block__toggle" in footer_html
+    assert "admin-block__move-up" in footer_html
+    assert "admin-block__move-down" in footer_html
+    assert "admin-block__delete" in footer_html
+    assert "data-katex-zoom-in" in footer_html
+
+
+def test_admin_blocks_js_updates_both_toggle_and_generate_graph_copies(client):
+    # A plain querySelector would only ever find/update the first of the two copies
+    # (header, footer) -- both toggle-label and generate-graph-visibility updates must
+    # use querySelectorAll instead, or the footer copy would show stale state.
+    resp = client.get("/javascripts/admin-blocks.js")
+    assert resp.status_code == 200
+    assert 'querySelectorAll(".admin-block__toggle")' in resp.text
+    assert 'querySelectorAll(".admin-block__generate-graph")' in resp.text
+
+
 def test_article_text_and_headings_use_the_tuned_sizes(client):
     # Reported live as "the plain text is tiny" and "###heading gets a bit too small",
     # while h1/h2 were already fine -- the base .md-typeset size grows (which h3/h4/body
