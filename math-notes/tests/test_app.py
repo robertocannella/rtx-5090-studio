@@ -288,8 +288,27 @@ def test_print_css_hides_chrome_and_reveals_collapsed_content(client):
     assert ".md-typeset details > *:not(summary)" in resp.text
     # A graph's click-to-reveal button/modal unwrapped into plain inline content.
     assert ".plot-widget__modal {" in resp.text
-    # The "Hide answers" checkbox's effect, scoped to the Solution convention specifically.
+    # The "Hide answers" checkbox's effect. Two selectors, not one -- a ??? success
+    # block (what every real Solution actually uses) renders as class="success" alone,
+    # with no "admonition" class at all (confirmed by rendering one directly and reading
+    # its output; see render.py's admonition vs. pymdownx.details extensions) -- an
+    # earlier version only had the .admonition.success selector, which never matched a
+    # real Solution block at all, reported live as "the answers ... are still showing
+    # up." Both forms must be covered so this can't silently regress the same way again.
     assert "body.mn-print-hide-answers .md-typeset .admonition.success" in resp.text
+    assert "body.mn-print-hide-answers .md-typeset details.success" in resp.text
+
+
+def test_solution_admonition_renders_as_bare_success_class(client):
+    # Documents the actual, sometimes-surprising output of pymdownx.details for ???
+    # blocks (no "admonition" class, unlike !!!'s non-collapsible <div>) -- the exact
+    # fact the print-css test above exists to protect against getting out of sync with
+    # again. A real end-to-end check, not just a unit test of render.render_markdown.
+    body = '??? success "Solution"\n    The answer is 42.\n'
+    db.create_post("Solution Class Post", "Meta", body)
+    resp = client.get("/blog/solution-class-post/")
+    assert resp.status_code == 200
+    assert '<details class="success">' in resp.text
 
 
 def test_category_page_filters_posts(client):

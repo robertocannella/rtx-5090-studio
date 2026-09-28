@@ -575,11 +575,19 @@ html {
 
   /* Set by print.js right before calling window.print(), based on the "Hide answers"
      checkbox. ??? success "Solution" is this site's own established convention for a
-     word problem's answer (see docs/MATH-NOTES.md) -- targets any admonition styled as
-     "success", not just a <details> specifically, so a non-collapsible !!! success
-     block (unusual, but not invalid) would still be hidden too. A plain "Note" or "Tip"
-     admonition (a different color/class) is unaffected, and still prints normally. */
-  body.mn-print-hide-answers .md-typeset .admonition.success {
+     word problem's answer (see docs/MATH-NOTES.md). Two selectors, not one, because
+     Python-Markdown's two admonition extensions render their class attribute
+     differently for the exact same "success" type: a non-collapsible !!! success block
+     (via the admonition extension) gets class="admonition success", but a collapsible
+     ??? success block (via pymdownx.details -- what every real Solution on this site
+     actually uses) gets class="success" alone, with no "admonition" class at all.
+     Requiring both classes together (an earlier version's actual bug, confirmed by
+     rendering a real ??? success block and reading its output directly) silently never
+     matched a single real Solution block -- reported live as "the answers ... are still
+     showing up." A plain "Note" or "Tip" admonition (a different type/class) is
+     unaffected either way, and still prints normally. */
+  body.mn-print-hide-answers .md-typeset .admonition.success,
+  body.mn-print-hide-answers .md-typeset details.success {
     display: none !important;
   }
 }
