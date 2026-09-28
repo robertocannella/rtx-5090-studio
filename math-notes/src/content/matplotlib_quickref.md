@@ -108,3 +108,49 @@ A few things worth knowing:
 - `np.linspace(start, stop, num)` is almost always the right way to build the time axis
   for a smooth curve -- `num=100` (as above) is plenty for a curve this simple; don't
   reach for a Python loop to build the points by hand.
+
+## Marking a specific point (e.g. $x_f$, $v_f$)
+
+A curve alone doesn't call out the value that actually answers the problem -- mark the
+point with `ax.scatter`, then label it with `ax.annotate`. Continuing the distance
+example above, marking where it ends ($x_f$ at $t_f$):
+
+````
+```matplotlib name="distance-with-final-point" title="Show distance with final point"
+import numpy as np
+
+a = 2.31
+t = np.linspace(0, 14.4, 100)
+x = 0.5 * a * t**2
+
+t_f = 14.4
+x_f = 0.5 * a * t_f**2
+
+fig, ax = plt.subplots()
+ax.plot(t, x)
+ax.scatter([t_f], [x_f], color="red", zorder=3)
+ax.annotate(
+    f"$x_f$ = {x_f:.1f} m",
+    xy=(t_f, x_f),
+    xytext=(-70, -15),
+    textcoords="offset points",
+)
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Distance (m)")
+ax.set_title("Distance vs. time")
+ax.grid(True)
+```
+````
+
+- `ax.scatter([t_f], [x_f], ...)` -- lists, even for one point, since scatter plots a
+  *collection* of points. `zorder=3` keeps the dot drawn on top of the line instead of
+  possibly under it.
+- `ax.annotate(text, xy=(x, y), xytext=(dx, dy), textcoords="offset points")` -- `xy` is
+  the point being labeled; `xytext` shifts the *text* away from it by that many points, so
+  the label doesn't sit directly on top of the dot. For a label with nothing to offset
+  (right next to the point is fine), `ax.text(x, y, text)` is simpler.
+- `$x_f$` in a matplotlib string renders through matplotlib's own "mathtext" -- built in,
+  no LaTeX install needed, and understands the common cases (`_` for subscript, `^` for
+  superscript, Greek letters like `\alpha`) -- but it's a different, smaller renderer than
+  the KaTeX this site uses for the surrounding prose, so don't expect every LaTeX command
+  to work inside a matplotlib label.

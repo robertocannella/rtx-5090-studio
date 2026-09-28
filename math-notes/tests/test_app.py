@@ -327,6 +327,8 @@ def test_matplotlib_quickref_panel_shows_on_new_and_edit_forms_only(client):
         assert 'name="projectile-trajectory"' in resp.text  # the worked example
         assert 'name="distance-vs-time"' in resp.text  # common physics plots
         assert 'name="velocity-vs-time"' in resp.text
+        assert 'name="distance-with-final-point"' in resp.text  # marking a specific point
+        assert "ax.annotate" in resp.text
 
     for path in should_not_have_it:
         resp = client.get(path)
