@@ -42,18 +42,40 @@ def test_katex_zoom_controls_render_on_public_and_admin_pages(client):
 def test_katex_zoom_js_supports_tapping_a_formula_to_zoom(client):
     # Right half of a rendered formula zooms in, left half zooms out -- in addition to
     # the header A-/A+ buttons -- and a tap on the copy-LaTeX button must never also
-    # count as a formula tap (see katex-zoom.js's click handler).
+    # count as a formula tap (see katex-zoom.js's click handler). Formula-tap-to-zoom is
+    # skipped inside the admin block editor's own view panes, though (see the next test)
+    # -- there, a click on a formula is how you start editing that block.
     resp = client.get("/javascripts/katex-zoom.js")
     assert resp.status_code == 200
     assert "isRightHalf" in resp.text
     assert ".katex-copy" in resp.text
+    assert '".admin-block__view"' in resp.text
 
-    # The admin block editor's "click the rendered view to start editing" handler must
-    # exclude formulas too, so tapping one to zoom doesn't also drop the block into edit
-    # mode (see admin-blocks.js).
+
+def test_admin_block_click_to_edit_is_not_hijacked_by_formula_zoom(client):
+    # An earlier version excluded .katex from the admin block editor's "click the
+    # rendered view to start editing" trigger, so tapping a formula zoomed it instead of
+    # opening the block for editing -- reported live as "I miss having the block turn
+    # editable when clicking on it." Formulas must NOT be excluded here any more.
     admin_js = client.get("/javascripts/admin-blocks.js")
     assert admin_js.status_code == 200
-    assert '"summary, a, button, img, .katex"' in admin_js.text
+    assert '"summary, a, button, img"' in admin_js.text
+    assert '"summary, a, button, img, .katex"' not in admin_js.text
+
+
+def test_admin_block_header_has_its_own_zoom_buttons(client):
+    # Zoom moved out of tap-on-formula (see above) and into each block's own header, next
+    # to Generate graph/Edit/move/delete -- reuses the same data-katex-zoom-in/-out
+    # attributes the site header's buttons already use, so katex-zoom.js needed no
+    # changes to pick these up too.
+    post_id = db.create_post("Zoom Buttons Post", "Meta", "Body.")
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    assert "data-katex-zoom-in" in resp.text
+    assert "data-katex-zoom-out" in resp.text
+    # Site header (1) + this post's one segment (1) + the hidden "+ Add block" template
+    # for brand-new blocks (1) -- all three get their own zoom buttons.
+    assert resp.text.count("data-katex-zoom-in") >= 3
 
 
 def test_article_text_and_headings_use_the_tuned_sizes(client):
@@ -270,6 +292,35 @@ def test_categories_panel_lists_all_tags(client):
     db.create_post("Tagged Post", "Physics", "Body.", tags="Limits")
     resp = client.get("/")
     assert 'href="/blog/tag/limits/"' in resp.text
+
+
+def test_footer_sitemap_lists_nav_pages_categories_and_tags(client):
+    db.create_post("Footer Test Post", "Physics", "Body.", tags="Limits")
+    resp = client.get("/")
+    assert 'class="md-footer-sitemap' in resp.text
+    # Every top nav page, plus the RSS feed -- not hardcoded twice, driven by the same
+    # nav_tabs every other nav element already uses.
+    assert 'href="/">Home</a>' in resp.text
+    assert 'href="/blog/">Blog</a>' in resp.text
+    assert 'href="/latex-guide/">LaTeX Guide</a>' in resp.text
+    assert 'href="/matplotlib-guide/">Matplotlib Guide</a>' in resp.text
+    assert 'href="/feed.xml">RSS feed</a>' in resp.text
+    assert 'href="/blog/category/physics/">Physics</a>' in resp.text
+    assert 'href="/blog/tag/limits/">Limits</a>' in resp.text
+
+
+def test_footer_sitemap_omits_empty_categories_and_tags_groups(client):
+    # No posts at all yet -- no Categories/Tags group should render, just Site links.
+    resp = client.get("/")
+    assert 'class="md-footer-sitemap' in resp.text
+    assert ">Categories<" not in resp.text
+    assert ">Tags<" not in resp.text
+
+
+def test_footer_sitemap_appears_on_admin_pages_too(client):
+    resp = client.get("/admin/")
+    assert 'class="md-footer-sitemap' in resp.text
+    assert 'href="/matplotlib-guide/">Matplotlib Guide</a>' in resp.text
 
 
 def test_matplotlib_post_renders_button_and_serves_image(client):

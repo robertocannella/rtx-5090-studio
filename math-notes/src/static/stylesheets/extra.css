@@ -336,6 +336,7 @@ html {
 .categories-panel__pane--narrow {
   min-width: 140px;
   max-width: 200px;
+  text-wrap: nowrap
 }
 
 .categories-panel__pane--wide {
@@ -435,4 +436,56 @@ html {
   font-size: 0.8rem;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+
+/* Site-wide footer sitemap (base.html) -- Material's own footer only ships a prev/next
+   page nav (.md-footer__inner, unused here -- this site has no linear page order) and
+   the plain copyright line below (.md-footer-meta, kept as-is). This is a second,
+   custom block sharing the same dark footer background, listing every page/category/tag
+   so a reader who scrolled all the way down always has one more way to get anywhere on
+   the site, same as any typical site footer. Same --md-footer-* variables as the
+   copyright line below it, not new colors, so the two visually read as one footer. */
+.md-footer-sitemap {
+  background-color: var(--md-footer-bg-color);
+  color: var(--md-footer-fg-color);
+}
+
+.md-footer-sitemap__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding: 1.5rem 0.8rem;
+}
+
+.md-footer-sitemap__group {
+  min-width: 140px;
+}
+
+.md-footer-sitemap__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-footer-fg-color--light);
+}
+
+.md-footer-sitemap__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+}
+
+.md-footer-sitemap__list li {
+  margin: 0.35rem 0;
+}
+
+.md-footer-sitemap__list a {
+  color: var(--md-footer-fg-color--light);
+}
+
+.md-footer-sitemap__list a:hover,
+.md-footer-sitemap__list a:focus {
+  color: var(--md-footer-fg-color);
 }

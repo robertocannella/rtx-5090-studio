@@ -1,11 +1,23 @@
-// A-/A+ buttons in the header let a viewer zoom KaTeX-rendered math up or down,
-// independently of the rest of the page's text size. Tapping a formula itself does the
-// same thing -- right half zooms in, left half zooms out -- so zooming in to read one
-// equation doesn't require a trip back up to the header. Both paths set exactly one CSS
-// custom property (--katex-zoom, see extra.css) that every .katex element on the page
-// already multiplies its own font-size by -- a public post, the LaTeX guide, and the
-// admin editor's view-mode preview panes all pick this up automatically, with nothing
-// here needing to know which kind of page it's on.
+// A-/A+ buttons -- in the site header, and in every admin block's own header (see
+// admin_form.html) -- let a viewer zoom KaTeX-rendered math up or down, independently of
+// the rest of the page's text size. Any element anywhere with a data-katex-zoom-in/-out
+// attribute works via this same delegated listener, so the per-block buttons needed no
+// JS changes of their own to wire up. On public pages, tapping a formula directly does
+// the same thing -- right half zooms in, left half zooms out -- so zooming in to read
+// one equation doesn't require a trip back up to the header. All paths set exactly one
+// CSS custom property (--katex-zoom, see extra.css) that every .katex element on the
+// page already multiplies its own font-size by -- a public post, the LaTeX guide, and
+// the admin editor's view-mode preview panes all pick this up automatically, with
+// nothing here needing to know which kind of page it's on.
+//
+// Formula-tap-to-zoom is deliberately skipped inside .admin-block__view (the admin
+// block editor's own view panes): clicking a block there is how you switch it into edit
+// mode (see admin-blocks.js), and formulas are common enough in this site's content that
+// tap-to-zoom taking priority over that meant clicking a formula to start editing it
+// silently zoomed instead -- reported live as "I miss having the block turn editable
+// when clicking on it." Per-block header buttons are the replacement, not a removal --
+// zooming math while editing a post is still one click away, just not a tap on the
+// formula itself anymore.
 //
 // Persisted in localStorage per browser (not per site-wide setting -- this is a reading
 // preference, not content), wrapped in try/catch since a private window or blocked site
@@ -67,8 +79,10 @@
     // A tap directly on a rendered formula zooms it too -- right half in, left half out --
     // without needing the header buttons at all. Excludes the copy-LaTeX button (a
     // .katex-display's own child, not .katex's) so copying a formula's source never also
-    // zooms it.
+    // zooms it, and excludes the admin block editor's own view panes (see the comment
+    // above) so a click there always means "edit this block," formula or not.
     if (event.target.closest(".katex-copy")) return;
+    if (event.target.closest(".admin-block__view")) return;
     const formula = event.target.closest(".katex");
     if (!formula) return;
     stepZoom(isRightHalf(formula, event.clientX) ? STEP : -STEP);
@@ -83,6 +97,7 @@
   // leaves .katex, not on every move between its inner glyph spans) out of a single
   // delegated listener, rather than binding enter/leave per formula.
   document.addEventListener("mousemove", (event) => {
+    if (event.target.closest(".admin-block__view")) return;
     const formula = event.target.closest(".katex");
     if (!formula) return;
     const rightHalf = isRightHalf(formula, event.clientX);

@@ -170,6 +170,18 @@ render both the top tab bar and the primary sidebar's nav tree -- adding a new n
 page means adding an entry there and a route; blog posts and categories need neither,
 both are already data-driven from whatever exists in the database.
 
+### Footer sitemap
+
+Every page's `<footer class="md-footer">` gets a second block above Material's own
+plain copyright line (`.md-footer-meta`, untouched): `.md-footer-sitemap`, three columns
+(Site, Categories, Tags), sharing the same `--md-footer-bg-color`/`--md-footer-fg-color*`
+variables so it reads as one footer rather than two visually distinct pieces stacked on
+top of each other. Site reuses `nav_tabs` (the same list the top tab bar and primary
+sidebar already loop over) plus a hardcoded `/feed.xml` link -- not a fourth copy of
+Home/Blog/LaTeX Guide/Matplotlib Guide to keep in sync by hand. Categories/Tags reuse
+`all_categories`/`all_tags` exactly like the Browse sidebar below, and each column is
+omitted (not rendered empty) when there's nothing to list yet.
+
 ### Browse sidebar (categories and tags)
 
 A small, custom, collapsed-by-default panel pinned to the right edge of every page,

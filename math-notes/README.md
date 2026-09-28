@@ -83,6 +83,16 @@ under a "Matplotlib" tab labeled with, so the file itself has no top-level headi
 this public page, so both places get the presentation that actually fits them from one
 shared source, with nothing to keep in sync by hand.
 
+## Footer sitemap
+
+Every page's footer lists Site (the same `NAV_ITEMS` the top tab bar uses, plus the RSS
+feed), Categories, and Tags -- three columns, each omitted if it'd be empty (Categories/
+Tags on a database with zero posts). `templates/base.html`'s `.md-footer-sitemap`, styled
+in `extra.css` with the same `--md-footer-*` variables the copyright line below it
+already used, so the two read as one footer rather than two different-looking blocks
+stacked on top of each other. Fully data-driven, nothing to maintain by hand when a post,
+category, or tag is added.
+
 ## Browse sidebar (categories and tags)
 
 A small, collapsed-by-default panel on the right edge of every page lists every category

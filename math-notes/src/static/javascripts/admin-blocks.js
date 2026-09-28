@@ -238,14 +238,20 @@ document.addEventListener("click", (event) => {
   // for editing -- the Edit button is there for discoverability, but most block editors
   // let you just click into the content itself. This must NOT fire for a click on
   // something natively interactive inside the rendered content itself (a <summary>
-  // toggling a details block open/closed again, a link, an image, a rendered formula
-  // tapped to zoom it -- see katex-zoom.js) -- those clicks bubble up here the same as
-  // any other click in the view pane, and should do their own native thing rather than
-  // being read as "enter edit mode" (render.expand_details_blocks starts every details
-  // block open specifically to avoid needing this click in the first place, but the
-  // native toggle remains clickable regardless of its initial state).
+  // toggling a details block open/closed again, a link, an image) -- those clicks bubble
+  // up here the same as any other click in the view pane, and should do their own native
+  // thing rather than being read as "enter edit mode" (render.expand_details_blocks
+  // starts every details block open specifically to avoid needing this click in the
+  // first place, but the native toggle remains clickable regardless of its initial
+  // state). Formulas are deliberately NOT excluded here (an earlier version excluded
+  // .katex too, so a tap could zoom it via katex-zoom.js) -- reported live as "I miss
+  // having the block turn editable when clicking on it," since posts are full of math
+  // and every click on a formula silently zoomed instead of opening the block. Zooming
+  // math while editing is now a click on the block's own header buttons instead (see
+  // admin_form.html); katex-zoom.js skips its own tap-to-zoom handling inside
+  // .admin-block__view for the same reason, so the two features don't compete again.
   const view = event.target.closest(".admin-block__view");
-  if (view && !event.target.closest("summary, a, button, img, .katex")) {
+  if (view && !event.target.closest("summary, a, button, img")) {
     const block = view.closest(".admin-block");
     if (block.dataset.mode === "view") {
       adminBlockEnterEditMode(block);
