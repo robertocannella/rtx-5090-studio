@@ -246,9 +246,20 @@ html {
    categories-panel.js) -- not one independent popout per tab. An earlier version gave
    Matplotlib its own separate toggle+body stacked below Browse's, which pushed its body
    down by however tall Browse's own toggle (and, if open, its body) happened to be --
-   reported live as the popup opening too low on the page and its content being
-   unreachable below the bottom of the viewport. Sharing one body anchored right after
-   the tab row fixes both: it always opens at the same height, however many tabs exist. */
+   reported live as the popup opening too low and unreachable below the bottom of the
+   viewport. Sharing one body was meant to fix that by anchoring it right after the tab
+   row -- but the tab row's own height isn't fixed either: .categories-panel__toggle is
+   `writing-mode: vertical-rl`, so its text stacks top-to-bottom, meaning a *longer label*
+   makes a *taller* button ("Matplotlib" is noticeably taller than "Browse") -- so the
+   body still ended up pushed down by an amount that depends on which tabs exist and what
+   they're labeled, and the max-height below still didn't account for that, so the same
+   "can't reach the bottom, even scrolling" report recurred.
+
+   Fixed for real this time by taking .categories-panel__body out of the tabs' flow
+   entirely (position: absolute, anchored to .categories-panel's own top -- the same
+   fixed offset the tabs start at) and giving .categories-panel__toggle a fixed `width`,
+   so however tall a label makes a tab, the body always opens at the exact same height,
+   beside the tabs rather than below them. */
 .side-panels {
   position: fixed;
   top: 4.8rem;
@@ -257,9 +268,7 @@ html {
 }
 
 .categories-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  position: relative;
 }
 
 .categories-panel__tabs {
@@ -272,6 +281,8 @@ html {
 .categories-panel__toggle {
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  width: 2.1rem;
+  line-height: 1.2;
   background: var(--md-primary-fg-color);
   color: var(--md-primary-bg-color);
   border: none;
@@ -290,6 +301,12 @@ html {
   filter: brightness(1.15);
 }
 
+.categories-panel__body {
+  position: absolute;
+  top: 0;
+  right: 2.1rem;
+}
+
 .categories-panel__body[hidden] {
   display: none;
 }
@@ -297,18 +314,18 @@ html {
 /* Each pane carries its own box chrome (rather than one shared box on .body) since
    Browse's short link list and the Matplotlib quick reference's prose/code sample need
    very different widths -- .categories-panel__body itself is just a hidden/shown
-   wrapper, sized by whichever one pane is currently visible. Every pane also gets the
-   same max-height/scroll treatment: the panel always opens right below the tab row now
-   (see the comment above), but a reference long enough to exceed the viewport's
-   remaining height should still scroll internally instead of running off the bottom. */
+   positioning wrapper, sized by whichever one pane is currently visible. Every pane also
+   gets the same max-height/scroll treatment: the body now always opens at .side-panels'
+   own fixed top offset (4.8rem) regardless of tab labels (see the comment above), so a
+   reference long enough to exceed the viewport's remaining height scrolls internally
+   instead of running off the bottom. */
 .categories-panel__pane {
   background: var(--md-default-bg-color);
   border: 1px solid var(--md-default-fg-color--lightest);
-  border-right: none;
-  border-radius: 0.2rem 0 0 0.2rem;
+  border-radius: 0.2rem;
   padding: 0.75rem 1rem;
   box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.15);
-  max-height: calc(100vh - 7rem);
+  max-height: calc(100vh - 4.8rem - 2rem);
   overflow-y: auto;
 }
 
