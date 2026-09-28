@@ -257,6 +257,41 @@ def test_individual_post_404_for_unknown_slug(client):
     assert resp.status_code == 404
 
 
+def test_post_page_has_print_button_and_hide_answers_checkbox(client):
+    db.create_post("Printable Post", "Physics", "Body.")
+    resp = client.get("/blog/printable-post/")
+    assert resp.status_code == 200
+    assert 'id="post-print-button"' in resp.text
+    assert 'id="post-hide-answers"' in resp.text
+    assert "Print / Save as PDF" in resp.text
+    assert "Hide answers when printing" in resp.text
+    # Screen-only controls -- must never show up on the printed page itself.
+    assert '<li class="md-nav__item no-print">' in resp.text
+
+
+def test_print_js_toggles_hide_answers_class_before_printing(client):
+    resp = client.get("/javascripts/print.js")
+    assert resp.status_code == 200
+    assert "post-print-button" in resp.text
+    assert "post-hide-answers" in resp.text
+    assert "mn-print-hide-answers" in resp.text
+    assert "window.print()" in resp.text
+
+
+def test_print_css_hides_chrome_and_reveals_collapsed_content(client):
+    resp = client.get("/stylesheets/extra.css")
+    assert resp.status_code == 200
+    assert "@media print" in resp.text
+    # Site chrome stripped for print.
+    assert ".md-header," in resp.text
+    # Collapsed admonitions forced open so their content actually prints.
+    assert ".md-typeset details > *:not(summary)" in resp.text
+    # A graph's click-to-reveal button/modal unwrapped into plain inline content.
+    assert ".plot-widget__modal {" in resp.text
+    # The "Hide answers" checkbox's effect, scoped to the Solution convention specifically.
+    assert "body.mn-print-hide-answers .md-typeset .admonition.success" in resp.text
+
+
 def test_category_page_filters_posts(client):
     db.create_post("Physics Post", "Physics", "Body.")
     db.create_post("Algebra Post", "Algebra", "Body.")

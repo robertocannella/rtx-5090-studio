@@ -265,6 +265,38 @@ which corrupts the rendering of the whole block, in a way that got dramatically 
 entire second example's content bleeding into the first) once a second such example was
 added nearby.
 
+### Printing a post / saving it as PDF
+
+`post.html`'s metadata sidebar has a **Print / Save as PDF** button and a **Hide answers
+when printing** checkbox. Deliberately no server-side PDF library and no headless
+browser -- `window.print()` (`static/javascripts/print.js`) plus a real `@media print`
+block in `extra.css` is the entire implementation; the browser's own print dialog already
+offers "Save as PDF" as a printer target, so that's the actual file-creation step.
+
+The print stylesheet does three things beyond the obvious "hide the header/nav/sidebars/
+footer/side-panels":
+
+- **Forces every `<details>` open for print** (`.md-typeset details > *:not(summary) {
+  display: block !important; }`) -- a collapsed `!!!`/`??? ` admonition (the default state
+  on every public page) only shows its `<summary>` when printed otherwise, same as on
+  screen. This is a plain CSS override, not a JS-driven `open` attribute change, since
+  flipping the attribute would also change what's shown on screen, not just on paper.
+- **Unwraps a graph's click-to-reveal button + modal** (`render_plots.py`'s
+  `.plot-widget__modal`) into plain inline content -- neither a button nor a fixed-
+  position modal overlay means anything on paper, so the button/backdrop/close controls
+  are hidden and the modal's positioning is reset to flow normally in the page.
+- **Hides `??? success "Solution"` blocks specifically, only when checked** --
+  `print.js` sets `mn-print-hide-answers` on `<body>` right before calling
+  `window.print()`; the stylesheet then hides `.md-typeset .admonition.success`
+  (this site's own established convention for a word problem's answer -- see "Writing a
+  post" above) under that one condition. A `!!! question "Problem"` or any other
+  admonition type is unaffected either way, checked or not.
+
+`#post-print-button` reuses `.md-nav__link` purely for its icon+text flex layout, to sit
+visually alongside the metadata list's other entries (date, category, Edit post) -- but
+that class is normally only ever applied to `<a>` tags, which have no default browser
+button chrome to begin with. `extra.css` resets it by hand for this one `<button>`.
+
 ## Matplotlib graphs
 
 A post can embed a real matplotlib figure, shown only on demand in a popup -- e.g. the

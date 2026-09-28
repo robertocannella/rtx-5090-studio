@@ -489,3 +489,97 @@ html {
 .md-footer-sitemap__list a:focus {
   color: var(--md-footer-fg-color);
 }
+
+/* Print / Save-as-PDF support (post.html's Print button + Hide answers checkbox,
+   static/javascripts/print.js). No new dependency -- no server-side PDF library, no
+   headless browser -- the browser's own print dialog already offers "Save as PDF" as a
+   printer target, so this is just a good @media print stylesheet plus a button that
+   calls window.print().
+
+   #post-print-button reuses .md-nav__link purely for its icon+text layout/spacing, to
+   sit visually alongside the metadata list's other entries (date, category, Edit post)
+   -- but that class is normally only ever applied to <a> tags, which have no default
+   browser chrome to begin with. A plain <button> does (background, border, its own
+   font), so those need resetting by hand here, unlike every other .md-nav__link on the
+   page. */
+#post-print-button {
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+#post-print-button:hover {
+  color: var(--md-accent-fg-color);
+}
+
+@media print {
+  /* Strip every bit of site chrome -- header, nav tabs, both content sidebars, footer,
+     the Browse/Matplotlib side panel, and anything explicitly marked screen-only (the
+     print controls themselves) -- leaving just the post's own title and body. */
+  .md-header,
+  .md-tabs,
+  .md-sidebar,
+  .md-footer,
+  .side-panels,
+  .md-dialog,
+  .no-print {
+    display: none !important;
+  }
+
+  /* A collapsed <details> (every !!!/??? admonition defaults to collapsed on public
+     pages) only shows its <summary> when printed, not its actual content -- "closed" IS
+     its rendered/printed state, same as on screen, unless overridden. This standard
+     override (a higher-specificity rule forcing the content visible) forces every
+     admonition to print in full regardless of its open/closed state on screen, without
+     needing JS to flip each one's `open` attribute -- which would also change what's
+     shown on screen, not just on paper. */
+  .md-typeset details > *:not(summary) {
+    display: block !important;
+  }
+
+  /* A graph is normally hidden behind a click-to-reveal button + modal (render_plots.py)
+     -- neither makes sense on paper. Show the image inline where the button was instead:
+     drop the modal's fixed/centered overlay positioning, and hide the button/backdrop/
+     close controls that only make sense with a mouse. */
+  .plot-widget__toggle,
+  .plot-widget__backdrop,
+  .plot-widget__close {
+    display: none !important;
+  }
+  .plot-widget__modal {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+  }
+  .plot-widget__box {
+    position: static !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    padding: 0 !important;
+  }
+  .plot-widget__box img {
+    max-width: 100% !important;
+  }
+
+  /* The copy-LaTeX-source button is a screen-only convenience -- nothing to click on
+     paper. KaTeX's own rendered math prints normally either way. */
+  .katex-copy {
+    display: none !important;
+  }
+
+  /* Set by print.js right before calling window.print(), based on the "Hide answers"
+     checkbox. ??? success "Solution" is this site's own established convention for a
+     word problem's answer (see docs/MATH-NOTES.md) -- targets any admonition styled as
+     "success", not just a <details> specifically, so a non-collapsible !!! success
+     block (unusual, but not invalid) would still be hidden too. A plain "Note" or "Tip"
+     admonition (a different color/class) is unaffected, and still prints normally. */
+  body.mn-print-hide-answers .md-typeset .admonition.success {
+    display: none !important;
+  }
+}

@@ -108,6 +108,23 @@ dash-joined URL (`/blog/tag/constant-acceleration/`), not a raw space -- every l
 built that way (see `_topic_slug` in `app.py`), and the route handlers match against the
 same slug, not a plain `.lower()`.
 
+## Printing a post / saving it as a PDF
+
+Every post page has a **Print / Save as PDF** button and a **Hide answers when printing**
+checkbox in its metadata sidebar. No server-side PDF library, no headless browser -- it's
+`window.print()` plus a real `@media print` stylesheet (`extra.css`): site chrome (header,
+nav, both sidebars, footer, the Browse/Matplotlib panel) is stripped, every `!!!`/`???`
+admonition is forced to print in full regardless of whether it's collapsed on screen, and
+a graph's click-to-reveal button/modal is unwrapped so the image just prints inline. The
+browser's own print dialog already offers "Save as PDF" as a printer target, so that's
+the actual PDF-creation step -- nothing here generates a PDF file directly.
+
+Checking "Hide answers" (`static/javascripts/print.js`) sets a class on `<body>` right
+before calling `window.print()`, which the print stylesheet uses to hide every `???
+success "Solution"` block specifically (this site's own established convention for a
+word problem's answer -- see "Admonition types" below) -- a `!!! question "Problem"` or
+a plain "Note"/"Tip" admonition is unaffected either way.
+
 Same panel, admin editor only: a **Matplotlib** tab alongside Browse, showing a quick
 reference for the ` ```matplotlib ` syntax (`content/matplotlib_quickref.md`) while
 you're writing a post. Browse and Matplotlib are tabs sharing one panel body, not two
