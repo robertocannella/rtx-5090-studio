@@ -164,11 +164,11 @@ word-problem and graph syntax in full.
 
 ## Navigation
 
-The three tabs across the top of every page (Home, Blog, LaTeX Guide) are a plain list in
-`app.py` (`NAV_ITEMS`), looped over once in `templates/base.html` to render both the top
-tab bar and the primary sidebar's nav tree -- adding a new non-blog page means adding an
-entry there and a route; blog posts and categories need neither, both are already
-data-driven from whatever exists in the database.
+The four tabs across the top of every page (Home, Blog, LaTeX Guide, Matplotlib Guide)
+are a plain list in `app.py` (`NAV_ITEMS`), looped over once in `templates/base.html` to
+render both the top tab bar and the primary sidebar's nav tree -- adding a new non-blog
+page means adding an entry there and a route; blog posts and categories need neither,
+both are already data-driven from whatever exists in the database.
 
 ### Browse sidebar (categories and tags)
 
@@ -214,15 +214,32 @@ this bug.
 (`content/matplotlib_quickref.md`, rendered once at startup like `index.md`/
 `latex_guide.md`; `show_matplotlib_help`/`matplotlib_help_html` are only set on the four
 `admin_form.html` render sites -- new/edit forms and their error re-renders -- not the
-list or read-only saved-post view). Browse and Matplotlib are tabs sharing *one* panel
-body, not two independent popouts: each tab shows/hides its own `.categories-panel__pane`
-inside that shared body (`data-panel-tab`/`data-panel-pane` attributes, matched in
-`categories-panel.js`), so opening either tab always starts at the same height. An
-earlier version gave each tab its own separate toggle+body pair, stacked one below the
-other in the flex column -- which pushed a later tab's popup down by however tall the
-earlier tabs' own toggles (and, if open, their bodies) happened to be, reported live as
-the popup opening too low on the page and running off the bottom of the viewport with no
-way to scroll to the rest of it.
+list or read-only saved-post view). The same content also backs a real public nav page,
+**Matplotlib Guide** (`/matplotlib-guide/`, alongside Home/Blog/LaTeX Guide in
+`NAV_ITEMS`) -- `lifespan` renders `matplotlib_quickref.md` twice: once as-is for the
+compact admin panel (which needs no page title of its own, already sitting under a
+"Matplotlib" tab label), once with a `# Matplotlib Guide` heading prepended in Python
+(not written into the `.md` file itself) for the public page, which -- like every other
+top-level page -- needs a real, single H1 for `secondary_toc` to nest the rest of its
+headings under.
+
+Browse and Matplotlib are tabs sharing *one* panel body, not two independent popouts:
+each tab shows/hides its own `.categories-panel__pane` inside that shared body
+(`data-panel-tab`/`data-panel-pane` attributes, matched in `categories-panel.js`), so
+opening either tab always starts at the same height. An earlier version gave each tab its
+own separate toggle+body pair, stacked one below the other in the flex column -- which
+pushed a later tab's popup down by however tall the earlier tabs' own toggles (and, if
+open, their bodies) happened to be, reported live as the popup opening too low and
+running off the bottom of the viewport. Sharing one body was a first attempt at fixing
+that, but didn't fully work: `.categories-panel__toggle` is `writing-mode: vertical-rl`,
+so a *longer label* makes a *taller* button ("Matplotlib" is noticeably taller than
+"Browse"), so the shared body -- positioned in normal flow right after the tab row --
+still ended up pushed down by an amount that depends on which tabs exist, and the exact
+same report recurred. Fixed for real by taking `.categories-panel__body` out of the tab
+row's flow entirely (`position: absolute`, anchored to `.categories-panel`'s own top --
+the same fixed offset the tabs start at) and giving `.categories-panel__toggle` a fixed
+`width`, so the body always opens at the same height beside the tabs, independent of any
+tab's label length.
 
 The quick reference's own matplotlib examples have to be wrapped in an outer 4-backtick
 fence (the same trick this section's own code sample above uses) so the literal
@@ -230,10 +247,11 @@ fence (the same trick this section's own code sample above uses) so the literal
 outer fence, `pymdownx.superfences` tries to parse the inner 3-backtick line as a real
 fence header -- it isn't valid fence syntax on its own (the `name="..." title="..."`
 attribute syntax is `render_plots.py`'s own regex convention, matched and stripped out of
-real post content *before* Markdown ever runs; this panel renders straight through plain
-`render.render_markdown()` with no such preprocessing step) -- which corrupts the
-rendering of the whole block, in a way that got dramatically worse (an entire second
-example's content bleeding into the first) once a second such example was added nearby.
+real post content *before* Markdown ever runs; both the panel and the public page render
+straight through plain `render.render_markdown()` with no such preprocessing step) --
+which corrupts the rendering of the whole block, in a way that got dramatically worse (an
+entire second example's content bleeding into the first) once a second such example was
+added nearby.
 
 ## Matplotlib graphs
 

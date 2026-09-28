@@ -122,6 +122,50 @@ def test_latex_guide_page_renders_markdown_and_katex(client):
     assert "\\frac{1}{2}" in resp.text
 
 
+def test_matplotlib_guide_nav_tab_appears_on_public_pages(client):
+    resp = client.get("/")
+    assert 'href="/matplotlib-guide/"' in resp.text
+    assert ">Matplotlib Guide<" in resp.text
+
+
+def test_matplotlib_guide_page_renders_the_full_reference(client):
+    resp = client.get("/matplotlib-guide/")
+    assert resp.status_code == 200
+    assert "<h1" in resp.text and "Matplotlib Guide" in resp.text
+    assert 'name="projectile-trajectory"' in resp.text
+    assert 'name="distance-with-final-point"' in resp.text  # marking a specific point
+    assert "ax.annotate" in resp.text
+
+
+def test_matplotlib_guide_page_is_not_admin_only(client):
+    # Unlike the admin editor's compact Matplotlib tab (gated by show_matplotlib_help),
+    # this is a real public nav page -- reachable and identical for every visitor.
+    resp = client.get("/matplotlib-guide/")
+    assert resp.status_code == 200
+    assert "is_admin" not in resp.text  # sanity: never leaks template variable names raw
+
+
+def test_admin_matplotlib_panel_still_has_no_page_heading(client):
+    # The admin side-panel's copy of this content and the public page's copy come from
+    # the same source file -- the public page gets its own "Matplotlib Guide" <h1>
+    # prepended (see app.py's lifespan), the compact admin panel does not, since it
+    # already sits under a "Matplotlib" tab label and has no room to spare.
+    db.create_post("Some Post", "Meta", "Body.")
+    resp = client.get("/admin/new")
+    assert resp.status_code == 200
+    idx = resp.text.find('data-panel-pane="matplotlib"')
+    pane_start = resp.text.find(">", idx) + 1
+    pane_html = resp.text[pane_start:pane_start + 200]
+    assert "<h1" not in pane_html
+
+
+def test_search_index_includes_matplotlib_guide(client):
+    resp = client.get("/search/search_index.json")
+    assert resp.status_code == 200
+    locations = {d["location"] for d in resp.json()["docs"]}
+    assert "matplotlib-guide/" in locations
+
+
 def test_blog_index_empty(client):
     resp = client.get("/blog/")
     assert resp.status_code == 200

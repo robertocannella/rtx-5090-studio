@@ -31,10 +31,15 @@ def _plain_text(html):
     return " ".join(_TAG_RE.sub(" ", html).split())
 
 
-def build_index(home_html, latex_guide_html, posts):
+def build_index(home_html, latex_guide_html, matplotlib_guide_html, posts):
     docs = [
         {"location": "", "title": "Math Notes", "text": _plain_text(home_html)},
         {"location": "latex-guide/", "title": "LaTeX Guide", "text": _plain_text(latex_guide_html)},
+        {
+            "location": "matplotlib-guide/",
+            "title": "Matplotlib Guide",
+            "text": _plain_text(matplotlib_guide_html),
+        },
     ]
     for post in posts:
         docs.append({

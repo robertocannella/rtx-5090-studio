@@ -56,21 +56,32 @@ protection on `/admin/*` is still Caddy's `basic_auth`, unaffected by any of thi
 Write a fenced ` ```matplotlib name="..." ` code block in a post's body -- saving the post
 executes it (`render_plots.py`), saves the figure as a PNG, and replaces the block with a
 button that pops the image open in a modal. See the live
-**[LaTeX Guide](https://math.example.com/latex-guide/)**'s "Adding a graph"
-section for the exact syntax and a full example. A mistake in the plotting code is
-reported right on the admin save form -- the post isn't saved until it's fixed.
+**[Matplotlib Guide](https://math.example.com/matplotlib-guide/)** for the full
+syntax, common physics plots (distance/velocity vs. time), and marking a specific point
+(e.g. $x_f$) on a graph -- also linked from the LaTeX Guide's own shorter "Adding a graph"
+section. A mistake in the plotting code is reported right on the admin save form -- the
+post isn't saved until it's fixed.
 
 A plain `print(...)` in the block's code is captured and shown in a small monospace
 block right next to the image (both in the public popup and the admin editor's preview) --
 persisted alongside the PNG as `{name}.txt` so the editor's view-mode preview can show it
-without re-running any code. The admin editor also has its own quick reference for this
-syntax -- see "Matplotlib quick-reference panel" below.
+without re-running any code. The admin editor also has its own compact copy of this same
+reference in its side panel -- see "Browse sidebar (categories and tags)" below.
 
-## Adding a non-blog page (Home, LaTeX Guide)
+## Adding a non-blog page (Home, LaTeX Guide, Matplotlib Guide)
 
 These are plain Markdown files under `src/content/`, rendered once at app startup, listed
 in `app.py`'s `NAV_ITEMS` (which drives both the top tab bar and the primary sidebar) --
 add the file, add a route in `app.py`, add an entry to `NAV_ITEMS`.
+
+The Matplotlib Guide is the one exception: its `.md` file (`matplotlib_quickref.md`) is
+also reused, as-is, for the admin editor's compact side-panel reference (see below) --
+that panel is too narrow to spare room for a repeated page title it's already sitting
+under a "Matplotlib" tab labeled with, so the file itself has no top-level heading.
+`app.py`'s `lifespan` renders it twice: once plain for the panel, once with a
+`# Matplotlib Guide` heading prepended in Python (not written into the `.md` file) for
+this public page, so both places get the presentation that actually fits them from one
+shared source, with nothing to keep in sync by hand.
 
 ## Browse sidebar (categories and tags)
 

@@ -54,18 +54,31 @@ _home_toc = None
 _latex_guide_html = None
 _latex_guide_toc = None
 _matplotlib_quickref_html = None
+_matplotlib_guide_html = None
+_matplotlib_guide_toc = None
 
 
 @asynccontextmanager
 async def lifespan(app):
-    global _home_html, _home_toc, _latex_guide_html, _latex_guide_toc, _matplotlib_quickref_html
+    global _home_html, _home_toc, _latex_guide_html, _latex_guide_toc
+    global _matplotlib_quickref_html, _matplotlib_guide_html, _matplotlib_guide_toc
     db.init_db()
     _home_html, _home_toc = render.render_markdown((CONTENT_DIR / "index.md").read_text(encoding="utf-8"))
     _latex_guide_html, _latex_guide_toc = render.render_markdown(
         (CONTENT_DIR / "latex_guide.md").read_text(encoding="utf-8")
     )
+    # Same source content, two homes: a compact tab in the admin editor's side panel
+    # (no heading of its own -- it already sits under a "Matplotlib" tab label, and the
+    # panel is too narrow to spare the space) and this full public page (which, like
+    # every other top-level page, needs a real, single H1 for its own title and for
+    # secondary_toc to correctly treat the rest as nested under it). The public version's
+    # H1 is prepended here, once, rather than written into the shared .md file itself, so
+    # the admin panel's copy stays exactly as compact as it already was.
     _matplotlib_quickref_html, _ = render.render_markdown(
         (CONTENT_DIR / "matplotlib_quickref.md").read_text(encoding="utf-8")
+    )
+    _matplotlib_guide_html, _matplotlib_guide_toc = render.render_markdown(
+        "# Matplotlib Guide\n\n" + (CONTENT_DIR / "matplotlib_quickref.md").read_text(encoding="utf-8")
     )
     yield
 
@@ -80,6 +93,7 @@ NAV_ITEMS = [
     ("home", "Home", "/"),
     ("blog", "Blog", "/blog/"),
     ("latex-guide", "LaTeX Guide", "/latex-guide/"),
+    ("matplotlib-guide", "Matplotlib Guide", "/matplotlib-guide/"),
 ]
 
 
@@ -287,6 +301,13 @@ def latex_guide(request: Request):
     return templates.TemplateResponse(request, "simple_page.html", ctx)
 
 
+@app.get("/matplotlib-guide/")
+def matplotlib_guide(request: Request):
+    ctx = _base_context(request, "matplotlib-guide", "Matplotlib Guide", "Matplotlib Guide - Math Notes")
+    ctx.update({"content_html": _matplotlib_guide_html, "toc_tokens": render.secondary_toc(_matplotlib_guide_toc)})
+    return templates.TemplateResponse(request, "simple_page.html", ctx)
+
+
 @app.get("/assets/plots/{slug}/{filename}")
 def plot_image(slug: str, filename: str):
     post_plots_dir = db.PLOTS_DIR / slug
@@ -308,7 +329,7 @@ def vendor_asset(path: str):
 @app.get("/search/search_index.json")
 def search_index():
     posts = db.list_posts()
-    return JSONResponse(search.build_index(_home_html, _latex_guide_html, posts))
+    return JSONResponse(search.build_index(_home_html, _latex_guide_html, _matplotlib_guide_html, posts))
 
 
 @app.get("/feed.xml")
