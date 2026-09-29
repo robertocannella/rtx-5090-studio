@@ -137,6 +137,16 @@ def test_admin_textarea_keeps_native_scroll_as_a_fallback_to_auto_grow(client):
     assert "overflow-y: hidden;" not in resp.text
 
 
+def test_admin_form_widened_to_match_the_sites_own_content_column(client):
+    # Was a much narrower, arbitrary 700px -- cramped for a block's textarea, a
+    # matplotlib code block especially. 61rem matches Material's own .md-grid
+    # max-width elsewhere on the site, not a second arbitrary number.
+    resp = client.get("/admin/new")
+    assert resp.status_code == 200
+    assert "max-width: 61rem;" in resp.text
+    assert "max-width: 700px" not in resp.text
+
+
 def test_article_text_and_headings_use_the_tuned_sizes(client):
     # Reported live as "the plain text is tiny" and "###heading gets a bit too small",
     # while h1/h2 were already fine -- the base .md-typeset size grows (which h3/h4/body
