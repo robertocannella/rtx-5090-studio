@@ -204,29 +204,38 @@ html {
   mask-size: contain;
 }
 
-/* The A-/A+ header buttons that adjust --katex-zoom above (static/javascripts/katex-zoom.js).
-   Deliberately its own standalone styling, not Material's .md-header__button/.md-icon --
-   those are built for an SVG icon child specifically (an early version of this reused
-   them for "looks consistent with the header" and ended up invisible: .md-icon sets
-   opacity: 0 unconditionally, meant to be paired with Material's own icon-entrance
-   transition machinery that a plain text button never triggers). Colors reference
-   Material's real CSS variables directly (safe -- those are just custom properties, not
-   classes with their own surprise rules), so it still matches the current theme/palette. */
+/* The magnifying-glass header buttons that adjust --katex-zoom above
+   (static/javascripts/katex-zoom.js) -- a real icon (verified path data from the MDI
+   open-source icon set, same 24x24 viewBox convention as every other inline SVG icon
+   already on this page) reads unambiguously as "zoom" next to a page full of math that
+   already uses its own +/- as actual operators; the original plain "A-"/"A+" text glyphs
+   read as just more math symbols, reported live as "a bit confusing." Deliberately its
+   own standalone styling, not Material's .md-header__button/.md-icon -- those ARE built
+   for an SVG icon child specifically, but pair it with Material's own icon-entrance
+   transition machinery (an early, unrelated version of this button reused those classes
+   for a plain text glyph and ended up invisible, since .md-icon sets opacity: 0
+   unconditionally until that machinery restores it, which a button outside Material's
+   own control never triggers). Colors reference Material's real CSS variables directly
+   (safe -- those are just custom properties, not classes with their own surprise rules),
+   so it still matches the current theme/palette. */
 .katex-zoom {
   display: flex;
   align-items: center;
 }
 
 .katex-zoom__button {
-  font: inherit;
-  font-weight: 700;
-  font-size: 0.75rem;
-  line-height: 1;
+  display: flex;
   border: none;
   background: none;
   cursor: pointer;
   padding: 0.4rem 0.3rem;
   color: var(--md-default-fg-color--light);
+}
+
+.katex-zoom__button svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: currentColor;
 }
 
 .katex-zoom__button:hover,

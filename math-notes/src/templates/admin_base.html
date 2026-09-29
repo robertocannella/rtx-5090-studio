@@ -96,6 +96,9 @@
     cursor: pointer;
   }
   .admin-block__controls button:hover { border-color: var(--md-primary-fg-color); color: var(--md-primary-fg-color); }
+  /* Only the two zoom buttons contain an svg (magnifying-glass icons); this leaves the
+     text-labeled siblings (Generate graph/Done/move arrows/delete) untouched. */
+  .admin-block__controls button svg { width: 1rem; height: 1rem; display: block; fill: currentColor; }
   .admin-block textarea { width: 100%; }
 
   /* A second copy of the same controls below the textarea -- editing a long block (a

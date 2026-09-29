@@ -78,6 +78,21 @@ def test_admin_block_header_has_its_own_zoom_buttons(client):
     assert resp.text.count("data-katex-zoom-in") >= 3
 
 
+def test_katex_zoom_buttons_use_a_magnifying_glass_icon_not_text_glyphs(client):
+    # Plain "A-"/"A+" (site header) and bare "-"/"+" (admin block controls) read as more
+    # math on a page already full of formulas -- reported live as "a bit confusing."
+    # Both locations now use the same magnifying-glass-with-plus/minus SVG icon instead.
+    post_id = db.create_post("Zoom Icon Post", "Meta", "Body.")
+    for path in ("/", f"/admin/{post_id}/edit"):
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert "A&minus;" not in resp.text
+        assert "A&plus;" not in resp.text
+        # The distinctive magnifying-glass-handle path prefix shared by both icons
+        # (magnify-plus-outline/magnify-minus-outline) -- unique among this page's icons.
+        assert resp.text.count("M15.5,14") >= 2
+
+
 def test_admin_block_controls_also_appear_below_the_textarea(client):
     # Editing a long block can scroll the header row (with Done/zoom/etc.) out of view --
     # a second copy right below the textarea keeps them reachable without scrolling back
@@ -90,7 +105,9 @@ def test_admin_block_controls_also_appear_below_the_textarea(client):
     # Each .admin-block__footer carries the exact same controls as the header: toggle,
     # move up/down, delete, zoom -- not a stripped-down subset.
     footer_start = resp.text.find('class="admin-block__footer"')
-    footer_html = resp.text[footer_start:footer_start + 700]
+    # Window widened from 700 -- the two zoom buttons' inline SVG path data (magnifying-
+    # glass icons) is longer than the text glyphs it replaced.
+    footer_html = resp.text[footer_start:footer_start + 1500]
     assert "admin-block__toggle" in footer_html
     assert "admin-block__move-up" in footer_html
     assert "admin-block__move-down" in footer_html
