@@ -124,6 +124,21 @@ def test_admin_blocks_js_auto_grows_textareas(client):
     assert ".forEach(adminBlockAutoGrow)" in resp.text
 
 
+def test_admin_blocks_js_toggles_python_comments_in_matplotlib_blocks_only(client):
+    # Ctrl+/ (or Cmd+/) toggles a "# " line-comment prefix -- but only inside a block
+    # that currently looks like a matplotlib block (real Python, where "#" is an
+    # unambiguous comment syntax). Markdown/LaTeX prose has no equivalent single-
+    # character comment convention, so this is deliberately gated on the same
+    # matplotlib-fence check the Generate graph button already uses, not wired up
+    # unconditionally for every block.
+    resp = client.get("/javascripts/admin-blocks.js")
+    assert resp.status_code == 200
+    assert "function adminBlockToggleComment(textarea)" in resp.text
+    assert 'event.key !== "/"' in resp.text
+    assert "event.ctrlKey || event.metaKey" in resp.text
+    assert "ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE.test(textarea.value)" in resp.text
+
+
 def test_admin_textarea_keeps_native_scroll_as_a_fallback_to_auto_grow(client):
     # A first version set overflow-y: hidden alongside auto-grow, purely to avoid a
     # cosmetic scrollbar flash -- but that left no fallback at all for any case

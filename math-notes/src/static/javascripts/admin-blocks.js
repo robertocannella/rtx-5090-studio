@@ -158,6 +158,73 @@ function adminBlockUpdateGenerateGraphVisibility(block) {
   });
 }
 
+// Ctrl+/ (or Cmd+/ on a Mac) toggles a Python "# " line-comment prefix on the current
+// line, or every line the selection spans -- the same convention essentially every code
+// editor uses. Only wired up inside a block that currently looks like a matplotlib
+// block (same ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE check as the Generate graph button above)
+// -- the code being edited there is real Python, where "#" is one unambiguous comment
+// syntax everyone already knows. Markdown/LaTeX prose has no equivalent single-character
+// comment convention (an HTML comment is block-delimited, not a per-line prefix, and
+// raises its own questions -- where a multi-line selection's <!-- / --> should land,
+// how to detect "already commented" to toggle back off), so this deliberately does
+// nothing there for now rather than guessing at a convention nobody asked for yet.
+const ADMIN_BLOCKS_COMMENT_PREFIX_RE = /^(\s*)#\s?/;
+
+function adminBlockToggleComment(textarea) {
+  const value = textarea.value;
+  const selectionStart = textarea.selectionStart;
+  const selectionEnd = textarea.selectionEnd;
+  const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
+  let lineEnd = value.indexOf("\n", selectionEnd);
+  lineEnd = lineEnd === -1 ? value.length : lineEnd;
+
+  const before = value.slice(0, lineStart);
+  const after = value.slice(lineEnd);
+  const lines = value.slice(lineStart, lineEnd).split("\n");
+
+  // Blank lines never factor into the toggle direction (nothing to comment or
+  // uncomment) -- uncomment only if every *non-blank* touched line is already
+  // commented; otherwise comment all of them, matching how comment-toggling works in
+  // most code editors when a selection is a mix of commented and uncommented lines.
+  const contentLines = lines.filter((line) => line.trim() !== "");
+  const shouldUncomment = contentLines.length > 0 && contentLines.every((line) => ADMIN_BLOCKS_COMMENT_PREFIX_RE.test(line));
+
+  let firstLineDelta = 0;
+  const newLines = lines.map((line, i) => {
+    if (line.trim() === "") return line;
+    if (shouldUncomment) {
+      const newLine = line.replace(ADMIN_BLOCKS_COMMENT_PREFIX_RE, "$1");
+      if (i === 0) firstLineDelta = newLine.length - line.length;
+      return newLine;
+    }
+    if (i === 0) firstLineDelta = 2;
+    return `# ${line}`;
+  });
+
+  const newBlock = newLines.join("\n");
+  textarea.value = before + newBlock + after;
+  textarea.selectionStart = Math.max(lineStart, selectionStart + firstLineDelta);
+  textarea.selectionEnd = lineStart + newBlock.length;
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "/" || !(event.ctrlKey || event.metaKey)) return;
+  const textarea = event.target;
+  const block = textarea.closest(".admin-block");
+  if (textarea.tagName !== "TEXTAREA" || !block) return;
+  if (!ADMIN_BLOCKS_MATPLOTLIB_FENCE_RE.test(textarea.value)) return;
+  event.preventDefault();
+  adminBlockToggleComment(textarea);
+  // Setting .value programmatically (unlike a real keystroke) never fires its own
+  // "input" event, so these two don't run on their own afterward -- called by hand to
+  // stay consistent with what typing the exact same change would have triggered
+  // (Generate graph's visibility depends on the fence line staying intact; the line
+  // count here never actually changes, but keeping this is one less thing to reason
+  // about if that ever stops being true).
+  adminBlockUpdateGenerateGraphVisibility(block);
+  adminBlockAutoGrow(textarea);
+});
+
 // Dragging a <textarea>'s own bottom-right corner (CSS `resize: vertical`, still set in
 // admin_base.html) only ever worked on desktop -- iOS Safari has never implemented that
 // native resize handle at all, on any site, regardless of the `resize` CSS property, so
