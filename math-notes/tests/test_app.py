@@ -147,6 +147,18 @@ def test_admin_form_widened_to_match_the_sites_own_content_column(client):
     assert "max-width: 700px" not in resp.text
 
 
+def test_admin_action_buttons_share_a_consistent_width(client):
+    # Edit/View live/Delete (admin_view.html) each auto-sized to their own text against
+    # Material's fixed button padding, so "Edit" and "Delete" were visibly narrower than
+    # "View live" -- reported live as "the UI is a bit off." A shared min-width brings
+    # the two shorter ones up to match.
+    post_id = db.create_post("Button Sizing Post", "Meta", "Body.")
+    resp = client.get(f"/admin/{post_id}")
+    assert resp.status_code == 200
+    assert ".admin-actions .md-button" in resp.text
+    assert "min-width: 9.5rem" in resp.text
+
+
 def test_article_text_and_headings_use_the_tuned_sizes(client):
     # Reported live as "the plain text is tiny" and "###heading gets a bit too small",
     # while h1/h2 were already fine -- the base .md-typeset size grows (which h3/h4/body

@@ -34,7 +34,15 @@
     min-height: 3rem; font-family: var(--md-code-font); font-size: 0.85rem;
     resize: vertical;
   }
+  /* Edit/View live/Delete (admin_view.html) each auto-size to their own text against
+     Material's fixed .md-button padding (.625em 2em) -- "Edit" and "Delete" end up
+     visibly narrower than "View live" with nothing to normalize them, reported live as
+     "the UI is a bit off." A shared min-width (comfortably fitting the longest label,
+     "View live") brings the two shorter ones up to match without needing to touch
+     Material's own button CSS; text-align: center keeps each label centered in the
+     wider box rather than left-aligned once it's no longer sized to exactly fit. */
   .admin-actions { display: flex; gap: 0.75rem; }
+  .admin-actions .md-button { min-width: 9.5rem; text-align: center; }
   .admin-error { color: #b3261e; font-weight: 700; }
   .admin-saved { color: var(--md-primary-fg-color); font-weight: 700; }
   .admin-row-actions form { display: inline; }
