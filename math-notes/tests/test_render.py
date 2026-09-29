@@ -37,6 +37,17 @@ def test_split_excerpt_without_marker_returns_whole_text_twice():
     assert excerpt == full == "Just one paragraph."
 
 
+def test_split_excerpt_tolerates_a_missing_bang():
+    # A missing `!` (`<-- more -->` instead of `<!-- more -->`) is a one-key typo that's
+    # easy to make on a touchscreen keyboard's cramped symbol layout -- confirmed live on
+    # a real post authored on iOS: the marker went unrecognized entirely, leaving a
+    # stray, literal "<-- more -->" visible on the page instead of silently splitting.
+    excerpt, full = render.split_excerpt("Intro.\n\n<-- more -->\n\nBody.")
+    assert excerpt == "Intro."
+    assert "Body." in full
+    assert "more" not in full
+
+
 def test_normalize_display_math_spacing_isolates_tight_bracket_block():
     text = "Intro.\n\\[\nx^2\n\\]\nOutro."
     normalized = render.normalize_display_math_spacing(text)

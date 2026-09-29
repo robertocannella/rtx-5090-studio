@@ -37,6 +37,16 @@ EXTENSION_CONFIGS = {
 
 EXCERPT_MARKER = "<!-- more -->"
 
+# Matches the marker with its `!` optional -- a one-key typo that's easy to make on a
+# touchscreen keyboard's cramped symbol layout (confirmed live: a real post's `<-- more
+# -->`, missing just the `!`, wasn't recognized at all, leaving it to show up as a stray
+# literal `<-- more -->` on the live page instead of silently splitting the excerpt).
+# Used everywhere EXCERPT_MARKER itself used to be compared/searched for exactly, so a
+# mistyped marker is treated identically to a correct one throughout -- both in the
+# actual render (split_excerpt) and in the admin block editor's segment classification
+# (split_into_segments/classify_segment), not just one or the other.
+EXCERPT_MARKER_RE = re.compile(r"<!?--\s*more\s*-->")
+
 WORDS_PER_MINUTE = 220
 
 
@@ -60,9 +70,10 @@ def split_excerpt(raw_markdown):
     post with the marker itself stripped out. Mirrors the MkDocs blog plugin's own
     excerpt-splitting convention, so existing posts need no rewriting.
     """
-    if EXCERPT_MARKER in raw_markdown:
-        excerpt, _, _ = raw_markdown.partition(EXCERPT_MARKER)
-        full = raw_markdown.replace(EXCERPT_MARKER, "")
+    match = EXCERPT_MARKER_RE.search(raw_markdown)
+    if match:
+        excerpt = raw_markdown[:match.start()]
+        full = EXCERPT_MARKER_RE.sub("", raw_markdown)
         return excerpt.strip(), full.strip()
     return raw_markdown.strip(), raw_markdown.strip()
 
@@ -164,7 +175,7 @@ def split_into_segments(text):
             segments.append("\n".join(lines[start:i]))
             continue
 
-        if stripped == EXCERPT_MARKER:
+        if EXCERPT_MARKER_RE.fullmatch(stripped):
             segments.append(lines[i])
             i += 1
             continue
@@ -198,7 +209,7 @@ def split_into_segments(text):
         i += 1
         while i < n:
             s = lines[i].strip()
-            if s == "" or s.startswith(_FENCE_PREFIX) or s in _MATH_OPENERS or s == EXCERPT_MARKER \
+            if s == "" or s.startswith(_FENCE_PREFIX) or s in _MATH_OPENERS or EXCERPT_MARKER_RE.fullmatch(s) \
                     or s.startswith("!!!") or s.startswith("???"):
                 break
             i += 1
@@ -220,7 +231,7 @@ def classify_segment(segment):
     cosmetic, recomputed fresh from content every time, never stored."""
     stripped = segment.strip()
     first_line = stripped.split("\n", 1)[0].strip()
-    if first_line == EXCERPT_MARKER:
+    if EXCERPT_MARKER_RE.fullmatch(first_line):
         return "Excerpt break"
     if first_line.startswith("```matplotlib"):
         return "Matplotlib graph"

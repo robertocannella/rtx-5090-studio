@@ -115,6 +115,17 @@ def test_split_separates_excerpt_marker_as_its_own_segment():
     assert segments == ["Intro.", "<!-- more -->", "Rest."]
 
 
+def test_split_separates_a_mistyped_excerpt_marker_as_its_own_segment_too():
+    # A missing `!` is still recognized as the marker (see render.EXCERPT_MARKER_RE) --
+    # otherwise the admin block editor would show it as an ordinary paragraph block
+    # instead of labeling it "Excerpt break" (classify_segment), hiding the mistake from
+    # the one place an author would most likely notice and fix it before saving.
+    text = "Intro.\n\n<-- more -->\n\nRest."
+    segments = render.split_into_segments(text)
+    assert segments == ["Intro.", "<-- more -->", "Rest."]
+    assert render.classify_segment(segments[1]) == "Excerpt break"
+
+
 def test_split_heading_is_its_own_segment():
     text = "## A heading\n\nParagraph text."
     segments = render.split_into_segments(text)
