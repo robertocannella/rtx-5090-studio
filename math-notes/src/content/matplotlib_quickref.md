@@ -27,6 +27,8 @@ ax.grid(True)
 - A plain `print(...)` in your code shows up right next to the graph, in a small
   monospace block -- handy for a computed value the graph itself doesn't label, like
   `print(f"time to land: {t_land:.2f} s")`.
+- Add `inline="true"` (after `title`, if there is one) to show the image directly in the
+  post instead of behind a "Show graph" button -- see "Showing a graph inline" below.
 
 ## What runs code, and when
 
@@ -51,6 +53,36 @@ The code block is replaced by a button (labeled by `title`, or "Show graph"); no
 visible until a reader clicks it, which opens the image in a popup. The full syntax,
 plus everything else about writing a post, is also documented on the public
 [LaTeX Guide](/latex-guide/).
+
+## Showing a graph inline
+
+Add `inline="true"` to show the image directly in the post -- no button, no click needed
+to see it at all:
+
+````
+```matplotlib name="inline-example" title="Show inline example" inline="true"
+import numpy as np
+
+t = np.linspace(0, 10, 100)
+x = 3 * t
+
+fig, ax = plt.subplots()
+ax.plot(t, x)
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Distance (m)")
+ax.grid(True)
+```
+````
+
+The image is still clickable -- clicking it opens the exact same enlarge-in-a-popup view
+a non-inline graph's button gives, just without needing that first click to reveal the
+graph in the first place. Whatever the code printed still shows right next to it, same as
+the button version.
+
+`inline="true"` has to come after `title` if there is one (`name="..." title="..."
+inline="true"`) -- same fixed ordering `title` itself already has after `name`. Leave it
+off (the default) for a graph you'd rather keep out of the way until a reader asks for
+it, e.g. a solution's supporting work that would spoil the answer if shown immediately.
 
 ## Common physics plots
 

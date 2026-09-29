@@ -423,6 +423,20 @@ html {
   padding: 0.25rem 0.5rem;
 }
 
+/* A ```matplotlib ... inline="true" block (render_plots.py) -- the image sits directly
+   in the post's own reading flow, no "Show graph" button needed to see it at all, but
+   is itself the click target that opens the exact same enlarge-in-a-modal popup the
+   button gives a non-inline graph (see plot-modal.js, which opens on any [data-plot]
+   element, image or button alike). Sized like any other content image, not like the
+   modal's own (.plot-widget__box img, which additionally caps height for a viewport-
+   sized popup -- an inline image has no such constraint, it's just part of the page). */
+.plot-widget__inline-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  cursor: pointer;
+}
+
 /* Whatever a matplotlib block's own code printed (see render_plots.py's stdout capture)
    -- a computed value like an acceleration or a sanity-checked number is often just as
    useful next to the graph as the graph itself. Shown as-is in a monospace block, not
@@ -565,6 +579,15 @@ html {
   }
   .plot-widget__box img {
     max-width: 100% !important;
+  }
+
+  /* An inline="true" graph's image already prints normally on its own (it was never
+     hidden to begin with) -- its modal exists only for an on-screen click-to-enlarge and
+     holds a second copy of the very same image. Without this, the rule just above would
+     force that modal visible too (same as it does for the non-inline case, where it's
+     the *only* copy), printing the same graph twice. */
+  .plot-widget--inline .plot-widget__modal {
+    display: none !important;
   }
 
   /* The copy-LaTeX-source button is a screen-only convenience -- nothing to click on

@@ -299,14 +299,16 @@ button chrome to begin with. `extra.css` resets it by hand for this one `<button
 
 ## Matplotlib graphs
 
-A post can embed a real matplotlib figure, shown only on demand in a popup -- e.g. the
-trajectory graph in the projectile-motion post, or the position/velocity graphs in the
-airplane-takeoff post. matplotlib is Python-only, so there's no way to run it in the
-reader's browser -- the figure is rendered to a PNG once, at save time.
+A post can embed a real matplotlib figure, by default shown only on demand in a popup --
+e.g. the trajectory graph in the projectile-motion post, or the position/velocity graphs
+in the airplane-takeoff post -- or inline in the post directly (`inline="true"`, see
+below). matplotlib is Python-only, so there's no way to run it in the reader's browser --
+the figure is rendered to a PNG once, at save time.
 
 **Author-facing syntax**: a fenced code block tagged `matplotlib`, with a required `name`
-(used for the image filename and the button's DOM target) and optional `title` (the
-button's label):
+(used for the image filename and the button's DOM target), optional `title` (the
+button's label), and optional `inline="true"` (must come after `title`, same fixed
+ordering `title` already has after `name`):
 
 ````markdown
 ```matplotlib name="projectile-trajectory" title="Show trajectory"
@@ -339,9 +341,24 @@ brand new post's `id` doesn't exist yet at render time -- the `INSERT` that assi
 hasn't happened. Reusing the same `name` twice *within* one post still means the second
 one silently overwrites the first, same as ever.
 
-**The popup**: the image is never shown inline -- only a button, so a post's graph doesn't
-clutter or spoil anything until a reader deliberately asks for it.
-`static/javascripts/plot-modal.js` wires this with plain event delegation on `document`.
+**The popup**: by default the image is never shown inline -- only a button, so a post's
+graph doesn't clutter or spoil anything until a reader deliberately asks for it.
+`static/javascripts/plot-modal.js` wires this with plain event delegation on `document`,
+opening on any click on an element carrying a `data-plot` attribute -- not tied to the
+button specifically, which is what lets the inline case (below) reuse the exact same
+modal/open logic with zero JS changes of its own.
+
+**Inline display**: `inline="true"` on the fence (`render_plots.FENCE_RE`'s third,
+independently optional capture group -- `_is_true()` parses it) renders the image
+directly in the post's own reading flow instead of behind a button
+(`render_plots._widget_html`'s `inline=` branch) -- but the image itself carries the same
+`data-plot="<name>"` attribute the button normally would, so clicking it still opens the
+identical enlarge-in-a-modal view. Whatever the code printed sits next to the always-
+visible image, not duplicated a second time inside the modal (the modal's only job here
+is a bigger look at the same image). The print stylesheet has a dedicated override for
+this case too: the modal-unwrapping rule that makes a *non*-inline graph's image show up
+in print at all would otherwise also force an *inline* graph's already-visible image to
+print a second time from inside its own modal.
 
 **Failure mode**: a mistake in the plotting code (a typo, code that never actually calls a
 plotting function) raises `render_plots.PlotError`, which the admin form displays as a

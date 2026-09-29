@@ -254,3 +254,9 @@ silently broken page on the live site.
 A plain `print(...)` in the code shows up in a small monospace block right
 next to the graph in the popup -- useful for a computed value the graph
 itself doesn't label, like `print(f"time to land: {t_land:.2f} s")`.
+
+Add `inline="true"` (after `title`, if there is one) to show the image
+directly in the post instead of behind a button -- it's still clickable,
+opening the same enlarge-in-a-popup view a button's graph gets, just
+without that first click needed to reveal it. See the full
+**[Matplotlib Guide](/matplotlib-guide/)** for a worked example and more.

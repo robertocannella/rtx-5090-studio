@@ -14,14 +14,21 @@ import matplotlib
 matplotlib.use("Agg")  # headless -- no display server in the container
 import matplotlib.pyplot as plt  # noqa: E402 - must follow matplotlib.use()
 
-# ```matplotlib name="..." title="..."   (title optional)
+# ```matplotlib name="..." title="..." inline="true"   (title, inline both optional --
+# and in that order: inline is only recognized after title, or right after name if
+# title is omitted entirely, same as title itself is already order-locked after name)
 # <python code>
 # ```
 FENCE_RE = re.compile(
-    r'```matplotlib\s+name="(?P<name>[^"]+)"(?:\s+title="(?P<title>[^"]+)")?[ \t]*\n'
+    r'```matplotlib\s+name="(?P<name>[^"]+)"(?:\s+title="(?P<title>[^"]+)")?'
+    r'(?:\s+inline="(?P<inline>[^"]+)")?[ \t]*\n'
     r"(?P<code>.*?)\n```",
     re.DOTALL,
 )
+
+
+def _is_true(value):
+    return (value or "").strip().lower() == "true"
 
 
 class PlotError(Exception):
@@ -85,18 +92,47 @@ def _versioned_src(png_path, assets_url_prefix, name):
     return f"{assets_url_prefix}/{name}.png?v={int(png_path.stat().st_mtime_ns)}"
 
 
-def _widget_html(name, title, src, output=""):
-    label = title or "Show graph"
+def _modal_html(name, label, src, output=""):
     return (
-        f'<div class="plot-widget">\n'
-        f'<button type="button" class="md-button plot-widget__toggle" data-plot="{name}">{label}</button>\n'
         f'<div class="plot-widget__modal" id="plot-modal-{name}" hidden>\n'
         f'<div class="plot-widget__backdrop" data-plot-close="{name}"></div>\n'
         f'<div class="plot-widget__box">\n'
         f'<button type="button" class="plot-widget__close" data-plot-close="{name}" aria-label="Close">&times;</button>\n'
         f'<img src="{src}" alt="{label}">\n'
         f"{_output_html(output)}"
-        f"</div>\n</div>\n</div>\n"
+        f"</div>\n</div>\n"
+    )
+
+
+def _widget_html(name, title, src, output="", inline=False):
+    """Two very different DOMs depending on `inline` -- both open the exact same modal
+    (see plot-modal.js, which opens whatever `#plot-modal-{name}` belongs to any clicked
+    element carrying a `data-plot` attribute, button or image alike):
+
+    - Default (inline=False): a "Show graph" button; the image itself only exists inside
+      the modal, invisible until clicked.
+    - inline=True: the image is visible directly in the post's normal reading flow --
+      no click needed to see it at all -- but is itself the click target for the same
+      enlarge-in-a-modal behavior the button gives, via the same data-plot attribute.
+      Whatever the code printed sits right next to the always-visible image, not
+      duplicated again inside the modal (the modal's only job here is a bigger look at
+      the same image, not a second copy of everything).
+    """
+    label = title or "Show graph"
+    if inline:
+        return (
+            f'<div class="plot-widget plot-widget--inline">\n'
+            f'<img class="plot-widget__inline-img" src="{src}" alt="{label}" '
+            f'data-plot="{name}" title="Click to enlarge">\n'
+            f"{_output_html(output)}"
+            f"{_modal_html(name, label, src)}"
+            f"</div>\n"
+        )
+    return (
+        f'<div class="plot-widget">\n'
+        f'<button type="button" class="md-button plot-widget__toggle" data-plot="{name}">{label}</button>\n'
+        f"{_modal_html(name, label, src, output)}"
+        f"</div>\n"
     )
 
 
@@ -111,8 +147,10 @@ def process(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
         name = match.group("name")
         title = match.group("title")
         code = match.group("code")
+        inline = _is_true(match.group("inline"))
         out_path, output = _render_one(name, code, plots_dir)
-        return _widget_html(name, title, _versioned_src(out_path, assets_url_prefix, name), output)
+        src = _versioned_src(out_path, assets_url_prefix, name)
+        return _widget_html(name, title, src, output, inline=inline)
 
     return FENCE_RE.sub(replace, markdown_text)
 

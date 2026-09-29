@@ -173,6 +173,55 @@ def test_process_omits_output_block_when_nothing_was_printed(tmp_path):
     assert not (tmp_path / "quiet.txt").exists()
 
 
+def test_process_inline_true_shows_image_directly_not_behind_a_button(tmp_path):
+    text = (
+        '```matplotlib name="inline-test" title="Show inline" inline="true"\n'
+        "ax = plt.gca()\n"
+        "ax.plot([0, 1], [0, 1])\n"
+        "```"
+    )
+    result = render_plots.process(text, tmp_path)
+    assert "```matplotlib" not in result
+    assert 'class="plot-widget plot-widget--inline"' in result
+    assert 'class="plot-widget__inline-img"' in result
+    assert 'data-plot="inline-test"' in result
+    assert "plot-widget__toggle" not in result  # no button -- visible directly
+    # Still clickable to open the exact same enlarge-in-a-modal popup a button gives.
+    assert 'id="plot-modal-inline-test"' in result
+    assert (tmp_path / "inline-test.png").exists()
+
+
+def test_process_inline_false_behaves_like_the_default(tmp_path):
+    text = '```matplotlib name="not-inline" inline="false"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    result = render_plots.process(text, tmp_path)
+    assert "plot-widget--inline" not in result
+    assert 'class="md-button plot-widget__toggle"' in result
+
+
+def test_process_inline_true_without_a_title_still_parses(tmp_path):
+    # inline is independently optional from title -- must work with title omitted
+    # entirely, not just right after one.
+    text = '```matplotlib name="no-title-inline" inline="true"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    result = render_plots.process(text, tmp_path)
+    assert 'class="plot-widget__inline-img"' in result
+
+
+def test_process_inline_true_puts_printed_output_next_to_the_image_not_in_the_modal(tmp_path):
+    text = (
+        '```matplotlib name="inline-printy" inline="true"\n'
+        'print("checked: ok")\n'
+        "ax = plt.gca()\n"
+        "ax.plot([0, 1], [0, 1])\n"
+        "```"
+    )
+    result = render_plots.process(text, tmp_path)
+    # The output block appears once, before the modal starts -- not duplicated inside it.
+    inline_img_index = result.index("plot-widget__inline-img")
+    output_index = result.index("checked: ok")
+    modal_index = result.index('id="plot-modal-inline-printy"')
+    assert inline_img_index < output_index < modal_index
+
+
 def test_process_escapes_printed_output(tmp_path):
     text = '```matplotlib name="unsafe"\nprint("<script>alert(1)</script>")\nplt.gca().plot([0, 1])\n```'
     result = render_plots.process(text, tmp_path)

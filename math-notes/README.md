@@ -55,7 +55,9 @@ protection on `/admin/*` is still Caddy's `basic_auth`, unaffected by any of thi
 
 Write a fenced ` ```matplotlib name="..." ` code block in a post's body -- saving the post
 executes it (`render_plots.py`), saves the figure as a PNG, and replaces the block with a
-button that pops the image open in a modal. See the live
+button that pops the image open in a modal. Add `inline="true"` (after `title`, if there
+is one) to show the image directly in the post instead -- it's still clickable, opening
+the same enlarge-in-a-modal view a button's graph gets. See the live
 **[Matplotlib Guide](https://math.example.com/matplotlib-guide/)** for the full
 syntax, common physics plots (distance/velocity vs. time), and marking a specific point
 (e.g. $x_f$) on a graph -- also linked from the LaTeX Guide's own shorter "Adding a graph"

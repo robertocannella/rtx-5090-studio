@@ -489,6 +489,41 @@ def test_matplotlib_post_shows_printed_output_next_to_the_graph(client):
     assert "acceleration = 2.31 m/s^2" in resp.text
 
 
+def test_matplotlib_inline_graph_shows_directly_and_is_still_clickable(client):
+    body = (
+        '```matplotlib name="inline-graph" title="Show inline graph" inline="true"\n'
+        "ax = plt.gca()\n"
+        "ax.plot([0, 1], [0, 1])\n"
+        "```"
+    )
+    db.create_post("Inline Graph Post", "Physics", body)
+    resp = client.get("/blog/inline-graph-post/")
+    assert resp.status_code == 200
+    assert 'class="plot-widget plot-widget--inline"' in resp.text
+    assert 'class="plot-widget__inline-img"' in resp.text
+    assert 'data-plot="inline-graph"' in resp.text
+    assert "plot-widget__toggle" not in resp.text
+    assert 'id="plot-modal-inline-graph"' in resp.text  # click-to-enlarge still works
+
+    image_resp = client.get("/assets/plots/inline-graph-post/inline-graph.png")
+    assert image_resp.status_code == 200
+
+
+def test_plot_modal_js_opens_on_any_data_plot_element(client):
+    # Not scoped to .plot-widget__toggle specifically -- an inline="true" graph's image
+    # carries the same data-plot attribute a button normally would, with no JS changes
+    # of its own needed to open the identical modal.
+    resp = client.get("/javascripts/plot-modal.js")
+    assert resp.status_code == 200
+    assert '.closest("[data-plot]")' in resp.text
+
+
+def test_print_css_avoids_duplicating_an_inline_graphs_image(client):
+    resp = client.get("/stylesheets/extra.css")
+    assert resp.status_code == 200
+    assert ".plot-widget--inline .plot-widget__modal" in resp.text
+
+
 def test_two_posts_can_reuse_the_same_graph_name_without_colliding(client):
     # A graph's `name` only has to be unique within one post -- db._render() namespaces
     # every graph under its own post's slug specifically so two unrelated posts can each

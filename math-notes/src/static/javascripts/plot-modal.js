@@ -4,8 +4,13 @@
 // each swap), this attaches its listeners once, directly on `document` -- delegated
 // listeners survive every page swap automatically, since `document` itself is never
 // replaced, only its descendant content is. No per-page rewiring needed either way.
+//
+// Opens on any [data-plot] element, not just the "Show graph" button specifically --
+// an inline="true" graph (render_plots.py) shows the image directly in the post, with
+// no button at all, but the image itself carries the same data-plot attribute so
+// clicking it opens the identical enlarge-in-a-modal behavior the button gives.
 document.addEventListener("click", (event) => {
-  const opener = event.target.closest(".plot-widget__toggle");
+  const opener = event.target.closest("[data-plot]");
   if (opener) {
     const modal = document.getElementById(`plot-modal-${opener.dataset.plot}`);
     if (modal) modal.hidden = false;
