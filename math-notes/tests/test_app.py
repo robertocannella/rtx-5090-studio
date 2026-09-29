@@ -124,10 +124,17 @@ def test_admin_blocks_js_auto_grows_textareas(client):
     assert ".forEach(adminBlockAutoGrow)" in resp.text
 
 
-def test_admin_textarea_css_hides_overflow_for_auto_grow(client):
+def test_admin_textarea_keeps_native_scroll_as_a_fallback_to_auto_grow(client):
+    # A first version set overflow-y: hidden alongside auto-grow, purely to avoid a
+    # cosmetic scrollbar flash -- but that left no fallback at all for any case
+    # auto-grow doesn't perfectly cover (paste, autofill, arrow-key cursor movement),
+    # reported live as "I can no longer scroll within an edit segment." Native scroll
+    # must stay available -- overflow-y must NOT be forced to hidden.
     resp = client.get("/admin/new")
     assert resp.status_code == 200
-    assert "overflow-y: hidden" in resp.text
+    # The semicolon distinguishes an actual CSS declaration from this test's own name
+    # and the explanatory comment in admin_base.html mentioning the phrase as prose.
+    assert "overflow-y: hidden;" not in resp.text
 
 
 def test_article_text_and_headings_use_the_tuned_sizes(client):
