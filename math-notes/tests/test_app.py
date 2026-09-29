@@ -150,13 +150,22 @@ def test_admin_form_widened_to_match_the_sites_own_content_column(client):
 def test_admin_action_buttons_share_a_consistent_width(client):
     # Edit/View live/Delete (admin_view.html) each auto-sized to their own text against
     # Material's fixed button padding, so "Edit" and "Delete" were visibly narrower than
-    # "View live" -- reported live as "the UI is a bit off." A shared min-width brings
-    # the two shorter ones up to match.
+    # "View live" -- reported live as "the UI is a bit off." Two earlier attempts:
+    # (1) a shared min-width (only a floor -- "View live" could still land wider), then
+    # (2) flex: 1 on .admin-actions' direct children, which for Delete meant its <form>
+    # wrapper -- Delete then came out *smaller* than the other two, since giving the
+    # form flex:1 didn't reliably override its own shrink-to-fit content sizing. Fixed by
+    # making the form invisible to layout (display: contents) so its <button> becomes a
+    # real, direct flex item of .admin-actions -- sized by its own flex: 1 exactly like
+    # Edit/View live's plain <a> tags, not indirectly through a wrapper that has to be
+    # coaxed into passing its sizing down.
     post_id = db.create_post("Button Sizing Post", "Meta", "Body.")
     resp = client.get(f"/admin/{post_id}")
     assert resp.status_code == 200
-    assert ".admin-actions .md-button" in resp.text
-    assert "min-width: 9.5rem" in resp.text
+    assert ".admin-actions form {" in resp.text
+    assert "display: contents" in resp.text
+    assert ".admin-actions .md-button {" in resp.text
+    assert "flex: 1" in resp.text
 
 
 def test_article_text_and_headings_use_the_tuned_sizes(client):

@@ -37,12 +37,23 @@
   /* Edit/View live/Delete (admin_view.html) each auto-size to their own text against
      Material's fixed .md-button padding (.625em 2em) -- "Edit" and "Delete" end up
      visibly narrower than "View live" with nothing to normalize them, reported live as
-     "the UI is a bit off." A shared min-width (comfortably fitting the longest label,
-     "View live") brings the two shorter ones up to match without needing to touch
-     Material's own button CSS; text-align: center keeps each label centered in the
-     wider box rather than left-aligned once it's no longer sized to exactly fit. */
+     "the UI is a bit off." Two earlier attempts before this one:
+       1. A shared min-width -- only a floor, and "View live"'s own natural width landed
+          close enough to the chosen number that it could still come out slightly wider.
+       2. flex: 1 on every direct child of .admin-actions, so Delete's <form> (not its
+          <button> -- the form is the actual direct child) would grow to an equal share,
+          plus width: 100% to make the real button fill that share. Delete still came out
+          *smaller* than the other two: giving the form flex:1 didn't reliably force its
+          block-level box to actually claim that share against its own shrink-to-fit
+          content, so it settled back to roughly the width Delete's own text needed.
+     display: contents on the form removes its box from layout entirely -- its <button>
+     is "raised" to become a real, direct flex item of .admin-actions itself, sized by
+     its own flex: 1 exactly like Edit/View live's plain <a> tags, no separate form-sizing
+     step to get wrong. (The form keeps submitting normally either way -- this is a
+     rendering-only property, not a DOM/behavior change.) */
   .admin-actions { display: flex; gap: 0.75rem; }
-  .admin-actions .md-button { min-width: 9.5rem; text-align: center; }
+  .admin-actions form { display: contents; }
+  .admin-actions .md-button { flex: 1; text-align: center; box-sizing: border-box; }
   .admin-error { color: #b3261e; font-weight: 700; }
   .admin-saved { color: var(--md-primary-fg-color); font-weight: 700; }
   .admin-row-actions form { display: inline; }
