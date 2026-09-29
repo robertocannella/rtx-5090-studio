@@ -11,7 +11,17 @@
     font: inherit; padding: 0.5rem; border: 1px solid var(--md-default-fg-color--lightest); border-radius: 0.2rem;
     background: var(--md-default-bg-color); color: var(--md-default-fg-color);
   }
-  form.admin-form textarea { min-height: 3rem; font-family: var(--md-code-font); font-size: 0.85rem; resize: vertical; }
+  /* overflow-y: hidden pairs with static/javascripts/admin-blocks.js's auto-grow (sets
+     height from scrollHeight on every keystroke) -- without it, a fixed-height
+     scrollable box briefly flashes an inner scrollbar every time the height is
+     recalculated, right before JS grows it to fit and the scrollbar disappears again.
+     resize: vertical still lets you drag it taller than its content needs on desktop
+     (iOS Safari has never implemented that drag handle at all -- auto-grow is what
+     makes a block's textarea usable on a touchscreen in the first place). */
+  form.admin-form textarea {
+    min-height: 3rem; font-family: var(--md-code-font); font-size: 0.85rem;
+    resize: vertical; overflow-y: hidden;
+  }
   .admin-actions { display: flex; gap: 0.75rem; }
   .admin-error { color: #b3261e; font-weight: 700; }
   .admin-saved { color: var(--md-primary-fg-color); font-weight: 700; }

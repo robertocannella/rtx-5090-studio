@@ -158,18 +158,43 @@ function adminBlockUpdateGenerateGraphVisibility(block) {
   });
 }
 
+// Dragging a <textarea>'s own bottom-right corner (CSS `resize: vertical`, still set in
+// admin_base.html) only ever worked on desktop -- iOS Safari has never implemented that
+// native resize handle at all, on any site, regardless of the `resize` CSS property, so
+// there was simply no way to make a block's textarea taller on a touchscreen (reported
+// live: "on iOS how can I expand the text area?"). Auto-growing it to fit its own
+// content removes the need to manually resize at all, on any device -- it just gets
+// taller as you type more, rather than scrolling internally. Dragging still works on
+// desktop for making a block taller than its content needs (e.g. leaving room to paste
+// something in), auto-grow doesn't fight it either way -- if a manually-enlarged box's
+// content shrinks (e.g. text deleted), the next keystroke recalculates and can shrink it
+// back down, same as it grows.
+function adminBlockAutoGrow(textarea) {
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
 document.addEventListener("input", (event) => {
   const block = event.target.closest(".admin-block");
   if (block && event.target.tagName === "TEXTAREA") {
     adminBlockUpdateGenerateGraphVisibility(block);
+    adminBlockAutoGrow(event.target);
   }
 });
 
 function adminBlockSwitchToEdit(block) {
   block.dataset.mode = "edit";
   adminBlockSetToggleLabel(block, "Done");
-  block.querySelector("textarea").focus();
+  const textarea = block.querySelector("textarea");
+  textarea.focus();
+  adminBlockAutoGrow(textarea);
 }
+
+// Every block that starts the page already in edit mode (a brand new post's first
+// paragraph, or one re-shown mid-edit after a validation error) needs the same sizing
+// applied once up front -- the two call sites above only ever fire on a later
+// interaction (typing, or switching a block into edit mode after the page has loaded).
+document.querySelectorAll('.admin-block[data-mode="edit"] textarea').forEach(adminBlockAutoGrow);
 
 function adminBlockEnterEditMode(block) {
   const currentlyEditing = document.querySelector('.admin-block[data-mode="edit"]');

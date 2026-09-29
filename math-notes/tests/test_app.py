@@ -108,6 +108,28 @@ def test_admin_blocks_js_updates_both_toggle_and_generate_graph_copies(client):
     assert 'querySelectorAll(".admin-block__generate-graph")' in resp.text
 
 
+def test_admin_blocks_js_auto_grows_textareas(client):
+    # iOS Safari has never implemented the native drag-to-resize corner handle for a
+    # <textarea>, regardless of the `resize` CSS property -- reported live as "on iOS how
+    # can I expand the text area?" Auto-growing it to fit its own content on every
+    # keystroke removes the need to manually resize at all, on any device.
+    resp = client.get("/javascripts/admin-blocks.js")
+    assert resp.status_code == 200
+    assert "function adminBlockAutoGrow(textarea)" in resp.text
+    assert "textarea.scrollHeight" in resp.text
+    # Wired on typing, on switching a block into edit mode, and once up front for any
+    # block that starts the page already in edit mode -- not just one of the three.
+    assert "adminBlockAutoGrow(event.target)" in resp.text
+    assert "adminBlockAutoGrow(textarea)" in resp.text
+    assert ".forEach(adminBlockAutoGrow)" in resp.text
+
+
+def test_admin_textarea_css_hides_overflow_for_auto_grow(client):
+    resp = client.get("/admin/new")
+    assert resp.status_code == 200
+    assert "overflow-y: hidden" in resp.text
+
+
 def test_article_text_and_headings_use_the_tuned_sizes(client):
     # Reported live as "the plain text is tiny" and "###heading gets a bit too small",
     # while h1/h2 were already fine -- the base .md-typeset size grows (which h3/h4/body
