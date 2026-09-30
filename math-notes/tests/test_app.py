@@ -648,6 +648,8 @@ def test_matplotlib_quickref_panel_shows_on_new_and_edit_forms_only(client):
         assert 'name="distance-with-final-point"' in resp.text  # marking a specific point
         assert "ax.annotate" in resp.text
         assert 'name="distance-with-sample-points"' in resp.text  # labeling several points
+        assert 'name="car-and-obstacle"' in resp.text  # sketching a diagram of the problem
+        assert 'ax.axis("off")' in resp.text
 
     for path in should_not_have_it:
         resp = client.get(path)

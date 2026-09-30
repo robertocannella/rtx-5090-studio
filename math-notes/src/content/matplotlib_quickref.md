@@ -84,6 +84,109 @@ inline="true"`) -- same fixed ordering `title` itself already has after `name`. 
 off (the default) for a graph you'd rather keep out of the way until a reader asks for
 it, e.g. a solution's supporting work that would spoil the answer if shown immediately.
 
+## Sketching a diagram of the problem
+
+Not every matplotlib block has to be a graph of data -- `ax` is just as good for
+drawing a schematic of the scenario itself: a car and an obstacle on a road, the
+positions where a ball is launched and lands, blocks connected by a rope, etc. The
+technique is the same for every axis-based plot, just with `ax.axis("off")` instead of
+labeled axes, and `ax.scatter`/`ax.annotate`/`ax.text` standing in for a plotted curve.
+
+**A single scene** -- a car, an obstacle 50 m ahead, and a labeled distance between them:
+
+````
+```matplotlib name="car-and-obstacle" title="Show diagram" inline="true"
+fig, ax = plt.subplots(figsize=(10, 2.5))
+
+# The road
+ax.plot([0, 50], [0, 0], linewidth=2)
+
+# The car's starting position
+ax.scatter(0, 0, s=100)
+ax.text(0, 0.25, "Car sees obstacle", ha="center")
+
+# The obstacle
+ax.axvline(50)
+ax.text(50, 0.25, "Obstacle", ha="center")
+
+# A labeled double-headed arrow spanning the distance between them
+ax.annotate(
+    "",
+    xy=(50, -0.35),
+    xytext=(0, -0.35),
+    arrowprops=dict(arrowstyle="<->"),
+)
+ax.text(25, -0.55, "50 m", ha="center")
+
+ax.set_xlim(-3, 53)
+ax.set_ylim(-1, 1)
+ax.axis("off")
+```
+````
+
+**Several key positions along the same line** -- useful for a multi-phase problem
+(reacting, then braking, then stopped), where each position gets its own point and label,
+and each phase between two positions gets its own labeled span underneath:
+
+````
+```matplotlib name="multi-phase-positions" title="Show diagram"
+reaction_distance = 10
+stopping_position = 43.33
+obstacle_position = 50
+
+fig, ax = plt.subplots(figsize=(11, 3))
+
+# The road
+ax.plot([0, obstacle_position], [0, 0], linewidth=2)
+
+# Key positions
+ax.scatter([0, reaction_distance, stopping_position], [0, 0, 0], s=100, zorder=3)
+ax.text(0, 0.18, "Sees obstacle", ha="center")
+ax.text(reaction_distance, 0.18, "Brakes applied", ha="center")
+ax.text(stopping_position, 0.18, "Car stops", ha="center")
+
+# Phase 1: reacting
+ax.annotate(
+    "", xy=(reaction_distance, -0.35), xytext=(0, -0.35),
+    arrowprops=dict(arrowstyle="<->"),
+)
+ax.text(reaction_distance / 2, -0.48, "Phase 1", ha="center")
+
+# Phase 2: braking
+ax.annotate(
+    "", xy=(stopping_position, -0.35), xytext=(reaction_distance, -0.35),
+    arrowprops=dict(arrowstyle="<->"),
+)
+ax.text((reaction_distance + stopping_position) / 2, -0.48, "Phase 2", ha="center")
+
+ax.set_xlim(-3, obstacle_position + 3)
+ax.set_ylim(-0.7, 0.4)
+ax.axis("off")
+```
+````
+
+A few things worth knowing:
+
+- `ax.axis("off")` hides the tick marks, axis lines, and labels a data plot needs but a
+  schematic doesn't -- without it you'd get a plain x-axis running through the middle of
+  the diagram.
+- `ax.annotate("", xy=..., xytext=..., arrowprops=dict(arrowstyle="<->"))` draws a
+  double-headed arrow from `xytext` to `xy` with no text of its own (the empty string) --
+  pair it with a separate `ax.text(...)` centered underneath to label the distance or span
+  it measures.
+- A wide, short `figsize` (e.g. `(10, 2.5)` or `(11, 3)`) reads much better than the
+  square default for a diagram that's fundamentally a single horizontal line -- set it
+  explicitly rather than relying on `plt.subplots()`'s default shape.
+- `zorder=3` on `ax.scatter(...)` keeps the points drawn on top of the road line instead
+  of underneath it.
+- `ax.set_xlim`/`set_ylim` need to be set by hand here (there's no data series for
+  matplotlib to infer a sensible range from) -- pad a few units past your outermost point
+  on each side so labels and arrowheads near the edges don't get clipped.
+- These diagrams don't spoil anything the way a solution's supporting work might, so
+  `inline="true"` (see above) is usually the right call for one placed alongside the
+  problem statement -- readers benefit from seeing the scenario right away, before they've
+  worked anything out.
+
 ## Common physics plots
 
 For a constant-acceleration problem, once you have $a$, $t$, and a starting velocity/
