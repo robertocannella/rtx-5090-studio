@@ -623,3 +623,11 @@ html {
     display: none !important;
   }
 }
+
+/* Divider between consecutive post excerpts on the blog index pages (blog_index.html) --
+   only rendered *between* posts, never after the last one. */
+.md-post__divider {
+  border: 0;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+  margin: 1.5rem 0;
+}

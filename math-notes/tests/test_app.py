@@ -335,6 +335,14 @@ def test_blog_index_lists_created_post(client):
     assert "Body." not in resp.text  # index shows the excerpt, not the full post
 
 
+def test_blog_index_dividers_only_between_posts(client):
+    db.create_post("Post One", "Physics", "One.")
+    db.create_post("Post Two", "Physics", "Two.")
+    db.create_post("Post Three", "Physics", "Three.")
+    resp = client.get("/blog/")
+    assert resp.text.count('class="md-post__divider"') == 2
+
+
 def test_individual_post_page(client):
     db.create_post("My First Post", "Physics", "Intro.\n\n<!-- more -->\n\nFull body text.")
     resp = client.get("/blog/my-first-post/")
