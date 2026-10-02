@@ -12,6 +12,14 @@ services:
       VIKUNJA_SERVICE_ENABLEREGISTRATION: "false"
       VIKUNJA_DATABASE_TYPE: sqlite
       VIKUNJA_DATABASE_PATH: /db/vikunja.db
+      # Outgoing mail (reminders, password resets). Credentials live in .env; stays off
+      # until VIKUNJA_MAILER_ENABLED=true is set there.
+      VIKUNJA_MAILER_ENABLED: ${VIKUNJA_MAILER_ENABLED:-false}
+      VIKUNJA_MAILER_HOST: ${VIKUNJA_MAILER_HOST:-smtp.gmail.com}
+      VIKUNJA_MAILER_PORT: ${VIKUNJA_MAILER_PORT:-587}
+      VIKUNJA_MAILER_USERNAME: ${VIKUNJA_MAILER_USERNAME:-}
+      VIKUNJA_MAILER_PASSWORD: ${VIKUNJA_MAILER_PASSWORD:-}
+      VIKUNJA_MAILER_FROMEMAIL: ${VIKUNJA_MAILER_FROMEMAIL:-}
     volumes:
       - ./data/db:/db
       - ./data/files:/app/vikunja/files
