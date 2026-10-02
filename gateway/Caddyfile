@@ -38,3 +38,7 @@ math.example.com {
         reverse_proxy math-notes:8000
     }
 }
+
+tasks.example.com {
+    reverse_proxy vikunja:3456
+}

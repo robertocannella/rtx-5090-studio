@@ -1,0 +1,23 @@
+services:
+  vikunja:
+    image: vikunja/vikunja:2.6.0
+    container_name: vikunja
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      VIKUNJA_SERVICE_PUBLICURL: https://tasks.example.com/
+      VIKUNJA_SERVICE_SECRET: ${VIKUNJA_SERVICE_SECRET}
+      VIKUNJA_SERVICE_TIMEZONE: America/New_York
+      # Private instance: accounts are created from the CLI, never via public sign-up.
+      VIKUNJA_SERVICE_ENABLEREGISTRATION: "false"
+      VIKUNJA_DATABASE_TYPE: sqlite
+      VIKUNJA_DATABASE_PATH: /db/vikunja.db
+    volumes:
+      - ./data/db:/db
+      - ./data/files:/app/vikunja/files
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true
