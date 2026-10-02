@@ -26,3 +26,4 @@ docs/README.md.back
 .DS_Store
 
 vikunja/data/
+jira-sync/data/

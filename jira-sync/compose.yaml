@@ -1,0 +1,27 @@
+services:
+  jira-sync:
+    build: .
+    image: jira-sync:local
+    container_name: jira-sync
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      JIRA_BASE_URL: https://fwwebb.atlassian.net
+      JIRA_EMAIL: ${JIRA_EMAIL}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+      # Default: issues assigned to me that are open or changed in the last 14 days.
+      JIRA_JQL: ${JIRA_JQL:-assignee = currentUser() AND (statusCategory != Done OR updated >= -14d) ORDER BY updated DESC}
+      VIKUNJA_URL: http://vikunja:3456
+      VIKUNJA_TOKEN: ${VIKUNJA_TOKEN}
+      VIKUNJA_PROJECT: Jira
+      SYNC_INTERVAL: "300"
+      STATE_PATH: /data/state.json
+      TZ: America/New_York
+    volumes:
+      - ./data:/data
+    networks:
+      - vikunja_internal   # reaches vikunja only; never joins edge, nothing published
+
+networks:
+  vikunja_internal:
+    external: true

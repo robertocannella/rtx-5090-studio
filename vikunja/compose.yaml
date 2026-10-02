@@ -25,7 +25,10 @@ services:
       - ./data/files:/app/vikunja/files
     networks:
       - edge
+      - vikunja_internal   # jira-sync reaches the API here
 
 networks:
   edge:
+    external: true
+  vikunja_internal:
     external: true
