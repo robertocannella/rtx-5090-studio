@@ -6,11 +6,15 @@ services:
     restart: unless-stopped
     user: "1000:1000"
     environment:
-      JIRA_BASE_URL: https://fwwebb.atlassian.net
+      JIRA_BASE_URL: ${JIRA_BASE_URL}
       JIRA_EMAIL: ${JIRA_EMAIL}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN}
-      # Default: issues assigned to me that are open or changed in the last 14 days.
+      # Base filter; when JIRA_TEAM_ID is set it is further narrowed to issues whose Primary
+      # Developer is a member of that Atlassian team. Default: my open/recent issues.
       JIRA_JQL: ${JIRA_JQL:-assignee = currentUser() AND (statusCategory != Done OR updated >= -14d) ORDER BY updated DESC}
+      JIRA_PRIMARY_DEV_FIELD: ${JIRA_PRIMARY_DEV_FIELD:-}
+      JIRA_TEAM_ID: ${JIRA_TEAM_ID:-}
+      ATLASSIAN_ORG_ID: ${ATLASSIAN_ORG_ID:-}
       VIKUNJA_URL: http://vikunja:3456
       VIKUNJA_TOKEN: ${VIKUNJA_TOKEN}
       VIKUNJA_PROJECT: Jira
