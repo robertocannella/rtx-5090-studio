@@ -242,13 +242,20 @@ document.addEventListener("keydown", (event) => {
 // position to fit, and restoring the height a moment later doesn't undo that clamp. The
 // visible effect (reported live) was that with a long matplotlib block scrolled so the
 // line being edited sat mid-screen, the first keystroke yanked that line down to the
-// bottom of the viewport. Saving and restoring the page scroll around the measurement
-// (synchronously, so it never paints in between) keeps the view exactly where it was.
+// bottom of the viewport. Pinning the page's min-height to its current height for the
+// duration of the measurement means the page never gets shorter, so there's nothing for
+// the browser to clamp in the first place (restoring the scroll afterwards alone wasn't
+// enough -- reported live as the jump persisting); the scroll restore stays as a
+// backstop. All synchronous, so none of it ever paints.
 function adminBlockAutoGrow(textarea) {
+  const root = document.documentElement;
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
+  const previousMinHeight = root.style.minHeight;
+  root.style.minHeight = `${root.scrollHeight}px`;
   textarea.style.height = "auto";
   textarea.style.height = `${textarea.scrollHeight}px`;
+  root.style.minHeight = previousMinHeight;
   if (window.scrollX !== scrollX || window.scrollY !== scrollY) {
     window.scrollTo(scrollX, scrollY);
   }

@@ -133,6 +133,12 @@ def test_admin_blocks_js_auto_grows_textareas(client):
     resp = client.get("/javascripts/admin-blocks.js")
     assert resp.status_code == 200
     assert "function adminBlockAutoGrow(textarea)" in resp.text
+    assert "textarea.scrollHeight" in resp.text
+    # Wired on typing, on switching a block into edit mode, and once up front for any
+    # block that starts the page already in edit mode -- not just one of the three.
+    assert "adminBlockAutoGrow(event.target)" in resp.text
+    assert "adminBlockAutoGrow(textarea)" in resp.text
+    assert ".forEach(adminBlockAutoGrow)" in resp.text
 
 
 def test_admin_blocks_js_auto_grow_preserves_page_scroll(client):
@@ -144,12 +150,16 @@ def test_admin_blocks_js_auto_grow_preserves_page_scroll(client):
     body = body[:body.index("\n}\n")]
     assert "const scrollY = window.scrollY;" in body
     assert "window.scrollTo(scrollX, scrollY)" in body
-    assert "textarea.scrollHeight" in resp.text
-    # Wired on typing, on switching a block into edit mode, and once up front for any
-    # block that starts the page already in edit mode -- not just one of the three.
-    assert "adminBlockAutoGrow(event.target)" in resp.text
-    assert "adminBlockAutoGrow(textarea)" in resp.text
-    assert ".forEach(adminBlockAutoGrow)" in resp.text
+    assert "root.style.minHeight = `${root.scrollHeight}px`;" in body
+
+
+def test_local_assets_are_versioned_per_deploy(client):
+    # Plain ETag/Last-Modified lets browsers keep a stale script after a deploy.
+    import app as app_module
+    v = app_module.templates.env.globals["asset_v"]
+    resp = client.get("/blog/")
+    assert f'/stylesheets/extra.css?v={v}"' in resp.text
+    assert f'/javascripts/print.js?v={v}"' in resp.text
 
 
 def test_admin_blocks_js_toggles_python_comments_in_matplotlib_blocks_only(client):

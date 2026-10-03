@@ -16,6 +16,7 @@ what's allowed.
 """
 
 import json
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -85,6 +86,12 @@ async def lifespan(app):
 
 app = FastAPI(title="Math Notes", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+# Appended as ?v=... to this app's own /javascripts and /stylesheets URLs. Those are served
+# with only an ETag/Last-Modified, which browsers are allowed to cache heuristically without
+# revalidating -- so after a deploy a visitor could keep running the previous script
+# (reported live: a fix "still" not working). A new value per process start means every
+# redeploy changes the URL and forces a fresh fetch.
+templates.env.globals["asset_v"] = str(int(time.time()))
 
 app.mount("/javascripts", StaticFiles(directory=str(BASE_DIR / "static" / "javascripts")), name="javascripts")
 app.mount("/stylesheets", StaticFiles(directory=str(BASE_DIR / "static" / "stylesheets")), name="stylesheets")
