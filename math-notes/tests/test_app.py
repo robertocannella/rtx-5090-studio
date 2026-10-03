@@ -133,6 +133,17 @@ def test_admin_blocks_js_auto_grows_textareas(client):
     resp = client.get("/javascripts/admin-blocks.js")
     assert resp.status_code == 200
     assert "function adminBlockAutoGrow(textarea)" in resp.text
+
+
+def test_admin_blocks_js_auto_grow_preserves_page_scroll(client):
+    # Collapsing the textarea to height:auto to measure it shrinks the page and clamps the
+    # scroll position -- reported live as the edited line jumping to the bottom of the
+    # screen on the first keystroke. The scroll position must be restored after measuring.
+    resp = client.get("/javascripts/admin-blocks.js")
+    body = resp.text[resp.text.index("function adminBlockAutoGrow(textarea)"):]
+    body = body[:body.index("\n}\n")]
+    assert "const scrollY = window.scrollY;" in body
+    assert "window.scrollTo(scrollX, scrollY)" in body
     assert "textarea.scrollHeight" in resp.text
     # Wired on typing, on switching a block into edit mode, and once up front for any
     # block that starts the page already in edit mode -- not just one of the three.

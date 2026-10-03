@@ -236,9 +236,22 @@ document.addEventListener("keydown", (event) => {
 // something in), auto-grow doesn't fight it either way -- if a manually-enlarged box's
 // content shrinks (e.g. text deleted), the next keystroke recalculates and can shrink it
 // back down, same as it grows.
+//
+// Measuring requires collapsing the box to `height: auto` first, which for a long block
+// momentarily makes the whole page much shorter -- the browser clamps the page's scroll
+// position to fit, and restoring the height a moment later doesn't undo that clamp. The
+// visible effect (reported live) was that with a long matplotlib block scrolled so the
+// line being edited sat mid-screen, the first keystroke yanked that line down to the
+// bottom of the viewport. Saving and restoring the page scroll around the measurement
+// (synchronously, so it never paints in between) keeps the view exactly where it was.
 function adminBlockAutoGrow(textarea) {
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
   textarea.style.height = "auto";
   textarea.style.height = `${textarea.scrollHeight}px`;
+  if (window.scrollX !== scrollX || window.scrollY !== scrollY) {
+    window.scrollTo(scrollX, scrollY);
+  }
 }
 
 document.addEventListener("input", (event) => {
