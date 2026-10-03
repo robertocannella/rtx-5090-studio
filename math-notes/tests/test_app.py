@@ -288,6 +288,7 @@ def test_matplotlib_guide_page_renders_the_full_reference(client):
     assert "ax.legend()" in resp.text
     assert 'name="freefall-displacement-and-velocity"' in resp.text  # two series, one panel, labeled
     assert "ax.axhline(0" in resp.text
+    assert 'name="latex-labels"' in resp.text  # LaTeX/mathtext in labels
 
 
 def test_matplotlib_guide_page_is_not_admin_only(client):

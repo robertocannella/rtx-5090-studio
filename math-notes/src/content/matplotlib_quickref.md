@@ -187,6 +187,74 @@ A few things worth knowing:
   problem statement -- readers benefit from seeing the scenario right away, before they've
   worked anything out.
 
+## LaTeX in labels and text
+
+Any string matplotlib draws -- `ax.text`, `ax.set_xlabel`/`set_ylabel`, `ax.set_title`, a
+`label=` in a legend -- can contain math between `$...$`, rendered by matplotlib's own
+*mathtext* engine (no LaTeX install needed). Everything outside the dollar signs is plain
+text, so a label can mix the two:
+
+```python
+ax.text(30, 0.35, r'$v_{i,\text{cop}}$ = 0 m/s', ha="center")
+ax.text(31, 0.09, r'$a_\text{cop}$ = 8 m/s$^2$', ha="center")
+```
+
+- **Always use a raw string (`r'...'`).** Without the `r`, Python reads the backslashes
+  itself before matplotlib ever sees them -- `'\text'` becomes a *tab* followed by `ext`,
+  and `'\frac'` a form feed followed by `rac`. The raw string passes `\text`, `\frac`, etc.
+  through untouched.
+- **Subscripts and superscripts** work like LaTeX: `v_f`, `t^2`. Anything longer than one
+  character needs braces -- `v_{i,\text{cop}}`, not `v_i,cop` (which would subscript only the
+  `i`).
+- **`\text{...}` keeps words upright.** Math mode italicizes every letter as if it were a
+  variable, so `a_{cop}` reads as *c·o·p*; `a_\text{cop}` (or `a_{\mathrm{cop}}`) shows the
+  label as a word. Same for units -- `$\mathrm{m/s^2}$`.
+- **Units: inside or outside the math.** `= 8 m/s$^2$` keeps the units as plain text with
+  only the exponent in math mode; `$= 8\,\mathrm{m/s^2}$` puts the whole thing in math mode.
+  Either is fine -- just be consistent within a diagram.
+- **Spaces are ignored inside `$...$`**, as in LaTeX. Use `\,` (thin space) or `\ ` (normal
+  space) when you need one, e.g. `$8\,\mathrm{m/s}$`.
+- **Inserting computed values -- double the braces.** In an f-string, `{...}` means "insert a
+  Python value", so LaTeX's own braces have to be written `{{...}}`. Combine `r` and `f` as
+  `rf'...'`:
+
+    ```python
+    v_f = 22.22
+    ax.text(40, 0.6, rf'$v_{{f,\text{{cop}}}}$ = {v_f:.2f} m/s', ha="center")
+    ```
+
+- **Mathtext is a subset of LaTeX.** `\frac`, `\sqrt`, `\Delta`, `\theta`, `\vec{v}`, `\cdot`,
+  Greek letters, and sub/superscripts all work; multi-line environments like
+  `\begin{aligned}` and packages like `\cancel` don't (the graph fails to render with a
+  `ValueError`). Keep those for the post's own `$$...$$` blocks.
+
+A diagram using all of the above:
+
+````
+```matplotlib name="latex-labels" title="Show diagram" inline="true"
+v_car = 22.22
+a_cop = 8
+
+fig, ax = plt.subplots(figsize=(10, 2.5))
+ax.plot([-10, 55], [0, 0], linewidth=2)
+
+ax.annotate("", xy=(50, 0.75), xytext=(0, 0.75), arrowprops=dict(arrowstyle="->"))
+ax.scatter(0, 0.75, s=60)
+ax.text(5, 0.9, rf'$v_{{i,\text{{car}}}} = {v_car:.2f}\,\mathrm{{m/s}}$', ha="center")
+
+ax.annotate("", xy=(50, 0.25), xytext=(25, 0.25), arrowprops=dict(arrowstyle="->"))
+ax.scatter(25, 0.25, s=60)
+ax.text(30, 0.35, r'$v_{i,\text{cop}}$ = 0 m/s', ha="center")
+ax.text(31, 0.09, rf'$a_\text{{cop}}$ = {a_cop} m/s$^2$', ha="center")
+
+ax.text(12, -0.4, r'$\Delta x = v_i t + \frac{1}{2} a t^2$', ha="center")
+
+ax.set_xlim(-10, 55)
+ax.set_ylim(-1, 1.1)
+ax.axis("off")
+```
+````
+
 ## Common physics plots
 
 For a constant-acceleration problem, once you have $a$, $t$, and a starting velocity/
