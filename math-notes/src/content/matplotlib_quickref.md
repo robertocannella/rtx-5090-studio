@@ -187,6 +187,131 @@ A few things worth knowing:
   problem statement -- readers benefit from seeing the scenario right away, before they've
   worked anything out.
 
+## Vertical and horizontal lines in diagrams
+
+Diagrams lean on straight reference lines all the time -- the moment one object passes
+another, the ground, a ball's path as it falls, the height of a cliff. Matplotlib has two
+pairs of functions for them, and the difference between the pairs is the single most
+common source of lines that come out the wrong length:
+
+| Function | Draws | `ymin`/`ymax` (or `xmin`/`xmax`) are... |
+|---|---|---|
+| `ax.axvline(x, ymin, ymax)` | one vertical line | **fractions of the axes' height**: 0 = bottom edge, 1 = top edge |
+| `ax.vlines(x, ymin, ymax)` | one or more vertical lines | **data coordinates**: the actual y-values |
+| `ax.axhline(y, xmin, xmax)` | one horizontal line | fractions of the axes' width: 0 = left edge, 1 = right edge |
+| `ax.hlines(y, xmin, xmax)` | one or more horizontal lines | data coordinates: the actual x-values |
+
+With no `ymin`/`ymax` at all, `ax.axvline(x)` spans the full height of the plot, whatever the
+y-limits turn out to be. That's what makes it the right tool for a line that should run
+edge to edge, like "the moment the car passes" or a ground line (`ax.axhline(0)`).
+
+### Drawing a vertical line between two points
+
+To join two specific points, say from $y = -0.5$ to $y = 0.5$ at $x = 7$, use `vlines`,
+which takes the two y-values directly:
+
+```python
+ax.vlines(x=7, ymin=-0.5, ymax=0.5)
+```
+
+`axvline` *can* do it too, but only by converting each y-value into a fraction of the
+axes' height first:
+
+$$
+\text{fraction} = \frac{y - y_\text{bottom}}{y_\text{top} - y_\text{bottom}}
+$$
+
+With `ax.set_ylim(-1, 1)`, $y = -0.5$ is $\frac{-0.5 - (-1)}{1 - (-1)} = 0.25$ and
+$y = 0.5$ is $0.75$, so `ax.axvline(x=3, ymin=0.25, ymax=0.75)` draws the same line. Both
+appear side by side here, each joining the same pair of y-values:
+
+````
+```matplotlib name="axvline-vs-vlines" title="Show graph"
+fig, ax = plt.subplots(figsize=(10, 3))
+ax.set_xlim(0, 10)
+ax.set_ylim(-1, 1)
+
+# Two points we want to join with a vertical line
+ax.scatter([3, 3], [-0.5, 0.5], s=60, zorder=3, color="black")
+ax.scatter([7, 7], [-0.5, 0.5], s=60, zorder=3, color="black")
+
+# axvline: ymin/ymax are FRACTIONS of the axes height (0 = bottom, 1 = top),
+# so 0.25..0.75 lands on y = -0.5..0.5 only because ylim is (-1, 1)
+ax.axvline(x=3, ymin=0.25, ymax=0.75, color="tab:blue", linewidth=3)
+ax.text(3, 0.75, "axvline(x=3, ymin=0.25, ymax=0.75)", ha="center")
+
+# vlines: ymin/ymax are DATA coordinates -- the y-values of the two points
+ax.vlines(x=7, ymin=-0.5, ymax=0.5, color="tab:orange", linewidth=3)
+ax.text(7, 0.75, "vlines(x=7, ymin=-0.5, ymax=0.5)", ha="center")
+
+ax.axhline(0, color="gray", linewidth=0.8)
+ax.grid(True, alpha=0.3)
+```
+````
+
+Things to watch for:
+
+- **`axvline` fractions depend on the y-limits.** Change `ax.set_ylim(...)`, or leave it
+  unset and let matplotlib pick limits from the data, and the same `ymin=0.25, ymax=0.75`
+  lands somewhere else entirely. Passing y-values to `axvline` by mistake
+  (`ymin=-0.5, ymax=0.5`) doesn't raise an error. It draws from below the bottom edge
+  (clipped) up to the middle of the plot. Reach for `vlines` whenever you know the
+  y-values.
+- **Set the limits first** if you do use fractions, so you know what you're converting
+  against.
+- **Several lines at once:** `vlines` and `hlines` accept lists, e.g.
+  `ax.vlines([2, 5, 8], 0, 1)` draws three lines of the same height, and
+  `ax.vlines([2, 5], [0, 1], [3, 4])` gives each line its own start and end.
+- **Keyword spelling differs slightly:** `axvline` takes `color=` and `linestyle=`, while
+  `vlines` takes `colors=` and `linestyles=` (plural, since it can draw many lines).
+- **`ax.plot([x, x], [y1, y2])`** is a third way to draw the same segment in data
+  coordinates. It's handy when you also want markers on the ends (`marker="o"`).
+
+### A vertical diagram: falling from a height
+
+The same tools work for a vertical scene, such as a ball dropped from the top of a 45 m
+building. `vlines` draws the dashed path of the fall between the release point and the
+landing point, `axhline` draws the ground across the full width, and a vertical
+`ax.annotate(..., arrowstyle="<->")` with a rotated label marks the height:
+
+````
+```matplotlib name="falling-from-a-height" title="Show diagram" inline="true"
+building_height = 45
+ball_x = 3
+
+fig, ax = plt.subplots(figsize=(6, 5))
+
+# Ground and building
+ax.axhline(0, color="black", linewidth=2)
+ax.add_patch(plt.Rectangle((0, 0), 2, building_height, color="lightgray"))
+
+# Ball at the top, and where it lands
+ax.scatter([ball_x, ball_x], [building_height, 0], s=80, zorder=3)
+ax.text(ball_x + 0.4, building_height, "Ball released", va="center")
+ax.text(ball_x + 0.4, 1.5, "Lands", va="center")
+
+# Dashed path of the fall, drawn between the two points in data coordinates
+ax.vlines(ball_x, 0, building_height, colors="gray", linestyles="--")
+
+# Labeled height: a vertical double-headed arrow beside the building
+ax.annotate("", xy=(-0.6, building_height), xytext=(-0.6, 0),
+            arrowprops=dict(arrowstyle="<->"))
+ax.text(-0.9, building_height / 2, r"$h = 45\,\mathrm{m}$", rotation=90, ha="right", va="center")
+
+ax.set_xlim(-2.5, 6)
+ax.set_ylim(-3, building_height + 5)
+ax.axis("off")
+```
+````
+
+- `rotation=90` turns the height label to run alongside the vertical arrow, and
+  `ha="right", va="center"` anchors it just left of the arrow, halfway up.
+- `plt.Rectangle((x, y), width, height)` added with `ax.add_patch(...)` is a quick way to
+  draw a building, a block, a ramp's base, and so on. `(x, y)` is its bottom-left corner,
+  in data coordinates.
+- The figure is taller than it is wide (`figsize=(6, 5)`) because the scene is vertical,
+  the opposite of the wide, short `figsize` used for horizontal road diagrams above.
+
 ## LaTeX in labels and text
 
 Any string matplotlib draws -- `ax.text`, `ax.set_xlabel`/`set_ylabel`, `ax.set_title`, a

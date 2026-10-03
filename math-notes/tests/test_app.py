@@ -310,6 +310,8 @@ def test_matplotlib_guide_page_renders_the_full_reference(client):
     assert 'name="freefall-displacement-and-velocity"' in resp.text  # two series, one panel, labeled
     assert "ax.axhline(0" in resp.text
     assert 'name="latex-labels"' in resp.text  # LaTeX/mathtext in labels
+    assert 'name="axvline-vs-vlines"' in resp.text  # axes-fraction vs data-coordinate lines
+    assert 'name="falling-from-a-height"' in resp.text  # vertical diagram
 
 
 def test_matplotlib_guide_page_is_not_admin_only(client):
