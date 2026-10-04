@@ -287,6 +287,21 @@ def test_latex_guide_page_renders_markdown_and_katex(client):
     assert "\\frac{1}{2}" in resp.text
 
 
+def test_latex_guide_python_example_actually_renders_highlighted_not_literal(client):
+    # The doc's other code examples are deliberately wrapped in an outer 4-backtick
+    # fence so the literal ```name="..."``` syntax shows up as plain text to copy --
+    # right, for a worked example of matplotlib syntax, wrong here: that same wrapping
+    # was first used for this section too, which meant the one example meant to show off
+    # real syntax highlighting rendered as a flat, uncolored box with the ```python
+    # fence markers still visible as literal text (caught from a live screenshot). This
+    # example must stay unwrapped so it's actually tokenized.
+    resp = client.get("/latex-guide/")
+    assert resp.status_code == 200
+    assert 'class="highlight"' in resp.text
+    assert '<span class="k">def</span>' in resp.text
+    assert '<span class="nf">distance</span>' in resp.text
+
+
 def test_matplotlib_guide_nav_tab_appears_on_public_pages(client):
     resp = client.get("/")
     assert 'href="/matplotlib-guide/"' in resp.text

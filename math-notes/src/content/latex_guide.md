@@ -215,14 +215,16 @@ with LaTeX.
 Sometimes it reads better to show a formula the way it'd actually be written in code
 instead of (or alongside) LaTeX -- a plain ` ```python ` fenced block gets real syntax
 highlighting (keywords, function names, numbers, strings all colored, like a small IDE),
-not just a flat gray box of text:
+not just a flat gray box of text. For example, this:
 
-````
 ```python
 def distance(v_i, a, t):
     return v_i * t + 0.5 * a * t**2
 ```
-````
+
+is written as three backticks, `python`, a newline, the code, then three backticks again
+to close it -- the same fence syntax as any other fenced code block, just with a language
+name right after the opening backticks.
 
 Unlike a ` ```matplotlib ` block, this is just a normal fenced code block -- nothing runs
 it, nothing executes, it's purely for display. `python` is the usual choice here, but any
