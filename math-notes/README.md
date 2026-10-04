@@ -44,6 +44,14 @@ Pasting math straight out of ChatGPT (which writes `\[ ... \]` with no blank lin
 it) works as-is -- saving a post automatically fixes the spacing display math needs to be
 recognized (`render.normalize_display_math_spacing`), same as `$$ ... $$`.
 
+A ` ```python ` fenced block (or any other Pygments-recognized language) gets real
+syntax-coloring, not flat text -- see the LaTeX Guide's "Showing an equation as Python
+code" for a worked example. This needed `pymdownx.highlight` registered alongside
+`pymdownx.superfences` in `render.EXTENSIONS`; the token colors themselves come from
+Material's own bundled CSS (`static/vendor/stylesheets/main.*.css`), which already
+shipped `.highlight .xx` rules for both light/dark palettes from the site's original
+MkDocs build -- no new CSS was needed, just something to actually emit those classes.
+
 ## Admin nav item and Edit links only show once you've logged in
 
 The "Admin" tab and each post's "Edit post" link are hidden from anonymous visitors --

@@ -297,6 +297,26 @@ visually alongside the metadata list's other entries (date, category, Edit post)
 that class is normally only ever applied to `<a>` tags, which have no default browser
 button chrome to begin with. `extra.css` resets it by hand for this one `<button>`.
 
+## Python-highlighted code blocks
+
+A plain ` ```python ` (or any other Pygments-recognized language) fenced block in a post
+gets real syntax-coloring -- keywords, function names, numbers, strings each their own
+color, like a small IDE -- instead of flat unstyled text. This is `render.py`'s
+`EXTENSIONS` list registering `pymdownx.highlight` alongside the `pymdownx.superfences`
+that was already there; without `pymdownx.highlight` present, superfences just wraps a
+fenced block's contents in a bare `<code>` tag and does no tokenizing at all.
+
+No new CSS was written for this -- `static/vendor/stylesheets/main.*.css` (Material for
+MkDocs' own bundled theme, carried over from this site's original MkDocs build) already
+ships full `.highlight .xx` token-color rules for both the light and dark (slate)
+palettes; those rules were simply inert until something actually emitted the classes they
+target. `pymdownx.highlight`'s default output (CSS classes, not inline styles -- i.e.
+`noclasses` left at its default `False`) is exactly what those rules expect.
+
+This is purely a display feature, unrelated to the `matplotlib` fence below -- a
+` ```python ` block is never executed; it's just shown, the same as any other fenced code
+block always has been.
+
 ## Matplotlib graphs
 
 A post can embed a real matplotlib figure, by default shown only on demand in a popup --

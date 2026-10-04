@@ -210,6 +210,25 @@ See `docs/blog/posts/2026-09-24-welcome.md` or
 site's source for two complete worked examples of this pattern together
 with LaTeX.
 
+## Showing an equation as Python code
+
+Sometimes it reads better to show a formula the way it'd actually be written in code
+instead of (or alongside) LaTeX -- a plain ` ```python ` fenced block gets real syntax
+highlighting (keywords, function names, numbers, strings all colored, like a small IDE),
+not just a flat gray box of text:
+
+````
+```python
+def distance(v_i, a, t):
+    return v_i * t + 0.5 * a * t**2
+```
+````
+
+Unlike a ` ```matplotlib ` block, this is just a normal fenced code block -- nothing runs
+it, nothing executes, it's purely for display. `python` is the usual choice here, but any
+language Pygments recognizes works the same way (`text`, `bash`, etc.), and leaving the
+language off entirely still shows the code, just without the coloring.
+
 ## Adding a graph
 
 Write real matplotlib code in a fenced block tagged `matplotlib`, with a

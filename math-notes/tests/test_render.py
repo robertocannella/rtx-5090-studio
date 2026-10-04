@@ -25,6 +25,19 @@ def test_admonition_and_details_blocks_render():
     assert "<details" in html and 'class="success"' in html
 
 
+def test_python_fenced_blocks_get_real_syntax_highlighting():
+    # Showing an equation as actual Python code (e.g. a one-liner computing distance)
+    # should read like a mini IDE, not a plain unstyled text dump -- pymdownx.highlight
+    # has to be registered for superfences to tokenize instead of just wrapping the raw
+    # text in <code>. The .highlight/.k/.nf/etc. classes this produces are already styled
+    # for both light and dark mode by the site's bundled Material CSS, so no extra CSS of
+    # our own is needed for colors to show up.
+    html, _ = render.render_markdown("```python\ndef f(a, t):\n    return a * t\n```\n")
+    assert 'class="highlight"' in html
+    assert '<span class="k">def</span>' in html  # keyword
+    assert '<span class="nf">f</span>' in html  # function name
+
+
 def test_split_excerpt_with_marker():
     excerpt, full = render.split_excerpt("Intro.\n\n<!-- more -->\n\nBody.")
     assert excerpt == "Intro."

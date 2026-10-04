@@ -5,3 +5,4 @@ markdown>=3.7,<4
 pymdown-extensions>=10,<11
 matplotlib>=3.9,<4
 python-multipart>=0.0.9,<1
+pygments>=2.18,<3

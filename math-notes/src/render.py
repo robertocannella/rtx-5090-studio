@@ -10,6 +10,15 @@ untouched), tables, and pymdownx.arithmatex in "generic" mode. arithmatex just w
 $...$/$$...$$ math in <span>/<div class="arithmatex"> markers -- it does not render the
 math itself; that still happens client-side, via KaTeX (static/javascripts/katex.js).
 
+pymdownx.highlight gives ```python (etc.) fenced blocks real Pygments syntax-coloring
+instead of plain unstyled text -- it has to be registered for pymdownx.superfences to
+tokenize code into <span class="k">/<span class="nf">/... instead of just wrapping it in
+a bare <code> tag. No CSS of our own is needed for this: static/vendor/stylesheets/
+main.*.css (Material for MkDocs' own bundled theme) already ships full `.highlight .xx`
+token-color rules for both the light and dark (slate) palettes, inherited from the site's
+original MkDocs build -- this was previously inert because nothing actually emitted those
+classes.
+
 A single shared `markdown.Markdown` instance (not the one-shot `markdown.markdown()`
 convenience function) is reused across calls so `.toc_tokens` -- the heading list the
 Material-style secondary sidebar needs -- is available after each `.convert()` call.
@@ -22,6 +31,7 @@ import markdown
 EXTENSIONS = [
     "admonition",
     "pymdownx.details",
+    "pymdownx.highlight",
     "pymdownx.superfences",
     "attr_list",
     "md_in_html",
