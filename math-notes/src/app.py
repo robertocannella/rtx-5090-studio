@@ -55,6 +55,7 @@ _home_toc = None
 _latex_guide_html = None
 _latex_guide_toc = None
 _matplotlib_quickref_html = None
+_matplotlib_quickref_toc = None
 _matplotlib_guide_html = None
 _matplotlib_guide_toc = None
 
@@ -62,7 +63,7 @@ _matplotlib_guide_toc = None
 @asynccontextmanager
 async def lifespan(app):
     global _home_html, _home_toc, _latex_guide_html, _latex_guide_toc
-    global _matplotlib_quickref_html, _matplotlib_guide_html, _matplotlib_guide_toc
+    global _matplotlib_quickref_html, _matplotlib_quickref_toc, _matplotlib_guide_html, _matplotlib_guide_toc
     db.init_db()
     _home_html, _home_toc = render.render_markdown((CONTENT_DIR / "index.md").read_text(encoding="utf-8"))
     _latex_guide_html, _latex_guide_toc = render.render_markdown(
@@ -75,7 +76,12 @@ async def lifespan(app):
     # secondary_toc to correctly treat the rest as nested under it). The public version's
     # H1 is prepended here, once, rather than written into the shared .md file itself, so
     # the admin panel's copy stays exactly as compact as it already was.
-    _matplotlib_quickref_html, _ = render.render_markdown(
+    #
+    # The admin copy's own toc_tokens (every ## heading, with no H1 wrapping them) is kept
+    # too, for a small Jump to: list at the top of that side panel -- secondary_toc's
+    # "more than one top-level heading" fallback returns this flat list completely
+    # unchanged, so it needs no special-casing to work here.
+    _matplotlib_quickref_html, _matplotlib_quickref_toc = render.render_markdown(
         (CONTENT_DIR / "matplotlib_quickref.md").read_text(encoding="utf-8")
     )
     _matplotlib_guide_html, _matplotlib_guide_toc = render.render_markdown(
@@ -419,6 +425,7 @@ def admin_new_form(request: Request):
             request, "New post", action="/admin/new", post=None, segments=_segments_for(""), error=None,
             show_all_posts_header_link=False, show_matplotlib_help=True,
             matplotlib_help_html=_matplotlib_quickref_html,
+            matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
         ),
     ))
 
@@ -444,6 +451,7 @@ def admin_new_submit(
                 segments=[_segment_dict(s) for s in segments],
                 show_all_posts_header_link=False, show_matplotlib_help=True,
                 matplotlib_help_html=_matplotlib_quickref_html,
+                matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
             ),
             status_code=422,
         )
@@ -473,6 +481,7 @@ def admin_edit_form(request: Request, post_id: int):
             segments=_segments_for(post["body_markdown"], slug=post["slug"]), error=None,
             show_all_posts_header_link=False, show_matplotlib_help=True,
             matplotlib_help_html=_matplotlib_quickref_html,
+            matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
         ),
     ))
 
@@ -501,6 +510,7 @@ def admin_edit_submit(
                 segments=[_segment_dict(s, existing["slug"]) for s in segments],
                 show_all_posts_header_link=False, show_matplotlib_help=True,
                 matplotlib_help_html=_matplotlib_quickref_html,
+                matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
             ),
             status_code=422,
         )

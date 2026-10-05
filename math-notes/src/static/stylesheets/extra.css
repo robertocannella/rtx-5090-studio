@@ -376,6 +376,23 @@ html {
   margin: 0.35rem 0;
 }
 
+/* The Matplotlib side panel's own "Jump to" list -- every ## heading in that quick
+   reference, scrolled to in place (the pane itself is the scrollable element, see
+   .categories-panel__pane's overflow-y above; a plain in-page #id anchor still finds the
+   right scroll container for this on every evergreen browser, no JS needed). Sits inside
+   that pane's own .md-typeset wrapper, so links pick up Material's normal prose-link
+   color for free -- only the list/spacing styling (shared with .categories-panel__list
+   above) and a border separating it from the reference text below are added here. */
+.categories-panel__list--toc {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.categories-panel__list--toc li {
+  line-height: 1.3;
+}
+
 /* "Show graph" button + popup for a matplotlib figure embedded in a post (see
    render_plots.py, which generates this exact markup at build time from a fenced
    ```matplotlib code block -- the image is never shown inline, only on demand). Wiring

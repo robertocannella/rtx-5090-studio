@@ -704,6 +704,23 @@ def test_matplotlib_quickref_panel_shows_on_new_and_edit_forms_only(client):
         assert 'data-panel-tab="matplotlib"' not in resp.text
 
 
+def test_matplotlib_quickref_panel_has_a_clickable_jump_to_list(client):
+    # The panel used to be one long scroll with no way to jump straight to a section --
+    # reported live as wanting "a toc for the matplotlib that I can click through for the
+    # sidebar version". Every ## heading gets its own link here, pointing at the exact
+    # same #id each heading already carries in the reference text below (both come from
+    # the one shared toc_tokens list render_markdown produces for this content -- no
+    # separate id-generation logic to keep in sync).
+    resp = client.get("/admin/new")
+    assert resp.status_code == 200
+    assert "categories-panel__list--toc" in resp.text
+    assert '<a href="#showing-a-graph-inline">Showing a graph inline</a>' in resp.text
+    assert '<a href="#sketching-a-diagram-of-the-problem">Sketching a diagram of the problem</a>' in resp.text
+    # The linked-to heading itself is further down in the very same panel, not just a
+    # dangling fragment with nothing on the page to scroll to.
+    assert 'id="showing-a-graph-inline"' in resp.text
+
+
 def test_matplotlib_quickref_panel_survives_form_error_redisplay(client):
     # A duplicate-slug or broken-plot error re-renders admin_form.html directly (not a
     # fresh GET) -- the reference panel needs to still be there mid-error, not just on

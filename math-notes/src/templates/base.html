@@ -309,6 +309,14 @@
             {% endif %}
             {% if show_matplotlib_help %}
               <div class="categories-panel__pane categories-panel__pane--wide md-typeset" data-panel-pane="matplotlib" hidden>
+                {% if matplotlib_help_toc %}
+                  <p class="categories-panel__title">Jump to</p>
+                  <ul class="categories-panel__list categories-panel__list--toc">
+                    {% for heading in matplotlib_help_toc %}
+                      <li><a href="#{{ heading.id }}">{{ heading.name }}</a></li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
                 {{ matplotlib_help_html | safe }}
               </div>
             {% endif %}
