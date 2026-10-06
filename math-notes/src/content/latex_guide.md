@@ -174,6 +174,37 @@ come up most often in these notes, not a complete reference. The full
 [KaTeX supported-functions list](https://katex.org/docs/supported.html) has
 everything else (matrices, cases, accents, and more).
 
+## Crossing out / canceling part of an equation
+
+A diagonal strike-through over a term, showing *why* it dropped out of a derivation --
+a common factor canceling out of a fraction, or a term that appears (and cancels) on
+both sides of an equation -- not just asserting that it did.
+
+| What you want | You write | Renders as |
+|---|---|---|
+| Cancel a term (strike bottom-left to top-right) | `\cancel{x}` | $\cancel{x}$ |
+| Cancel the other way (strike bottom-right to top-left) | `\bcancel{x}` | $\bcancel{x}$ |
+| Cancel both ways at once (a full X) | `\xcancel{x}` | $\xcancel{x}$ |
+
+A common factor canceling out of a fraction:
+
+$$
+\frac{\cancel{2}x}{\cancel{2}} = x
+$$
+
+The same term on both sides of an equation canceling out:
+
+$$
+a + \cancel{b} = c + \cancel{b} \implies a = c
+$$
+
+`\cancelto{0}{x}` -- MathJax/full LaTeX's usual way to show a term canceling *to* a
+specific value, with that value drawn above the strike -- is **not supported here**.
+KaTeX (what this site actually renders math with, see the top of this page) doesn't
+implement it, and it fails to render at all if you type it (confirmed directly against
+the same KaTeX version this site loads, not assumed from memory). Use a plain
+`\cancel{x}` and write the resulting value on the next line of the derivation instead.
+
 ## The word-problem layout
 
 Posts here state a problem, then hide the worked solution behind a
