@@ -652,6 +652,27 @@ def test_matplotlib_inline_graph_shows_directly_and_is_still_clickable(client):
     assert image_resp.status_code == 200
 
 
+def test_multiple_graph_buttons_in_one_post_lay_out_as_a_row_not_a_stack(client):
+    # Reported live from a screenshot: consecutive "Show graph" buttons (two matplotlib
+    # blocks, non-inline, back to back) each started their own new line, stacked one
+    # under the other with ragged widths -- .plot-widget had no styling of its own at
+    # all, a plain block-level <div> like any other. inline-block lets consecutive ones
+    # wrap left-to-right as a row instead.
+    resp = client.get("/stylesheets/extra.css")
+    assert resp.status_code == 200
+    css = resp.text
+    idx = css.find(".plot-widget {")
+    assert idx != -1
+    block = css[idx:idx + 200]
+    assert "display: inline-block" in block
+    # The inline-diagram variant must stay block-level -- it's a whole image in the
+    # post's own reading flow, not a button, and must not get pulled into the same row.
+    inline_idx = css.find(".plot-widget--inline {")
+    assert inline_idx != -1
+    inline_block = css[inline_idx:inline_idx + 100]
+    assert "display: block" in inline_block
+
+
 def test_plot_modal_js_opens_on_any_data_plot_element(client):
     # Not scoped to .plot-widget__toggle specifically -- an inline="true" graph's image
     # carries the same data-plot attribute a button normally would, with no JS changes

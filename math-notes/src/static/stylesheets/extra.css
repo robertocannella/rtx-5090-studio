@@ -396,7 +396,32 @@ html {
 /* "Show graph" button + popup for a matplotlib figure embedded in a post (see
    render_plots.py, which generates this exact markup at build time from a fenced
    ```matplotlib code block -- the image is never shown inline, only on demand). Wiring
-   (open/close click handling) is in docs/javascripts/plot-modal.js. */
+   (open/close click handling) is in docs/javascripts/plot-modal.js.
+
+   .plot-widget itself (the button's wrapper <div>) had no styling of its own at all --
+   a plain block-level element, same as every other <div>, so consecutive graph buttons
+   in the same post each started their own new line, full-width-looking despite each
+   being sized to its own label, stacked awkwardly one under the other rather than
+   reading as a related row of options (reported live from a screenshot: "I don't like
+   the way the graph buttons look"). inline-block (not flex -- there is no shared parent
+   wrapping consecutive .plot-widget elements to apply a flex/gap to; each one is its own
+   independent sibling straight out of render_plots.py) lets them wrap left-to-right like
+   any other run of inline content, with the margin below doing the job gap would
+   otherwise do for the row-to-row spacing once they wrap. */
+.plot-widget {
+  display: inline-block;
+  margin: 0 0.5rem 0.5rem 0;
+}
+
+/* ...but an inline diagram (inline="true", see the Matplotlib Guide) is a whole image in
+   the post's own reading flow, not a button -- it needs to stay block-level (its own
+   line, full natural width) the same as any other image in prose, not get pulled into a
+   row alongside whatever .plot-widget button happens to sit next to it in the source. */
+.plot-widget--inline {
+  display: block;
+  margin: 0;
+}
+
 .plot-widget__modal {
   position: fixed;
   inset: 0;
