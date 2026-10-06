@@ -39,6 +39,49 @@ def test_katex_zoom_controls_render_on_public_and_admin_pages(client):
         assert "/javascripts/katex-zoom.js" in resp.text
 
 
+def test_admin_nav_guard_js_loads_on_every_page_before_bundle_js(client):
+    # Material's instant-loading (bundle.js) treats every same-origin link click as an
+    # AJAX content swap instead of a real page load, including into/out of/between admin
+    # pages -- which admin-blocks.js was never designed to survive (its top-level `const`s
+    # throw a fatal "already been declared" SyntaxError the second time they run in the
+    # same un-reloaded JS scope; reported live via a browser console screenshot). The fix
+    # has to be present on every page, public and admin alike, since the click that needs
+    # intercepting can originate from either side of that transition -- and it has to load
+    # before bundle.js specifically so its capture-phase listener is already registered
+    # (capture-phase listeners run before bubble-phase ones regardless of load order, but
+    # only once actually attached) by the time bundle.js's own click handler could fire.
+    post_id = db.create_post("Nav Guard Post", "Meta", "Body.")
+    for path in ("/", f"/blog/{db.get_post(post_id=post_id)['slug']}/", "/admin/", "/admin/new"):
+        resp = client.get(path)
+        assert resp.status_code == 200
+        guard_pos = resp.text.find("/javascripts/admin-nav-guard.js")
+        bundle_pos = resp.text.find("bundle.d7400e89.min.js")
+        assert guard_pos != -1
+        assert bundle_pos != -1
+        assert guard_pos < bundle_pos
+
+
+def test_admin_nav_guard_js_forces_real_navigation_around_admin_pages(client):
+    resp = client.get("/javascripts/admin-nav-guard.js")
+    assert resp.status_code == 200
+    assert "{ capture: true }" in resp.text  # must win the race against bundle.js's own listener
+    assert "stopImmediatePropagation" in resp.text
+    assert 'pathname.startsWith("/admin/")' in resp.text
+
+
+def test_admin_blocks_js_survives_being_executed_twice_in_the_same_scope(client):
+    # The direct regression test for the reported bug: before this, a second execution of
+    # this exact file in one JS global scope (what an instant-nav swap does, absent the
+    # guard above) threw a fatal SyntaxError on the *first* line, before a single line of
+    # the file ran -- silently leaving the block editor's click/keydown handling never
+    # wired up for that page. An IIFE wrapper plus a `window` flag makes a second run a
+    # harmless no-op instead.
+    resp = client.get("/javascripts/admin-blocks.js")
+    assert resp.status_code == 200
+    assert "window.__adminBlocksLoaded" in resp.text
+    assert resp.text.strip().startswith("//")  # still a classic script, not type="module"
+
+
 def test_katex_zoom_js_supports_tapping_a_formula_to_zoom(client):
     # Right half of a rendered formula zooms in, left half zooms out -- in addition to
     # the header A-/A+ buttons -- and a tap on the copy-LaTeX button must never also

@@ -65,7 +65,15 @@ Write a fenced ` ```matplotlib name="..." ` code block in a post's body -- savin
 executes it (`render_plots.py`), saves the figure as a PNG, and replaces the block with a
 button that pops the image open in a modal. Add `inline="true"` (after `title`, if there
 is one) to show the image directly in the post instead -- it's still clickable, opening
-the same enlarge-in-a-modal view a button's graph gets. See the live
+the same enlarge-in-a-modal view a button's graph gets.
+
+Build a `matplotlib.animation.FuncAnimation` instead (`animation` is already available in
+the exec namespace, same as `plt`) and it's detected and saved as a looping animated GIF
+instead of a PNG -- a plain `<img>` autoplays/loops a GIF natively, so the widget markup
+needed no changes to support this; `_versioned_src`/`process_preview` just key off the
+asset's real saved extension instead of assuming `.png`. Switching a block between static
+and animated across edits cleans up the stale asset from the other format automatically
+(see `ASSET_EXTENSIONS` in `render_plots.py`). See the live
 **[Matplotlib Guide](https://math.example.com/matplotlib-guide/)** for the full
 syntax, common physics plots (distance/velocity vs. time), and marking a specific point
 (e.g. $x_f$) on a graph -- also linked from the LaTeX Guide's own shorter "Adding a graph"

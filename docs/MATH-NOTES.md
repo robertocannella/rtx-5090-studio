@@ -344,12 +344,13 @@ ax.plot(x, y)
 ````
 
 **`render_plots.py`** (called from `db.py`'s `create_post`/`update_post`, not a build
-step) finds every such block via regex, `exec`s its code in a namespace with `plt` already
-imported (`matplotlib.use("Agg")` first, since there's no display server in the
-container), grabs whatever figure the code produced (`plt.gcf()`), saves it as
-`/app/data/assets/plots/<slug>/<name>.png`, and rewrites the block in the stored Markdown
-into a button + hidden `<div class="plot-widget__modal">` containing the image
-(`app.py`'s `/assets/plots/{slug}/{filename}` route serves it back out).
+step) finds every such block via regex, `exec`s its code in a namespace with `plt` (and
+`animation` -- see "Animated diagrams" below) already imported (`matplotlib.use("Agg")`
+first, since there's no display server in the container), grabs whatever the code
+produced, and saves it as `/app/data/assets/plots/<slug>/<name>.png` (a static figure) or
+`<name>.gif` (a `FuncAnimation`), then rewrites the block in the stored Markdown into a
+button + hidden `<div class="plot-widget__modal">` containing the image (`app.py`'s
+`/assets/plots/{slug}/{filename}` route serves it back out).
 
 **`name` only has to be unique within one post, not site-wide** -- `db.py`'s `_render()`
 namespaces every graph under the post's own `slug` (`PLOTS_DIR/<slug>/`, not a flat
@@ -379,6 +380,19 @@ is a bigger look at the same image). The print stylesheet has a dedicated overri
 this case too: the modal-unwrapping rule that makes a *non*-inline graph's image show up
 in print at all would otherwise also force an *inline* graph's already-visible image to
 print a second time from inside its own modal.
+
+**Animated diagrams**: if the block's code builds a `matplotlib.animation.FuncAnimation`
+(assigned to any variable -- `_render_one` finds it after `exec` by scanning the
+namespace for an `isinstance(v, animation.Animation)`, not by variable name), it's saved
+as an animated GIF via Pillow's writer (`anim.save(out_path, writer="pillow")`) instead of
+a static `fig.savefig(...)` PNG. No widget/JS changes were needed to support this -- a
+plain `<img>` autoplays and loops a GIF natively, so `_widget_html`/`_modal_html` are
+unchanged; `_versioned_src` and `process_preview`'s saved-asset lookup just key off the
+asset's actual filename/extension (`ASSET_EXTENSIONS = ("gif", "png")`) rather than
+assuming `.png`. `_render_one` also deletes the stale file of the *other* extension after
+every render, so a block that's switched between static and animated across edits never
+leaves an orphaned asset from its previous form sitting next to the current one under the
+same `name`.
 
 **Failure mode**: a mistake in the plotting code (a typo, code that never actually calls a
 plotting function) raises `render_plots.PlotError`, which the admin form displays as a

@@ -12,7 +12,15 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")  # headless -- no display server in the container
+import matplotlib.animation as animation  # noqa: E402 - must follow matplotlib.use()
 import matplotlib.pyplot as plt  # noqa: E402 - must follow matplotlib.use()
+
+# Extensions a block's saved asset can have, most-specific-first -- used wherever code
+# needs to find whichever one a given `name` actually produced without re-executing
+# anything (process_preview) or clean up a stale leftover from a since-changed block
+# (_render_one, when a block switches between a static plot and an animation across
+# edits -- the old extension's file would otherwise linger forever under the same name).
+ASSET_EXTENSIONS = ("gif", "png")
 
 # ```matplotlib name="..." title="..." inline="true"   (title, inline both optional --
 # and in that order: inline is only recognized after title, or right after name if
@@ -36,35 +44,62 @@ class PlotError(Exception):
 
 
 def _render_one(name, code, plots_dir):
-    """Executes `code` (expected to build a plot -- e.g. ax.plot(...)) and saves
-    whatever figure it produced. The author's code should not call plt.savefig() itself
-    -- this always saves the current figure to a path this function controls, keyed only
-    on the block's own `name`, so the image location stays deterministic regardless of
-    what the author's code does.
+    """Executes `code` (expected to build a plot -- e.g. ax.plot(...), or a
+    matplotlib.animation.FuncAnimation for a moving diagram) and saves whatever it
+    produced. The author's code should not call plt.savefig()/anim.save() itself -- this
+    always saves to a path this function controls, keyed only on the block's own `name`,
+    so the asset's location stays deterministic regardless of what the author's code does.
+
+    A static plot is saved as a PNG, same as always. Code that builds a real
+    matplotlib.animation.FuncAnimation (assigned to any variable -- `animation` itself is
+    provided in the exec namespace alongside `plt`, the same convenience) is instead
+    detected after running and saved as an animated GIF via Pillow (already a matplotlib
+    dependency, so no new one was added for this) -- a plain <img> tag autoplays/loops a
+    GIF natively, so no player/JS of any kind was needed in the widget markup to support
+    this. Whichever kind wasn't produced this time is deleted if a stale one from a
+    previous save (before the block was switched between static/animated) is still
+    sitting there, so a block's asset is never ambiguous between two files.
 
     Returns (out_path, output) -- output is whatever the code printed (e.g. a computed
     acceleration or a checked value), captured rather than left to go to the container's
-    own stdout/logs where a reader would never see it. Persisted alongside the PNG as
+    own stdout/logs where a reader would never see it. Persisted alongside the asset as
     `{name}.txt` so process_preview (which never re-executes code) can show the same
     printed output a previous real save produced, not just the image -- and removed if a
     block that used to print something no longer does, so a stale value never lingers
     after the code that produced it is gone.
     """
     plt.close("all")
-    namespace = {"plt": plt}
+    namespace = {"plt": plt, "animation": animation}
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
             exec(compile(code, f"<matplotlib block: {name}>", "exec"), namespace)  # noqa: S102 - trusted, self-authored post content, not arbitrary user input
     except Exception as e:  # noqa: BLE001 - want to report exactly which block failed
         raise PlotError(f"matplotlib block {name!r} failed: {e}") from e
-    fig = plt.gcf()
-    if not fig.get_axes():
-        raise PlotError(f"matplotlib block {name!r} produced no figure/axes -- did the code actually plot anything?")
+
+    anim = next((v for v in namespace.values() if isinstance(v, animation.Animation)), None)
     plots_dir.mkdir(parents=True, exist_ok=True)
-    out_path = plots_dir / f"{name}.png"
-    fig.savefig(out_path, bbox_inches="tight", dpi=150)
-    plt.close(fig)
+
+    if anim is not None:
+        out_path = plots_dir / f"{name}.gif"
+        try:
+            anim.save(out_path, writer="pillow")
+        except Exception as e:  # noqa: BLE001 - want to report exactly which block failed
+            raise PlotError(f"matplotlib block {name!r} animation failed to save: {e}") from e
+        finally:
+            plt.close("all")
+    else:
+        fig = plt.gcf()
+        if not fig.get_axes():
+            raise PlotError(f"matplotlib block {name!r} produced no figure/axes -- did the code actually plot anything?")
+        out_path = plots_dir / f"{name}.png"
+        fig.savefig(out_path, bbox_inches="tight", dpi=150)
+        plt.close(fig)
+
+    for ext in ASSET_EXTENSIONS:
+        stale_path = plots_dir / f"{name}.{ext}"
+        if stale_path != out_path and stale_path.exists():
+            stale_path.unlink()
 
     output = buf.getvalue()
     output_path = plots_dir / f"{name}.txt"
@@ -79,17 +114,20 @@ def _output_html(output):
     return f'<pre class="plot-widget__output">{_escape(output.rstrip())}</pre>' if output.strip() else ""
 
 
-def _versioned_src(png_path, assets_url_prefix, name):
+def _versioned_src(asset_path, assets_url_prefix):
     """A `?v=<mtime>` query string on every graph image's URL -- the filename itself
     never changes across regenerations (same `name` every time, by design), so without
     this a browser can keep showing bytes from before the latest edit: reported live as
     "sometimes it's cached and doesn't update," most noticeably right after clicking
     Generate graph and expecting the preview to reflect a just-made code change. Tied to
-    the PNG's own mtime (not a fresh timestamp computed here) so process_preview -- which
-    never re-executes code, only ever points at whatever a real save already produced --
-    still busts the cache correctly after a save changed the file out from under it.
+    the asset's own mtime (not a fresh timestamp computed here) so process_preview --
+    which never re-executes code, only ever points at whatever a real save already
+    produced -- still busts the cache correctly after a save changed the file out from
+    under it. Takes the asset's real filename (.png or .gif) from `asset_path` itself
+    rather than assuming an extension, so a static plot and an animated diagram work the
+    same way here.
     """
-    return f"{assets_url_prefix}/{name}.png?v={int(png_path.stat().st_mtime_ns)}"
+    return f"{assets_url_prefix}/{asset_path.name}?v={int(asset_path.stat().st_mtime_ns)}"
 
 
 def _modal_html(name, label, src, output=""):
@@ -149,7 +187,7 @@ def process(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
         code = match.group("code")
         inline = _is_true(match.group("inline"))
         out_path, output = _render_one(name, code, plots_dir)
-        src = _versioned_src(out_path, assets_url_prefix, name)
+        src = _versioned_src(out_path, assets_url_prefix)
         return _widget_html(name, title, src, output, inline=inline)
 
     return FENCE_RE.sub(replace, markdown_text)
@@ -176,7 +214,7 @@ def process_live(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
         title = match.group("title") or "Graph"
         code = match.group("code")
         out_path, output = _render_one(name, code, plots_dir)
-        src = _versioned_src(out_path, assets_url_prefix, name)
+        src = _versioned_src(out_path, assets_url_prefix)
         return f'<div class="plot-widget__preview"><img src="{src}" alt="{title}">{_output_html(output)}</div>'
 
     return FENCE_RE.sub(replace, markdown_text)
@@ -185,11 +223,12 @@ def process_live(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
 def process_preview(markdown_text, plots_dir, assets_url_prefix="/assets/plots"):
     """Renders a ```matplotlib block for the admin editor's per-block view-mode preview
     (app.py's _render_segment_preview) -- but never executes the block's code, only ever
-    points at whatever PNG a real save has already produced for that `name`. Previewing
-    an edit is not saving it, and a block's code can be mid-edit/syntactically broken at
-    any moment while its view is being rendered, so this must never have the side effects
-    (or failure modes) that actually running arbitrary matplotlib code has. If a block's
-    name has never been saved yet, shows a placeholder instead of a broken <img>.
+    points at whatever asset (PNG or, for an animation block, GIF) a real save has already
+    produced for that `name`. Previewing an edit is not saving it, and a block's code can
+    be mid-edit/syntactically broken at any moment while its view is being rendered, so
+    this must never have the side effects (or failure modes) that actually running
+    arbitrary matplotlib code has. If a block's name has never been saved yet, shows a
+    placeholder instead of a broken <img>.
 
     Unlike process() (the public site's click-to-reveal button+modal), this renders the
     image directly and visibly -- the editor's view mode is meant to show a block fully
@@ -200,9 +239,11 @@ def process_preview(markdown_text, plots_dir, assets_url_prefix="/assets/plots")
     def replace(match):
         name = match.group("name")
         title = match.group("title") or "Graph"
-        png_path = plots_dir / f"{name}.png"
-        if png_path.exists():
-            src = _versioned_src(png_path, assets_url_prefix, name)
+        asset_path = next(
+            (p for ext in ASSET_EXTENSIONS if (p := plots_dir / f"{name}.{ext}").exists()), None
+        )
+        if asset_path is not None:
+            src = _versioned_src(asset_path, assets_url_prefix)
             output_path = plots_dir / f"{name}.txt"
             output = output_path.read_text() if output_path.exists() else ""
             return (

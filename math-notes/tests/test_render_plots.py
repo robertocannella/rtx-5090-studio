@@ -257,3 +257,68 @@ def test_process_live_includes_printed_output(tmp_path):
     result = render_plots.process_live(text, tmp_path)
     assert 'class="plot-widget__output"' in result
     assert "checked: ok" in result
+
+
+_ANIMATION_CODE = (
+    'fig, ax = plt.subplots()\n'
+    'line, = ax.plot([0, 1], [0, 1])\n\n'
+    'def update(frame):\n'
+    '    line.set_ydata([0, frame])\n'
+    '    return (line,)\n\n'
+    'ani = animation.FuncAnimation(fig, update, frames=3, interval=50)\n'
+)
+
+
+def test_process_saves_a_funcanimation_as_an_animated_gif(tmp_path):
+    # `animation` (matplotlib.animation) is provided in the exec namespace the same way
+    # `plt` already is -- this code never imports it itself, same convenience as not
+    # needing `import matplotlib.pyplot as plt`.
+    text = f'```matplotlib name="moving" title="Show motion"\n{_ANIMATION_CODE}```'
+    result = render_plots.process(text, tmp_path)
+
+    assert "/assets/plots/moving.gif" in result
+    assert (tmp_path / "moving.gif").exists()
+    assert not (tmp_path / "moving.png").exists()
+
+    from PIL import Image
+    im = Image.open(tmp_path / "moving.gif")
+    assert im.format == "GIF"
+    assert im.n_frames > 1  # genuinely animated, not a single still frame
+
+
+def test_process_switching_from_animation_to_static_removes_the_stale_gif(tmp_path):
+    animated = f'```matplotlib name="switcher"\n{_ANIMATION_CODE}```'
+    render_plots.process(animated, tmp_path)
+    assert (tmp_path / "switcher.gif").exists()
+
+    static = '```matplotlib name="switcher"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    render_plots.process(static, tmp_path)
+    assert (tmp_path / "switcher.png").exists()
+    assert not (tmp_path / "switcher.gif").exists()  # no orphaned asset left behind
+
+
+def test_process_switching_from_static_to_animation_removes_the_stale_png(tmp_path):
+    static = '```matplotlib name="switcher"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    render_plots.process(static, tmp_path)
+    assert (tmp_path / "switcher.png").exists()
+
+    animated = f'```matplotlib name="switcher"\n{_ANIMATION_CODE}```'
+    render_plots.process(animated, tmp_path)
+    assert (tmp_path / "switcher.gif").exists()
+    assert not (tmp_path / "switcher.png").exists()
+
+
+def test_process_preview_shows_an_existing_animation_without_regenerating(tmp_path):
+    # Same contract as the static-plot version of this test above -- process_preview
+    # must never execute code, only read back whatever a real save already produced.
+    render_plots.process(f'```matplotlib name="anim-cached"\n{_ANIMATION_CODE}```', tmp_path)
+    text = '```matplotlib name="anim-cached" title="Show it"\nraise RuntimeError("must not run")\n```'
+    result = render_plots.process_preview(text, tmp_path)
+    assert "/assets/plots/anim-cached.gif" in result
+
+
+def test_process_live_renders_an_animation_as_a_visible_gif(tmp_path):
+    text = f'```matplotlib name="live-anim"\n{_ANIMATION_CODE}```'
+    result = render_plots.process_live(text, tmp_path)
+    assert "/assets/plots/live-anim.gif" in result
+    assert (tmp_path / "live-anim.gif").exists()

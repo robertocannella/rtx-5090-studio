@@ -84,6 +84,62 @@ inline="true"`) -- same fixed ordering `title` itself already has after `name`. 
 off (the default) for a graph you'd rather keep out of the way until a reader asks for
 it, e.g. a solution's supporting work that would spoil the answer if shown immediately.
 
+## Animated diagrams
+
+Build a `matplotlib.animation.FuncAnimation` instead of a static plot and it's saved as
+an animated GIF instead of a PNG -- useful for showing motion directly (two objects
+racing toward each other, a projectile's path tracing out over time) rather than making a
+reader infer it from a single still frame. `animation` is already available, the same
+convenience `plt` already is -- don't `import matplotlib.animation` yourself:
+
+````
+```matplotlib name="catch-up-animation" title="Show animation" inline="true"
+import numpy as np
+
+t = np.linspace(0, 3, 40)
+x_lead = 5 * t
+x_chaser = 0.5 * 4 * t**2
+
+fig, ax = plt.subplots()
+lead_dot = ax.scatter(x_lead[0], 0, color="tab:blue", label="Lead skater")
+chaser_dot = ax.scatter(x_chaser[0], 0, color="tab:orange", label="Chaser")
+ax.set_xlim(0, max(x_lead.max(), x_chaser.max()))
+ax.set_ylim(-1, 1)
+ax.set_xlabel("Distance (m)")
+ax.legend()
+
+
+def update(frame):
+    lead_dot.set_offsets([[x_lead[frame], 0]])
+    chaser_dot.set_offsets([[x_chaser[frame], 0]])
+    return (lead_dot, chaser_dot)
+
+
+ani = animation.FuncAnimation(fig=fig, func=update, frames=40, interval=40)
+```
+````
+
+A few things worth knowing:
+
+- The function you pass as `func` (here, `update`) runs once per frame, moving whatever
+  artists (points, lines) it updates -- build those artists once, before `FuncAnimation`,
+  and only change their data inside the function, the same `scat.set_offsets(...)`/
+  `line.set_xdata(...)`/`set_ydata(...)` pattern you'd use for any matplotlib animation.
+- `frames` is how many times `update` gets called; `interval` is the delay between frames
+  in milliseconds in the *live* sense FuncAnimation was originally designed for -- saving
+  to a GIF translates it into each frame's actual display duration, so a smaller
+  `interval` plays back faster.
+- Don't call `ani.save(...)` or `plt.savefig(...)` yourself -- same rule as a static plot,
+  saving happens automatically after your code runs, and it only needs the animation
+  object to exist (assigned to any variable name) to be detected.
+- The GIF loops forever by default -- there's no setting to change that currently.
+- `inline="true"` works exactly the same way here as for a static plot -- the GIF just
+  autoplays directly in the post, no click needed. Non-inline (the default) still works
+  too: the GIF sits inside the same click-to-open popup a static graph's button gives.
+- Switching a block between a static plot and an animation (or back) across edits cleans
+  up the old asset automatically -- there's never a leftover PNG sitting around after a
+  block becomes an animation, or vice versa.
+
 ## Sketching a diagram of the problem
 
 Not every matplotlib block has to be a graph of data -- `ax` is just as good for

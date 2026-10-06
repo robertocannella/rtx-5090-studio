@@ -279,5 +279,10 @@ itself doesn't label, like `print(f"time to land: {t_land:.2f} s")`.
 Add `inline="true"` (after `title`, if there is one) to show the image
 directly in the post instead of behind a button -- it's still clickable,
 opening the same enlarge-in-a-popup view a button's graph gets, just
-without that first click needed to reveal it. See the full
-**[Matplotlib Guide](/matplotlib-guide/)** for a worked example and more.
+without that first click needed to reveal it.
+
+Build a `matplotlib.animation.FuncAnimation` instead of a static plot (`animation` is
+already available, same as `plt`) and it's saved as a looping animated GIF instead of a
+PNG -- useful for showing real motion rather than a single still frame. See the full
+**[Matplotlib Guide](/matplotlib-guide/)** for a worked example and more, including
+animated diagrams.

@@ -10,10 +10,27 @@
 // renders, never runs, whatever is currently typed.
 //
 // Plain event delegation on `document`, attached once -- this is a normal full page load
-// (not part of Material's instant-navigation content swapping the rest of the site uses),
-// so the usual duplicate-listener hazard that pattern exists to avoid doesn't apply here
-// either way; it's just the simplest way to handle a dynamically growing/reordering list
-// of blocks without re-binding listeners on every add/move.
+// (not part of Material's instant-navigation content swapping the rest of the site uses:
+// admin-nav-guard.js, loaded on every page, forces a real navigation into/out of/between
+// every admin page specifically so that assumption actually holds), so the usual
+// duplicate-listener hazard that pattern exists to avoid doesn't apply here either way;
+// it's just the simplest way to handle a dynamically growing/reordering list of blocks
+// without re-binding listeners on every add/move.
+//
+// Wrapped in an IIFE, with a `window` flag checked up front, purely as a second line of
+// defense: an instant-nav swap re-running this whole file in the *same*, never-reloaded
+// global scope (rather than a real page load) is exactly what admin-nav-guard.js exists
+// to prevent, but if that ever failed for some reason not yet anticipated, re-declaring
+// a top-level `const` a second time in that same global scope throws a fatal, parse-time
+// "already been declared" SyntaxError -- confirmed live, in a real browser console --
+// which aborts this entire script before a single line of it runs, silently leaving
+// whatever it was supposed to (re)wire up for that page never wired up at all. A function
+// body is its own fresh scope on every call, so wrapping everything below in one sidesteps
+// the redeclaration entirely; the flag additionally stops a harmless-but-wasteful second
+// set of identical `document`-level listeners from ever being attached.
+(function () {
+  if (window.__adminBlocksLoaded) return;
+  window.__adminBlocksLoaded = true;
 
 const ADMIN_BLOCKS_KATEX_DELIMITERS = [
   { left: "$$", right: "$$", display: true },
@@ -382,3 +399,5 @@ document.addEventListener("click", (event) => {
     }
   }
 });
+
+})();
