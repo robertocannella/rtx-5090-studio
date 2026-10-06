@@ -1332,3 +1332,17 @@ def test_admin_autosave_notification_is_a_non_blocking_fading_toast(client):
     js = client.get("/javascripts/admin-autosave.js").text
     assert "admin-autosave-status--visible" in js
     assert "setTimeout" in js  # auto-dismisses itself, not left on screen indefinitely
+
+
+def test_admin_autosave_tick_now_is_exposed_for_other_scripts_to_call(client):
+    # Reported live: "every time I click done or generate graph, it should save the
+    # draft too" -- rather than only ever on the scheduled 2-minute timer. admin-blocks.js
+    # calls this after both of those actions finish (see its own adminBlockSwitchToView
+    # and the Generate graph click handler); exposing the *same* tick function (not a
+    # separate code path) means the usual dirty-check/empty-check guards still apply --
+    # calling it when nothing's actually changed is just a harmless no-op either way.
+    js = client.get("/javascripts/admin-autosave.js").text
+    assert "window.adminAutosaveTickNow = adminAutosaveTick" in js
+
+    blocks_js = client.get("/javascripts/admin-blocks.js").text
+    assert blocks_js.count("window.adminAutosaveTickNow?.()") == 2  # Done, and Generate graph

@@ -70,4 +70,12 @@
   if (document.getElementById("admin-draft-key")) {
     setInterval(adminAutosaveTick, ADMIN_AUTOSAVE_INTERVAL_MS);
   }
+
+  // Exposed so admin-blocks.js can trigger an immediate save right after a natural
+  // checkpoint -- clicking Done on a block, or Generate graph -- rather than leaving
+  // real, just-finished work sitting unsaved for up to another 2 minutes. Reuses this
+  // exact function (not a separate code path) so the same dirty-check/empty-check
+  // guards apply either way: calling it when nothing's actually changed since the last
+  // save is just a harmless no-op.
+  window.adminAutosaveTickNow = adminAutosaveTick;
 })();

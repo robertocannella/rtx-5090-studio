@@ -158,6 +158,12 @@ async function adminBlockSwitchToView(block) {
   await adminBlockRenderInto(view, textarea.value, "/admin/preview-segment", { slug });
   block.dataset.mode = "view";
   adminBlockSetToggleLabel(block, "Edit");
+  // Clicking Done (or switching straight into editing a different block, which commits
+  // this one the same way) is a natural checkpoint -- worth saving the draft right now
+  // rather than leaving it to the next scheduled autosave tick, up to 2 minutes away.
+  // admin-autosave.js may not have finished loading yet on a very first paint, hence the
+  // existence check, same pattern as window.renderMathInElement above.
+  window.adminAutosaveTickNow?.();
 }
 
 // A ```matplotlib block's code is never executed just by looking at it (see
@@ -360,6 +366,10 @@ document.addEventListener("click", (event) => {
     adminBlockRenderInto(view, textarea.value, "/admin/generate-graph").then(() => {
       block.dataset.mode = "view";
       adminBlockSetToggleLabel(block, "Edit");
+      // Same checkpoint logic as adminBlockSwitchToView's Done case above -- a graph
+      // that was just deliberately (re)generated is exactly the kind of progress worth
+      // persisting right away rather than risking up to 2 minutes until the next tick.
+      window.adminAutosaveTickNow?.();
     });
     return;
   }
