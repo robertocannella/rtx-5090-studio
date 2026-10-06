@@ -209,3 +209,52 @@ def test_init_db_backfills_missing_toc_columns(tmp_path, monkeypatch):
     assert toc[0]["name"] == "A Heading"
     assert post["reading_minutes"] >= 1
     assert "Text." in post["body_html"]
+
+
+def test_save_and_get_draft_roundtrip():
+    db.save_draft("new:abc123", "My Title", "Physics", "tag1, tag2", ["Paragraph one.", "Paragraph two."])
+    draft = db.get_draft("new:abc123")
+    assert draft["title"] == "My Title"
+    assert draft["category"] == "Physics"
+    assert draft["tags"] == "tag1, tag2"
+    assert draft["segments"] == ["Paragraph one.", "Paragraph two."]
+    assert draft["updated_at"]
+
+
+def test_get_draft_returns_none_when_missing():
+    assert db.get_draft("post:999") is None
+
+
+def test_save_draft_replaces_not_accumulates():
+    # Every autosave tick should overwrite the same row, not insert a new one -- a
+    # two-minute interval left running for hours must never grow the table unbounded.
+    db.save_draft("post:1", "First", "Meta", "", ["a"])
+    db.save_draft("post:1", "Second", "Meta", "", ["a", "b"])
+    draft = db.get_draft("post:1")
+    assert draft["title"] == "Second"
+    assert draft["segments"] == ["a", "b"]
+
+    conn = db.get_connection()
+    count = conn.execute("SELECT COUNT(*) AS n FROM drafts WHERE key = 'post:1'").fetchone()["n"]
+    conn.close()
+    assert count == 1
+
+
+def test_draft_never_touches_the_posts_table():
+    # The whole point of a separate table -- an autosave must be structurally incapable
+    # of overwriting (or even referencing) a real, already-saved post.
+    post_id = db.create_post("Real Post", "Physics", "Original body.")
+    db.save_draft(f"post:{post_id}", "Hijacked Title", "Hijacked Category", "", ["Hijacked body."])
+    post = db.get_post(post_id=post_id)
+    assert post["title"] == "Real Post"
+    assert "Original body." in post["body_markdown"]
+
+
+def test_delete_draft_removes_it():
+    db.save_draft("new:xyz", "Title", "Meta", "", ["text"])
+    db.delete_draft("new:xyz")
+    assert db.get_draft("new:xyz") is None
+
+
+def test_delete_draft_on_missing_key_is_a_no_op():
+    db.delete_draft("post:no-such-key")  # must not raise

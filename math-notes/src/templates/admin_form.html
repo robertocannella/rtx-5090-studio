@@ -15,7 +15,14 @@
   </div>
 {% endmacro %}
 {% block admin_content %}
+{% if draft_restored_at %}
+  <div class="admin-draft-banner">
+    Restored an autosaved draft from {{ draft_restored_at }}.
+    <a href="{{ discard_draft_href }}">Discard draft and use the last saved version instead</a>
+  </div>
+{% endif %}
 <form class="admin-form" method="post" action="{{ action }}">
+  <input type="hidden" id="admin-draft-key" name="draft_key" value="{{ draft_key or '' }}">
   <label>Title
     <input type="text" name="title" value="{{ post.title if post else '' }}" required>
   </label>
@@ -53,6 +60,7 @@
     <button type="submit" class="md-button md-button--primary">Save</button>
     <a href="/admin/">Cancel</a>
   </div>
+  <p id="admin-autosave-status" class="admin-autosave-status" aria-live="polite"></p>
 </form>
 
 <template id="admin-block-template">
@@ -70,4 +78,5 @@
 </template>
 
 <script src="/javascripts/admin-blocks.js?v={{ asset_v }}"></script>
+<script src="/javascripts/admin-autosave.js?v={{ asset_v }}"></script>
 {% endblock %}

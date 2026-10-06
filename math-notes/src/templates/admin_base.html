@@ -56,6 +56,22 @@
   .admin-actions .md-button { flex: 1; text-align: center; box-sizing: border-box; }
   .admin-error { color: #b3261e; font-weight: 700; }
   .admin-saved { color: var(--md-primary-fg-color); font-weight: 700; }
+  /* Shown above the form (see admin_form.html) when a GET to /admin/new or
+     /admin/{id}/edit found an autosaved draft newer than the last real save --
+     static/javascripts/admin-autosave.js is what creates that draft in the first place,
+     every couple of minutes. Matches .admin-form's own max-width so it lines up with the
+     form it sits above rather than stretching full width. */
+  .admin-draft-banner {
+    max-width: 61rem; margin: 0 0 1rem; padding: 0.6rem 0.9rem;
+    border: 1px solid var(--md-accent-fg-color); border-radius: 0.2rem;
+    background: var(--md-accent-fg-color--transparent);
+    font-size: 0.85rem;
+  }
+  .admin-draft-banner a { font-weight: 700; margin-left: 0.4rem; }
+  .admin-autosave-status {
+    margin: -0.5rem 0 0; font-size: 0.75rem; color: var(--md-default-fg-color--light);
+    min-height: 1em; /* reserves its own line so text appearing after the first autosave tick doesn't shift anything below it */
+  }
   .admin-row-actions form { display: inline; }
 
   /* Gutenberg-style block editor (admin_form.html) -- each block of a post's markdown

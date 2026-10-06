@@ -1191,3 +1191,123 @@ def test_expired_admin_cookie_does_not_grant_admin_visibility(client):
     client.cookies.set(admin_auth.COOKIE_NAME, expired_cookie)
     home = client.get("/")
     assert ">Admin<" not in home.text
+
+
+def test_admin_new_without_draft_token_redirects_to_mint_one(client):
+    resp = client.get("/admin/new", follow_redirects=False)
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert location.startswith("/admin/new?draft=")
+    token = location.split("draft=")[1]
+    assert len(token) == 32  # uuid4().hex
+
+
+def test_admin_new_with_draft_token_has_the_hidden_draft_key_field(client):
+    resp = client.get("/admin/new")  # follows the redirect above automatically
+    assert resp.status_code == 200
+    assert 'id="admin-draft-key"' in resp.text
+    assert 'name="draft_key"' in resp.text
+    # No draft has been autosaved yet under this fresh token -- no restore banner.
+    assert '<div class="admin-draft-banner">' not in resp.text
+
+
+def test_admin_draft_endpoint_saves_without_touching_posts(client):
+    resp = client.post(
+        "/admin/draft",
+        data={"key": "new:test-token", "title": "Draft Title", "category": "Physics", "tags": "a, b",
+              "segments": ["First block.", "Second block."]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["saved_at"]
+    draft = db.get_draft("new:test-token")
+    assert draft["title"] == "Draft Title"
+    assert draft["segments"] == ["First block.", "Second block."]
+    assert db.list_posts() == []  # definitely never created a real post
+
+
+def test_admin_draft_endpoint_rejects_a_malformed_key(client):
+    resp = client.post("/admin/draft", data={"key": "not-a-real-prefix:x", "title": "x"})
+    assert resp.status_code == 400
+
+
+def test_admin_draft_endpoint_never_executes_matplotlib_code(client):
+    # Autosaving must be side-effect-free -- a broken (or even a perfectly valid but
+    # slow) matplotlib block sitting in an in-progress draft must never run just because
+    # two minutes passed, unlike a real Save.
+    broken = '```matplotlib name="x"\nraise RuntimeError("must never run")\n```'
+    resp = client.post("/admin/draft", data={"key": "new:anim-token", "title": "t", "category": "c", "segments": [broken]})
+    assert resp.status_code == 200  # no PlotError, no 500 -- it was never executed
+
+
+def test_admin_new_form_restores_a_draft_with_a_banner(client):
+    redirect = client.get("/admin/new", follow_redirects=False)
+    url_with_token = redirect.headers["location"]
+    token = url_with_token.split("draft=")[1]
+    db.save_draft(f"new:{token}", "Recovered Title", "Recovered Category", "tagx", ["Recovered body."])
+
+    resp = client.get(url_with_token)
+    assert resp.status_code == 200
+    assert '<div class="admin-draft-banner">' in resp.text
+    assert 'value="Recovered Title"' in resp.text
+    assert "Recovered body." in resp.text
+
+
+def test_admin_edit_form_restores_a_newer_draft_over_the_saved_post(client):
+    post_id = db.create_post("Saved Title", "Meta", "Saved body.", tags=["orig"])
+    db.save_draft(f"post:{post_id}", "Unsaved Title", "Meta", "orig", ["Unsaved body in progress."])
+
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    assert '<div class="admin-draft-banner">' in resp.text
+    assert "Restored an autosaved draft" in resp.text
+    assert 'value="Unsaved Title"' in resp.text
+    assert "Unsaved body in progress." in resp.text
+    # The real saved post itself must be completely untouched by merely viewing the draft.
+    assert db.get_post(post_id=post_id)["title"] == "Saved Title"
+
+
+def test_admin_edit_form_discard_draft_removes_it_and_shows_saved_content(client):
+    post_id = db.create_post("Saved Title", "Meta", "Saved body.")
+    db.save_draft(f"post:{post_id}", "Unsaved Title", "Meta", "", ["Unsaved body."])
+
+    resp = client.get(f"/admin/{post_id}/edit?discard_draft=1")
+    assert resp.status_code == 200
+    assert '<div class="admin-draft-banner">' not in resp.text
+    assert 'value="Saved Title"' in resp.text
+    assert db.get_draft(f"post:{post_id}") is None
+
+
+def test_admin_edit_submit_deletes_the_draft_on_a_real_save(client):
+    post_id = db.create_post("Original", "Meta", "Body.")
+    db.save_draft(f"post:{post_id}", "Unsaved", "Meta", "", ["Unsaved body."])
+
+    client.post(
+        f"/admin/{post_id}/edit",
+        data={"title": "Updated", "category": "Meta", "segments": ["Updated body."], "draft_key": f"post:{post_id}"},
+        follow_redirects=False,
+    )
+    assert db.get_draft(f"post:{post_id}") is None
+    # And the real save used the form's own content, not the stale draft's.
+    assert db.get_post(post_id=post_id)["title"] == "Updated"
+
+
+def test_admin_new_submit_deletes_the_draft_on_a_real_save(client):
+    db.save_draft("new:submitted-token", "Draft", "Meta", "", ["Draft body."])
+    client.post(
+        "/admin/new",
+        data={"title": "Real Post", "category": "Meta", "segments": ["Real body."], "draft_key": "new:submitted-token"},
+        follow_redirects=False,
+    )
+    assert db.get_draft("new:submitted-token") is None
+
+
+def test_admin_autosave_js_is_served_and_included_on_admin_form_pages(client):
+    resp = client.get("/javascripts/admin-autosave.js")
+    assert resp.status_code == 200
+    assert "ADMIN_AUTOSAVE_INTERVAL_MS" in resp.text
+    assert "/admin/draft" in resp.text
+
+    post_id = db.create_post("Script Include Post", "Meta", "Body.")
+    for path in ("/admin/new", f"/admin/{post_id}/edit"):
+        resp = client.get(path)
+        assert "/javascripts/admin-autosave.js" in resp.text

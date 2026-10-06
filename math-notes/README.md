@@ -59,6 +59,30 @@ they appear after your first visit to `/admin/` in that browser (see
 `/srv/apps/docs/MATH-NOTES.md`'s "Admin visibility on public pages" for how). The real
 protection on `/admin/*` is still Caddy's `basic_auth`, unaffected by any of this.
 
+## The editor autosaves a draft every 2 minutes
+
+`static/javascripts/admin-autosave.js` POSTs the title/category/tags/every block's raw
+text to `/admin/draft` every 2 minutes while the admin editor is open -- into its own
+`drafts` table (`db.save_draft`/`get_draft`/`delete_draft`), keyed by `"post:<id>"` for
+an existing post or `"new:<token>"` for one not saved yet (the token lives in the URL
+itself, `/admin/new?draft=<token>`, minted by a one-time redirect, so the same
+in-progress new post can be found again via browser history/a reload, not just a hidden
+form field). This is deliberately a separate table from `posts` -- an autosave can never
+collide with, let alone silently overwrite, a real save, and it never runs a matplotlib
+block's code (`db.save_draft` stores `segments` as plain text, no `render_plots` call
+anywhere in that path), so it can't trigger a slow or side-effectful render just because
+two minutes passed while someone was typing prose elsewhere in the post.
+
+Reloading the same edit/new-post URL is how you recover one: `GET /admin/new` and
+`GET /admin/{id}/edit` both check for a matching draft and, if one exists, render the
+form from *that* instead of the last real save, with a banner (`.admin-draft-banner` in
+`admin_form.html`) offering `?discard_draft=1` to go back to the clean saved version
+instead. A real Save (`POST /admin/new`/`POST /admin/{id}/edit` succeeding) deletes the
+matching draft -- there's nothing a draft could still usefully recover once its content
+has actually been saved for real. Abandoned drafts older than `db.DRAFT_MAX_AGE_DAYS`
+(14) are swept on every write, so the table doesn't grow forever from "started a new
+post, decided not to."
+
 ## Adding a graph
 
 Write a fenced ` ```matplotlib name="..." ` code block in a post's body -- saving the post

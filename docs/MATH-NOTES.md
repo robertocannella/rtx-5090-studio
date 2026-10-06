@@ -409,6 +409,63 @@ stale one removed if the code no longer prints anything), because `process_previ
 re-executes code and needs to show whatever the *last real save* actually printed, not
 re-run anything to find out.
 
+## Autosaved drafts
+
+The admin editor loses work if a tab crashes, the browser closes, or -- a real incident
+this feature was built to recover from -- a save silently goes missing underneath an
+in-progress edit (see "Admin pages and Material's instant-loading" below for what
+actually caused that). `static/javascripts/admin-autosave.js` POSTs title/category/tags
+and every block's raw textarea value to `POST /admin/draft` every 2 minutes
+(`ADMIN_AUTOSAVE_INTERVAL_MS`), skipping the request entirely if nothing's changed since
+the last tick or if the post is still completely empty.
+
+**A draft is a row in its own `drafts` table, never `posts`** (`db.save_draft`/
+`get_draft`/`delete_draft`, `app.py`'s `/admin/draft`) -- structurally incapable of
+colliding with, let alone overwriting, a real save. `db.save_draft` stores `segments` as
+plain JSON text; nothing in that path calls `render_plots.process()`, so a matplotlib
+block sitting in a draft never gets re-executed just because two minutes passed.
+
+**Keying**: `"post:<id>"` for an existing post -- `post_id` is already a stable,
+pre-existing identifier, nothing extra needed. A brand new post has no id yet, so
+`GET /admin/new` mints a token and 303-redirects to `/admin/new?draft=<token>` once --
+the token then lives in the URL itself (not just a hidden form field), so the *same*
+in-progress new post can be found again via browser back/history or a reload, not just
+within one unbroken tab session.
+
+**Recovery**: `GET /admin/new` and `GET /admin/{id}/edit` both check `db.get_draft(key)`
+before rendering; if one exists, the form is built from the *draft's* title/category/
+tags/segments (`app.py`'s `_segments_from_draft`, the same "always at least one block"
+shape `_segments_for` already guarantees) instead of the real post, with a banner
+(`.admin-draft-banner`) offering `?discard_draft=1` to fall back to the last real save.
+A successful `POST /admin/new`/`POST /admin/{id}/edit` deletes the matching draft --
+once real content is saved, there's nothing left for the draft to usefully recover, and
+leaving it behind would just resurface a stale banner on some unrelated future edit.
+Abandoned drafts older than `db.DRAFT_MAX_AGE_DAYS` (14) are swept on every
+`save_draft` write, so the table doesn't grow forever from sessions that never saved.
+
+## Admin pages and Material's instant-loading
+
+Reported live as "sometimes I lose all my work," with a browser console screenshot
+showing `Uncaught SyntaxError: Identifier 'ADMIN_BLOCKS_KATEX_DELIMITERS' has already
+been declared` -- `admin-blocks.js` declares several top-level `const`s, and a *second*
+execution of the same file in one never-reloaded JS global scope throws that as a fatal,
+parse-time error, aborting the entire script before a single line of it runs. The cause:
+`base.html`'s `__config` block turns on `navigation.instant` (Material's SPA-style
+same-origin-link interception, via `bundle.*.min.js`) for every page, admin included --
+`admin-blocks.js`'s own top-of-file comment already assumed "a normal full page load,"
+an assumption nothing was actually enforcing.
+
+**Fix**: `static/javascripts/admin-nav-guard.js`, loaded on every page (public and
+admin) before `bundle.*.min.js`, forces a real browser navigation for any link click
+where either the current page or the destination is under `/admin/*`. It listens on
+`document` with `{ capture: true }` specifically because a capture-phase listener is
+*guaranteed* to run before any bubble-phase listener on the same target -- including
+bundle.js's own click handler -- regardless of which `<script>` tag happened to load
+first; a bubble-phase listener here could not reliably win that race. `admin-blocks.js`
+itself is additionally wrapped in an IIFE with a `window.__adminBlocksLoaded` guard, as a
+second line of defense: a function body is its own fresh scope on every call, so even a
+second execution (however it happened) can no longer throw.
+
 ## Admin visibility on public pages
 
 An "Admin" nav item (next to Home/Blog/LaTeX Guide) and an "Edit post" link in every

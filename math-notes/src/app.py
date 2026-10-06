@@ -18,8 +18,9 @@ what's allowed.
 import json
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -205,6 +206,15 @@ def _segment_dict(text, slug=None):
     }
 
 
+def _segments_from_draft(draft_segments, slug=None):
+    """Same "always at least one block" guarantee _segments_for gives a blank/brand-new
+    post -- a draft whose only saved state was, say, a title typed before anything else
+    still needs one empty textarea to land the cursor in, not an empty list.
+    """
+    texts = draft_segments or [""]
+    return [_segment_dict(t, slug) for t in texts]
+
+
 def _segments_for(body_markdown, slug=None):
     """The admin editor's per-block view of a post's body -- a Gutenberg-style editor
     over the same flat body_markdown, not a new content model (see render.py's
@@ -237,6 +247,26 @@ def _with_display_date(post):
     post = dict(post)
     post["created_at_display"] = _display_date(post["created_at"])
     return post
+
+
+def _relative_time(iso_string):
+    """"2 minutes ago" / "just now" for the admin editor's "restored a draft" banner --
+    the exact save time matters far less there than how stale the recovered content
+    might be, which a relative phrase conveys at a glance in a way an absolute timestamp
+    doesn't.
+    """
+    delta = datetime.now(timezone.utc) - datetime.fromisoformat(iso_string)
+    seconds = int(delta.total_seconds())
+    if seconds < 60:
+        return "just now"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = hours // 24
+    return f"{days} day{'s' if days != 1 else ''} ago"
 
 
 @app.get("/health")
@@ -410,6 +440,33 @@ def admin_preview_plot_image(filename: str):
     return FileResponse(path, media_type="image/png")
 
 
+@app.post("/admin/draft")
+def admin_save_draft(
+    key: str = Form(...),
+    title: str = Form(""),
+    category: str = Form(""),
+    tags: str = Form(""),
+    segments: list[str] = Form(default=[]),
+):
+    """Called every couple of minutes by static/javascripts/admin-autosave.js -- saves
+    whatever's currently typed into a `drafts` row keyed by `key` (never `posts`, see
+    db.save_draft), so it can't collide with -- let alone silently overwrite -- a real
+    save, and never executes a matplotlib block's code as a side effect of just sitting
+    in the editor (db.save_draft stores `segments` as-is; nothing here calls render_plots
+    at all).
+
+    `key` is only ever "post:<id>" or "new:<token>" from admin_form.html's own hidden
+    field (see admin_new_form/admin_edit_form below) -- not a real access-control
+    boundary (this whole prefix is already behind Caddy's basic_auth), just cheap enough
+    sanity-checking that a malformed key can't silently create a draft nothing will ever
+    look up again.
+    """
+    if not (key.startswith("post:") or key.startswith("new:")):
+        raise HTTPException(status_code=400, detail="invalid draft key")
+    saved_at = db.save_draft(key, title, category, tags, segments)
+    return JSONResponse({"saved_at": saved_at})
+
+
 @app.get("/admin/")
 def admin_list(request: Request):
     return _set_admin_cookie(templates.TemplateResponse(
@@ -419,13 +476,41 @@ def admin_list(request: Request):
 
 @app.get("/admin/new")
 def admin_new_form(request: Request):
+    # The draft token lives in the URL itself (not just a hidden form field) specifically
+    # so the *same* in-progress new post can be found again -- via browser history/back,
+    # a bookmark, or just reloading -- rather than every fresh GET /admin/new silently
+    # starting a new, disconnected draft lineage. A bare /admin/new (no token yet, e.g.
+    # the "+ New post" nav link) mints one and redirects once, so the token is in the
+    # address bar from the very first real page view onward.
+    token = request.query_params.get("draft")
+    if not token:
+        return RedirectResponse(f"/admin/new?draft={uuid4().hex}", status_code=303)
+    draft_key = f"new:{token}"
+
+    if request.query_params.get("discard_draft") == "1":
+        db.delete_draft(draft_key)
+
+    draft = db.get_draft(draft_key)
+    post = None
+    segments = _segments_for("")
+    draft_restored_at = None
+    if draft:
+        post = {
+            "title": draft["title"], "category": draft["category"],
+            "tags": [t.strip() for t in draft["tags"].split(",") if t.strip()],
+        }
+        segments = _segments_from_draft(draft["segments"])
+        draft_restored_at = _relative_time(draft["updated_at"])
+
     return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_form.html",
         _admin_context(
-            request, "New post", action="/admin/new", post=None, segments=_segments_for(""), error=None,
+            request, "New post", action=f"/admin/new?draft={token}", post=post, segments=segments, error=None,
             show_all_posts_header_link=False, show_matplotlib_help=True,
             matplotlib_help_html=_matplotlib_quickref_html,
             matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
+            draft_key=draft_key, draft_restored_at=draft_restored_at,
+            discard_draft_href=f"/admin/new?draft={token}&discard_draft=1",
         ),
     ))
 
@@ -438,6 +523,7 @@ def admin_new_submit(
     tags: str = Form(""),
     segments: list[str] = Form(...),
     slug: str = Form(""),
+    draft_key: str = Form(""),
 ):
     body_markdown = render.join_segments(segments)
     try:
@@ -452,9 +538,17 @@ def admin_new_submit(
                 show_all_posts_header_link=False, show_matplotlib_help=True,
                 matplotlib_help_html=_matplotlib_quickref_html,
                 matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
+                draft_key=draft_key,
             ),
             status_code=422,
         )
+    # The draft (if any -- a post created so fast there was never a 2-minute autosave
+    # tick has none) is now strictly older than what was just actually saved, so there is
+    # never anything useful left for it to recover; leaving it behind would just mean a
+    # stale "restore draft?" banner resurfacing on some *future* unrelated new post if
+    # its token were ever somehow reused.
+    if draft_key:
+        db.delete_draft(draft_key)
     return RedirectResponse("/admin/", status_code=303)
 
 
@@ -474,14 +568,35 @@ def admin_edit_form(request: Request, post_id: int):
     post = db.get_post(post_id=post_id)
     if not post:
         raise HTTPException(status_code=404, detail="no such post")
+
+    # Keyed by the post's own id, not a minted token -- unlike a new post (see
+    # admin_new_form), an existing post's edit URL is already stable on its own, so
+    # there's no equivalent need to round-trip a token through it first.
+    draft_key = f"post:{post_id}"
+    if request.query_params.get("discard_draft") == "1":
+        db.delete_draft(draft_key)
+
+    draft = db.get_draft(draft_key)
+    segments = _segments_for(post["body_markdown"], slug=post["slug"])
+    draft_restored_at = None
+    if draft:
+        post = dict(post)
+        post["title"] = draft["title"]
+        post["category"] = draft["category"]
+        post["tags"] = [t.strip() for t in draft["tags"].split(",") if t.strip()]
+        segments = _segments_from_draft(draft["segments"], slug=post["slug"])
+        draft_restored_at = _relative_time(draft["updated_at"])
+
     return _set_admin_cookie(templates.TemplateResponse(
         request, "admin_form.html",
         _admin_context(
             request, f"Edit: {post['title']}", action=f"/admin/{post_id}/edit", post=post,
-            segments=_segments_for(post["body_markdown"], slug=post["slug"]), error=None,
+            segments=segments, error=None,
             show_all_posts_header_link=False, show_matplotlib_help=True,
             matplotlib_help_html=_matplotlib_quickref_html,
             matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
+            draft_key=draft_key, draft_restored_at=draft_restored_at,
+            discard_draft_href=f"/admin/{post_id}/edit?discard_draft=1",
         ),
     ))
 
@@ -494,6 +609,7 @@ def admin_edit_submit(
     category: str = Form(...),
     tags: str = Form(""),
     segments: list[str] = Form(...),
+    draft_key: str = Form(""),
 ):
     body_markdown = render.join_segments(segments)
     try:
@@ -511,9 +627,15 @@ def admin_edit_submit(
                 show_all_posts_header_link=False, show_matplotlib_help=True,
                 matplotlib_help_html=_matplotlib_quickref_html,
                 matplotlib_help_toc=render.secondary_toc(_matplotlib_quickref_toc),
+                draft_key=draft_key,
             ),
             status_code=422,
         )
+    # The real save that was just made is strictly newer than any autosaved draft could
+    # be -- nothing left for it to usefully recover, and leaving it behind would just
+    # resurface a stale "restore draft?" banner the next time this same post is edited.
+    if draft_key:
+        db.delete_draft(draft_key)
     # Switch to view mode instead of the listing -- editing an existing post is a "keep
     # iterating on this one" workflow, not "go manage the whole list", so landing back on
     # a rendered view of exactly what was just saved (with a quick way back into Edit)
