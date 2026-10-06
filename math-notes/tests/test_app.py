@@ -788,6 +788,46 @@ def test_admin_list_shows_posts(client):
     assert "Admin Visible" in resp.text
 
 
+def test_needs_solving_badge_shows_on_blog_index_post_page_and_admin_list(client):
+    # Reported live: "let's mark this with some badge that it needs to be solved" --
+    # derived automatically from the post's own content (render.needs_solving), not a
+    # separate flag to remember to toggle, so it shows up everywhere a post is listed or
+    # viewed without needing to be set in more than one place.
+    unsolved_id = db.create_post("Unsolved Post", "Physics", '!!! question "Problem"\n    A scenario.\n')
+    solved_id = db.create_post(
+        "Solved Post", "Physics",
+        '!!! question "Problem"\n    A scenario.\n\n??? success "Solution"\n    The answer.\n',
+    )
+
+    index_resp = client.get("/blog/")
+    assert 'class="mn-badge--needs-solving"' in index_resp.text
+    unsolved_idx = index_resp.text.find("Unsolved Post")
+    solved_idx = index_resp.text.find("Solved Post")
+    # The badge sits right next to the unsolved post's own title, not the solved one's.
+    assert "mn-badge--needs-solving" in index_resp.text[unsolved_idx:unsolved_idx + 300]
+    assert "mn-badge--needs-solving" not in index_resp.text[solved_idx:solved_idx + 300]
+
+    unsolved_post_resp = client.get(f"/blog/{db.get_post(post_id=unsolved_id)['slug']}/")
+    assert 'class="mn-badge--needs-solving"' in unsolved_post_resp.text
+    solved_post_resp = client.get(f"/blog/{db.get_post(post_id=solved_id)['slug']}/")
+    assert 'class="mn-badge--needs-solving"' not in solved_post_resp.text
+
+    admin_resp = client.get("/admin/")
+    unsolved_idx = admin_resp.text.find("Unsolved Post")
+    solved_idx = admin_resp.text.find("Solved Post")
+    assert "mn-badge--needs-solving" in admin_resp.text[unsolved_idx:unsolved_idx + 300]
+    assert "mn-badge--needs-solving" not in admin_resp.text[solved_idx:solved_idx + 300]
+
+    # Adding a solution later makes the badge disappear on its own -- nothing to
+    # separately un-flag.
+    db.update_post(
+        unsolved_id,
+        body_markdown='!!! question "Problem"\n    A scenario.\n\n??? success "Solution"\n    Now solved.\n',
+    )
+    resolved_resp = client.get(f"/blog/{db.get_post(post_id=unsolved_id)['slug']}/")
+    assert 'class="mn-badge--needs-solving"' not in resolved_resp.text
+
+
 def test_admin_pages_render_the_real_site_header(client):
     for path in ("/admin/", "/admin/new"):
         resp = client.get(path)

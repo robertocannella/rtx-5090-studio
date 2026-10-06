@@ -8,7 +8,10 @@
   <tbody>
     {% for post in posts %}
       <tr>
-        <td><a href="/blog/{{ post.slug }}/">{{ post.title }}</a></td>
+        <td>
+          <a href="/blog/{{ post.slug }}/">{{ post.title }}</a>
+          {% if post.needs_solving %}<span class="mn-badge--needs-solving">Needs solving</span>{% endif %}
+        </td>
         <td>{{ post.category }}</td>
         <td>{{ post.tags | join(', ') }}</td>
         <td>{{ post.slug }}</td>

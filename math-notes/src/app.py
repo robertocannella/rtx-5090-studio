@@ -246,6 +246,7 @@ def _display_date(iso_string):
 def _with_display_date(post):
     post = dict(post)
     post["created_at_display"] = _display_date(post["created_at"])
+    post["needs_solving"] = render.needs_solving(post["body_html"])
     return post
 
 
@@ -473,8 +474,9 @@ def admin_save_draft(
 
 @app.get("/admin/")
 def admin_list(request: Request):
+    posts = [_with_display_date(p) for p in db.list_posts()]
     return _set_admin_cookie(templates.TemplateResponse(
-        request, "admin_list.html", _admin_context(request, "Posts", posts=db.list_posts(), error=None),
+        request, "admin_list.html", _admin_context(request, "Posts", posts=posts, error=None),
     ))
 
 

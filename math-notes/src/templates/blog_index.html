@@ -28,7 +28,10 @@
           </div>
         </header>
         <div class="md-post__content md-typeset">
-          <h2><a class="toclink" href="/blog/{{ post.slug }}/">{{ post.title }}</a></h2>
+          <h2>
+            <a class="toclink" href="/blog/{{ post.slug }}/">{{ post.title }}</a>
+            {% if post.needs_solving %}<span class="mn-badge--needs-solving">Needs solving</span>{% endif %}
+          </h2>
           {{ post.excerpt_html | safe }}
           <nav class="md-post__action">
             <a href="/blog/{{ post.slug }}/">Continue reading</a>

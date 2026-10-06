@@ -708,6 +708,29 @@ body.mn-expand-graphs .plot-widget--inline .plot-widget__modal {
   }
 }
 
+/* A post with no ??? success/!!! success Solution block yet -- see render.needs_solving,
+   which derives this from the post's own rendered HTML rather than a separate stored
+   flag, so the badge disappears on its own the instant a real solution is added, on the
+   blog index, the post page itself, and the admin list alike, nothing to remember to
+   update by hand in more than one place. Same accent-color-on-transparent technique as
+   .admin-draft-banner (already verified theme-adaptive in both light and dark) rather
+   than a hardcoded color, which would need its own separate dark-mode override to not
+   look wrong in slate mode. */
+.mn-badge--needs-solving {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--md-accent-fg-color);
+  background: var(--md-accent-fg-color--transparent);
+  color: var(--md-accent-fg-color);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* Divider between consecutive post excerpts on the blog index pages (blog_index.html) --
    only rendered *between* posts, never after the last one. */
 .md-post__divider {

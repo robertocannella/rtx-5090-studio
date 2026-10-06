@@ -304,3 +304,23 @@ def reading_time_minutes(html):
     text = _TAG_RE.sub(" ", html)
     words = len(text.split())
     return max(1, round(words / WORDS_PER_MINUTE) or 1)
+
+
+def needs_solving(body_html):
+    """True for a post with no `??? success`/`!!! success` Solution block yet -- this
+    site's own established convention for a word problem's worked answer (see the print
+    stylesheet's "Hide answers" feature, which targets the exact same two class forms).
+    Deliberately derived from the rendered HTML rather than a separate stored flag on the
+    post itself: a flag can go stale the moment a Solution block is actually added (an
+    easy thing to forget to also un-flag by hand); checking the real content directly
+    means a "Needs solving" badge disappears automatically, for every post site-wide, the
+    instant a real solution exists -- nothing to remember to update in two places.
+
+    Two substring checks, not one, for the same reason `extra.css`'s print "Hide
+    answers" rule needs two selectors: python-markdown's two admonition extensions
+    render their class attribute differently for the exact same "success" type -- a
+    non-collapsible `!!! success` block gets `class="admonition success"`, but a
+    collapsible `??? success` block (what every actual Solution on this site uses) gets
+    `class="success"` alone, with no "admonition" class at all.
+    """
+    return 'class="admonition success"' not in body_html and 'class="success"' not in body_html

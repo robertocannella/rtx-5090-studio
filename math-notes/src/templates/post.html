@@ -83,7 +83,10 @@
     </div>
   </div>
   <article class="md-content__inner md-typeset" id="content">
-    <h1>{{ post.title }}</h1>
+    <h1>
+      {{ post.title }}
+      {% if post.needs_solving %}<span class="mn-badge--needs-solving">Needs solving</span>{% endif %}
+    </h1>
     {{ post.body_html | safe }}
   </article>
 </div>

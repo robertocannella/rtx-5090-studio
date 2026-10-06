@@ -118,3 +118,25 @@ def test_reading_time_minimum_one_minute():
 def test_reading_time_scales_with_word_count():
     html = "<p>" + " word" * 1000 + "</p>"
     assert render.reading_time_minutes(html) > 1
+
+
+def test_needs_solving_true_with_no_solution_block():
+    html = render.render_markdown('!!! question "Problem"\n    A scenario.\n')[0]
+    assert render.needs_solving(html) is True
+
+
+def test_needs_solving_false_for_collapsible_success_block():
+    # ??? success -- the real, established convention every actual Solution on this site
+    # uses -- renders as <details class="success"> with no "admonition" class at all.
+    html = render.render_markdown('??? success "Solution"\n    The answer.\n')[0]
+    assert render.needs_solving(html) is False
+
+
+def test_needs_solving_false_for_noncollapsible_success_block():
+    html = render.render_markdown('!!! success "Solution"\n    The answer.\n')[0]
+    assert render.needs_solving(html) is False
+
+
+def test_needs_solving_ignores_other_admonition_types():
+    html = render.render_markdown('??? info "Formulas"\n    Some formula.\n')[0]
+    assert render.needs_solving(html) is True
