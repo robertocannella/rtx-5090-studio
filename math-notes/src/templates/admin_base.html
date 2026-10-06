@@ -68,10 +68,25 @@
     font-size: 0.85rem;
   }
   .admin-draft-banner a { font-weight: 700; margin-left: 0.4rem; }
+  /* A brief, self-dismissing toast (static/javascripts/admin-autosave.js toggles
+     .admin-autosave-status--visible on/off around each autosave tick) rather than a
+     permanent status line -- fixed position, out past the form's own 61rem column, and
+     `pointer-events: none` so it can never sit on top of and intercept a click on
+     anything underneath it, however it ends up positioned at any given viewport width.
+     Reserves no layout space of its own either way (fixed position), so it cannot shift
+     or otherwise interrupt whatever's being typed while it fades in and back out. */
   .admin-autosave-status {
-    margin: -0.5rem 0 0; font-size: 0.75rem; color: var(--md-default-fg-color--light);
-    min-height: 1em; /* reserves its own line so text appearing after the first autosave tick doesn't shift anything below it */
+    position: fixed; right: 1rem; bottom: 1rem; z-index: 10;
+    padding: 0.5rem 0.9rem; border-radius: 0.2rem;
+    background: var(--md-default-bg-color); color: var(--md-default-fg-color--light);
+    border: 1px solid var(--md-default-fg-color--lightest);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 0.75rem;
+    opacity: 0; transform: translateY(0.3rem);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
   }
+  .admin-autosave-status--visible { opacity: 1; transform: translateY(0); }
   .admin-row-actions form { display: inline; }
 
   /* Gutenberg-style block editor (admin_form.html) -- each block of a post's markdown

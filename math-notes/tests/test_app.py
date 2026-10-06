@@ -1311,3 +1311,24 @@ def test_admin_autosave_js_is_served_and_included_on_admin_form_pages(client):
     for path in ("/admin/new", f"/admin/{post_id}/edit"):
         resp = client.get(path)
         assert "/javascripts/admin-autosave.js" in resp.text
+
+
+def test_admin_autosave_notification_is_a_non_blocking_fading_toast(client):
+    # Reported live: wanted "some minor notification during save (that doesn't impede
+    # the editing)" -- fixed position + pointer-events: none so it can never sit on top
+    # of and intercept a click on the textarea underneath it, and an opacity/transform
+    # transition (toggled by admin-autosave.js's admin-autosave-status--visible class)
+    # so it fades in and back out on its own rather than permanently occupying space.
+    post_id = db.create_post("Toast Post", "Meta", "Body.")
+    resp = client.get(f"/admin/{post_id}/edit")
+    assert resp.status_code == 200
+    assert '<p id="admin-autosave-status" class="admin-autosave-status" aria-live="polite"></p>' in resp.text
+
+    css = client.get("/admin/").text  # admin_base.html's <style> block, same on every admin page
+    assert "position: fixed" in css
+    assert "pointer-events: none" in css
+    assert "admin-autosave-status--visible" in css
+
+    js = client.get("/javascripts/admin-autosave.js").text
+    assert "admin-autosave-status--visible" in js
+    assert "setTimeout" in js  # auto-dismisses itself, not left on screen indefinitely

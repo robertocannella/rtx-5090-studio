@@ -22,11 +22,26 @@
   }
 
   let adminAutosaveLastSnapshot = null;
+  let adminAutosaveToastTimer = null;
+
+  // A brief, self-dismissing toast (.admin-autosave-status--visible, see admin_base.html)
+  // rather than a permanent status line -- fixed position and pointer-events: none, so it
+  // can appear and fade back out on its own without ever stealing focus, covering the
+  // textarea being typed in, or otherwise getting in the way of continued editing.
+  function adminAutosaveShowToast(text) {
+    const status = document.getElementById("admin-autosave-status");
+    if (!status) return;
+    status.textContent = text;
+    status.classList.add("admin-autosave-status--visible");
+    clearTimeout(adminAutosaveToastTimer);
+    adminAutosaveToastTimer = setTimeout(() => {
+      status.classList.remove("admin-autosave-status--visible");
+    }, 3000);
+  }
 
   async function adminAutosaveTick() {
     const keyInput = document.getElementById("admin-draft-key");
     const form = document.querySelector("form.admin-form");
-    const status = document.getElementById("admin-autosave-status");
     if (!keyInput || !keyInput.value || !form) return;
 
     const { title, category, tags, segments } = adminAutosaveCollect(form);
@@ -45,10 +60,7 @@
       });
       if (!resp.ok) return;
       adminAutosaveLastSnapshot = snapshot;
-      if (status) {
-        const now = new Date();
-        status.textContent = `Draft autosaved at ${now.toLocaleTimeString()}`;
-      }
+      adminAutosaveShowToast("Draft autosaved");
     } catch (err) {
       // A transient network error here isn't worth surfacing -- the next tick tries
       // again, and a real Save doesn't depend on this succeeding at all.
