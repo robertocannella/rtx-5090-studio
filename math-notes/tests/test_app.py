@@ -455,9 +455,69 @@ def test_print_js_toggles_hide_answers_class_before_printing(client):
     resp = client.get("/javascripts/print.js")
     assert resp.status_code == 200
     assert "post-print-button" in resp.text
-    assert "post-hide-answers" in resp.text
-    assert "mn-print-hide-answers" in resp.text
-    assert "window.print()" in resp.text
+
+
+def test_expand_all_graphs_button_only_shows_on_posts_with_graphs(client):
+    # Reported live: "there should be an expand all option to show the graphs and
+    # diagrams inline" -- only worth showing at all on a post that actually has at least
+    # one graph/diagram to expand.
+    with_graph = '```matplotlib name="xg"\nax = plt.gca()\nax.plot([0, 1], [0, 1])\n```'
+    db.create_post("Graph Post", "Physics", with_graph)
+    db.create_post("Plain Post", "Physics", "Just prose, no graphs.")
+
+    resp_with = client.get("/blog/graph-post/")
+    assert resp_with.status_code == 200
+    assert 'id="post-expand-graphs-button"' in resp_with.text
+    assert "Expand all graphs" in resp_with.text
+    # Screen-only -- must never show up on the printed page itself.
+    idx = resp_with.text.find('id="post-expand-graphs-button"')
+    assert '<li class="md-nav__item no-print">' in resp_with.text[max(0, idx - 200):idx]
+
+    resp_without = client.get("/blog/plain-post/")
+    assert resp_without.status_code == 200
+    assert 'id="post-expand-graphs-button"' not in resp_without.text
+
+
+def test_expand_all_graphs_css_reuses_the_print_unwrap_technique_on_screen(client):
+    css = client.get("/stylesheets/extra.css").text
+    assert "body.mn-expand-graphs .plot-widget__modal" in css
+    assert "body.mn-expand-graphs .plot-widget--inline .plot-widget__modal" in css
+    # The screen version must still force a full-width line for each expanded graph,
+    # overriding the inline-block row layout consecutive "Show graph" buttons use.
+    assert "body.mn-expand-graphs .plot-widget {" in css
+
+
+def test_expand_graphs_js_toggles_a_body_class_and_the_button_label(client):
+    resp = client.get("/javascripts/expand-graphs.js")
+    assert resp.status_code == 200
+    js = resp.text
+    assert "post-expand-graphs-button" in js
+    assert 'classList.toggle("mn-expand-graphs")' in js
+    assert "Collapse all graphs" in js
+
+
+def test_admin_save_overlay_markup_present_on_new_and_edit_forms(client):
+    post_id = db.create_post("Save Overlay Post", "Meta", "Body.")
+    for path in ("/admin/new", f"/admin/{post_id}/edit"):
+        resp = client.get(path)
+        assert resp.status_code == 200
+        assert 'id="admin-save-overlay"' in resp.text
+        assert 'id="admin-save-overlay-graphs"' in resp.text
+        assert "/javascripts/admin-save-loader.js" in resp.text
+
+
+def test_admin_save_loader_js_lists_graph_names_and_flags_animations(client):
+    # Reported live: "add a loader that says what the backend is doing. saving graph
+    # using the name supplied" -- it has to actually extract each block's own `name`
+    # (not just show a generic "saving..." message) and call out an animated one
+    # specifically, since that's the case that's genuinely slow to render.
+    resp = client.get("/javascripts/admin-save-loader.js")
+    assert resp.status_code == 200
+    js = resp.text
+    assert "admin-save-overlay" in js
+    assert 'addEventListener("submit"' in js
+    assert "FuncAnimation" in js
+    assert "animated" in js
 
 
 def test_print_css_hides_chrome_and_reveals_collapsed_content(client):

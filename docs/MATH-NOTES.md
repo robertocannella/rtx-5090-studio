@@ -409,6 +409,43 @@ stale one removed if the code no longer prints anything), because `process_previ
 re-executes code and needs to show whatever the *last real save* actually printed, not
 re-run anything to find out.
 
+**Expand all graphs**: `#post-expand-graphs-button` (`post.html`, only rendered when
+`app.py`'s `blog_post` route finds `'class="plot-widget'` already present in the post's
+rendered HTML -- cheap enough to just check the already-rendered string rather than
+re-parsing the post's markdown) reveals every non-inline graph/diagram directly on the
+page in one click. Reported live: "on the view page, there should be an expand all
+option to show the graphs and diagrams inline." Reuses the exact same "unwrap the modal,
+hide the button/backdrop/close controls" technique `@media print` already applies
+unconditionally when printing (same section above) -- `extra.css` has an equivalent,
+unconditional-`!important`-free rule set gated on a `mn-expand-graphs` class instead,
+which `static/javascripts/expand-graphs.js` toggles on `<body>` and reverses on a second
+click (swapping the button's own label between "Expand all graphs"/"Collapse all
+graphs"). No `!important` is needed there the way print's version needs it: a real class
+selector already outranks the `[hidden]` attribute these modals start with, and there's
+no competing screen layout to fight the way print has to fight the on-screen one it's
+printing from. An `inline="true"` graph is excluded the same way, and for the same
+reason, print already excludes it -- its image is already visible outside the modal, so
+forcing the modal open too would just show a second copy of the same picture. Also has
+to re-override `.plot-widget`'s own `display: inline-block` (the fix for stacked/ragged
+"Show graph" buttons, below) back to `display: block` while expanded, so a big expanded
+image gets its own full line instead of trying to sit side by side with whatever other
+graph follows it in the post.
+
+**Consecutive graph buttons lay out as a row, not a ragged stack**: `.plot-widget` (the
+`<div>` `render_plots._widget_html` wraps every non-inline "Show graph" button in) had
+no CSS of its own at all -- a plain block-level element, like any other bare `<div>`, so
+two matplotlib blocks back to back in the same post each started their own new line,
+each only as wide as its own label, stacked one under the other (reported live from a
+screenshot: "I don't like the way the graph buttons look"). `.md-button` itself is
+already `display: inline-block` in Material's own CSS; the fix was giving the *wrapper*
+`display: inline-block` too (plus a small margin for row-to-row spacing once they wrap),
+letting consecutive ones flow left-to-right like any other run of inline content -- there
+is no shared parent wrapping consecutive `.plot-widget` siblings to put a flex/gap on
+instead, each comes straight out of `render_plots.py` as its own independent sibling.
+`.plot-widget--inline` is excluded from this (forced back to `display: block`) -- an
+inline diagram is a whole image in the post's own reading flow, not a button, and needs
+its own line the same as any other image in prose.
+
 ## Autosaved drafts
 
 The admin editor loses work if a tab crashes, the browser closes, or -- a real incident
@@ -442,6 +479,27 @@ once real content is saved, there's nothing left for the draft to usefully recov
 leaving it behind would just resurface a stale banner on some unrelated future edit.
 Abandoned drafts older than `db.DRAFT_MAX_AGE_DAYS` (14) are swept on every
 `save_draft` write, so the table doesn't grow forever from sessions that never saved.
+
+## The Save loading overlay
+
+A matplotlib block is genuinely re-executed on every real Save (`render_plots.process`),
+not just syntax-checked -- an animated one in particular can take real time (reported
+live: "sometimes the graph generation takes time ... add a loader that says what the
+backend is doing. saving graph using the name supplied").
+`static/javascripts/admin-save-loader.js` listens for the admin form's own native
+`submit` event -- never calling `preventDefault()`, the unmodified POST still does all
+the real work -- and, synchronously, before the browser navigates away, shows
+`#admin-save-overlay` (`admin_form.html`) listing every matplotlib block's own `name` it
+finds by scanning the submitted `<textarea name="segments">` values with a regex mirror
+of `render_plots.FENCE_RE` (good enough to describe what's about to happen; it's not the
+authoritative parser -- `render_plots.py` itself remains that). A block whose code
+contains the literal substring `FuncAnimation` is additionally labeled "(animated --
+may take longer)", calling out specifically which one is actually slow and why. The
+overlay needs no explicit hiding afterward: a success redirect and a validation-error
+re-render of the same form are both full navigations, so it simply stops existing the
+instant either one happens -- unlike the autosave toast (above), there's no case where
+the same page needs to show and then dismiss it without navigating away, so a plain
+`hidden` attribute toggle was enough here; no `--visible`/transition class needed.
 
 ## Admin pages and Material's instant-loading
 

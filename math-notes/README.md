@@ -83,6 +83,18 @@ has actually been saved for real. Abandoned drafts older than `db.DRAFT_MAX_AGE_
 (14) are swept on every write, so the table doesn't grow forever from "started a new
 post, decided not to."
 
+## A loading overlay shows what Save is actually doing
+
+Matplotlib blocks are genuinely re-executed on every real Save, not just checked -- an
+animated one in particular can take real time (reported live: "sometimes the graph
+generation takes time"). `static/javascripts/admin-save-loader.js` listens for the
+form's own `submit` event (never calling `preventDefault()` -- the native POST still
+does all the real work) and shows `#admin-save-overlay` listing every matplotlib block's
+own `name` it finds in the submitted segments, flagging any with `FuncAnimation` in its
+code as "(animated -- may take longer)". Disappears on its own the instant the browser
+actually navigates (a success redirect or a validation-error re-render alike), so there's
+nothing to explicitly hide afterward.
+
 ## Adding a graph
 
 Write a fenced ` ```matplotlib name="..." ` code block in a post's body -- saving the post
@@ -109,6 +121,16 @@ block right next to the image (both in the public popup and the admin editor's p
 persisted alongside the PNG as `{name}.txt` so the editor's view-mode preview can show it
 without re-running any code. The admin editor also has its own compact copy of this same
 reference in its side panel -- see "Browse sidebar (categories and tags)" below.
+
+**Expand all graphs** (`#post-expand-graphs-button`, only rendered when
+`app.py`'s `blog_post` route finds `'class="plot-widget'` already in the post's rendered
+HTML): reveals every non-inline graph/diagram directly on the page, reusing the exact
+same "unwrap the modal, hide the button/backdrop/close controls" CSS technique
+`@media print` already applies unconditionally when printing -- just gated on a
+`mn-expand-graphs` class `static/javascripts/expand-graphs.js` toggles on `<body>`
+instead, so it also works, reversibly, on screen. An `inline="true"` graph is excluded
+the same way print excludes it: its image is already visible outside the modal, so
+forcing the modal open too would just show a second copy of the same picture.
 
 ## Adding a non-blog page (Home, LaTeX Guide, Matplotlib Guide)
 

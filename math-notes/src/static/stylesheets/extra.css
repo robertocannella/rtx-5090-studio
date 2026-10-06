@@ -582,6 +582,48 @@ html {
   color: var(--md-accent-fg-color);
 }
 
+/* #post-expand-graphs-button (post.html) toggles this on <body> -- shows every
+   non-inline graph/diagram's image directly on the page instead of behind a
+   click-to-reveal button, for reviewing a post on screen without clicking through each
+   one individually. Exactly the same unwrap-the-modal technique @media print's own
+   version below already uses (kept as two separate rule sets rather than merged,
+   since print needs `!important` to override the screen layout it's printing from, and
+   additionally strips all the site chrome print has no use for -- this one is scoped to
+   just the graphs, leaves everything else alone, and needs no !important since a real
+   class selector already outranks the plain [hidden] attribute these modals start with).
+   inline="true" graphs are excluded the same way, and for the same reason, as in print:
+   their image is already visible outside the modal, so forcing the modal open too would
+   just show a second copy of the same picture right underneath the first. */
+body.mn-expand-graphs .plot-widget {
+  /* Overrides the inline-block row layout the button form uses (see .plot-widget above)
+     -- an expanded graph image needs its own full line, not to sit side by side with
+     whatever other graph happens to follow it in the post. */
+  display: block;
+}
+body.mn-expand-graphs .plot-widget__toggle,
+body.mn-expand-graphs .plot-widget__backdrop,
+body.mn-expand-graphs .plot-widget__close {
+  display: none;
+}
+body.mn-expand-graphs .plot-widget__modal {
+  display: block;
+  position: static;
+  inset: auto;
+  margin: 0.5rem 0;
+}
+body.mn-expand-graphs .plot-widget__box {
+  position: static;
+  box-shadow: none;
+  max-width: 100%;
+  padding: 0;
+}
+body.mn-expand-graphs .plot-widget__box img {
+  max-width: 100%;
+}
+body.mn-expand-graphs .plot-widget--inline .plot-widget__modal {
+  display: none;
+}
+
 @media print {
   /* Strip every bit of site chrome -- header, nav tabs, both content sidebars, footer,
      the Browse/Matplotlib side panel, and anything explicitly marked screen-only (the

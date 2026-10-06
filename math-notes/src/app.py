@@ -333,6 +333,10 @@ def blog_post(request: Request, slug: str):
         "post": post,
         "toc_tokens": render.secondary_toc(json.loads(post["toc_json"])),
         "primary_sidebar_hidden": True,
+        # Cheap enough to just check the already-rendered HTML rather than re-parsing the
+        # post's markdown -- only shown at all when there's at least one graph/diagram to
+        # expand, same reasoning as show_matplotlib_help elsewhere in this file.
+        "has_graphs": 'class="plot-widget' in post["body_html"],
     })
     return templates.TemplateResponse(request, "post.html", ctx)
 

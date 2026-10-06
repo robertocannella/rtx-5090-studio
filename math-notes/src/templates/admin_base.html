@@ -87,6 +87,41 @@
     pointer-events: none;
   }
   .admin-autosave-status--visible { opacity: 1; transform: translateY(0); }
+  /* Shown the instant Save is actually clicked (static/javascripts/admin-save-loader.js,
+     on the form's own submit event) -- matplotlib blocks are genuinely re-executed on
+     save, not just checked, and an animated one in particular can take real time
+     (reported live: "sometimes the graph generation takes time"). A plain, unmodified
+     native form submission still does the real work here -- this never calls
+     preventDefault(), it only shows UI while the browser's own navigation to the next
+     page (a redirect on success, a re-rendered form on a validation error) is already
+     under way, and disappears on its own the instant that happens either way, so there
+     is nothing to explicitly hide again afterward. */
+  .admin-save-overlay {
+    position: fixed; inset: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  .admin-save-overlay[hidden] { display: none; }
+  .admin-save-overlay__box {
+    background: var(--md-default-bg-color); color: var(--md-default-fg-color);
+    border-radius: 0.3rem; padding: 1.5rem 2rem; max-width: 26rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    text-align: center;
+  }
+  .admin-save-overlay__spinner {
+    width: 2rem; height: 2rem; margin: 0 auto 1rem;
+    border: 0.25rem solid var(--md-default-fg-color--lightest);
+    border-top-color: var(--md-primary-fg-color);
+    border-radius: 50%;
+    animation: admin-save-spin 0.8s linear infinite;
+  }
+  @keyframes admin-save-spin { to { transform: rotate(360deg); } }
+  .admin-save-overlay__title { font-weight: 700; margin: 0 0 0.75rem; }
+  .admin-save-overlay__graphs {
+    text-align: left; font-size: 0.85rem; margin: 0 0 0.75rem; padding-left: 1.2rem;
+  }
+  .admin-save-overlay__graphs[hidden] { display: none; }
+  .admin-save-overlay__note { font-size: 0.75rem; color: var(--md-default-fg-color--light); margin: 0; }
   .admin-row-actions form { display: inline; }
 
   /* Gutenberg-style block editor (admin_form.html) -- each block of a post's markdown

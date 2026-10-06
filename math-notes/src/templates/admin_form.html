@@ -77,6 +77,19 @@
   </div>
 </template>
 
+<div class="admin-save-overlay" id="admin-save-overlay" hidden>
+  <div class="admin-save-overlay__box">
+    <div class="admin-save-overlay__spinner" aria-hidden="true"></div>
+    <p class="admin-save-overlay__title">Saving post&hellip;</p>
+    <ul class="admin-save-overlay__graphs" id="admin-save-overlay-graphs" hidden></ul>
+    <p class="admin-save-overlay__note">
+      Matplotlib graphs are (re-)rendered on save, not just checked -- this can take a
+      moment, especially for an animated one.
+    </p>
+  </div>
+</div>
+
 <script src="/javascripts/admin-blocks.js?v={{ asset_v }}"></script>
 <script src="/javascripts/admin-autosave.js?v={{ asset_v }}"></script>
+<script src="/javascripts/admin-save-loader.js?v={{ asset_v }}"></script>
 {% endblock %}
