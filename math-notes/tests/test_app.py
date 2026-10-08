@@ -69,6 +69,25 @@ def test_admin_nav_guard_js_forces_real_navigation_around_admin_pages(client):
     assert 'pathname.startsWith("/admin/")' in resp.text
 
 
+def test_admin_nav_guard_js_leaves_same_page_fragment_links_alone(client):
+    # Reported live: clicking a "Jump to" link inside the admin editor's Matplotlib
+    # reference panel (a same-page #heading anchor -- see admin_base.html/app.py's
+    # matplotlib_help_toc) lost whatever was currently typed into an in-progress block.
+    # Those links resolve to the *same* pathname as the current admin page, so the
+    # original admin-path check matched and force-reassigned window.location.href even
+    # though a same-page fragment was never going to trigger Material's instant-loading
+    # page-swap in the first place -- there was nothing to guard against, only risk to
+    # introduce. Must be excluded before the admin-path check ever runs.
+    resp = client.get("/javascripts/admin-nav-guard.js")
+    assert resp.status_code == 200
+    js = resp.text
+    same_page_idx = js.find("url.pathname === location.pathname")
+    admin_path_idx = js.find('isAdminPath = (pathname)')
+    assert same_page_idx != -1
+    assert admin_path_idx != -1
+    assert same_page_idx < admin_path_idx  # the exclusion must run before the admin-path check
+
+
 def test_admin_blocks_js_survives_being_executed_twice_in_the_same_scope(client):
     # The direct regression test for the reported bug: before this, a second execution of
     # this exact file in one JS global scope (what an instant-nav swap does, absent the

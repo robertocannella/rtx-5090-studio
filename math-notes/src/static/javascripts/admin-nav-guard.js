@@ -33,6 +33,16 @@ document.addEventListener(
     }
     if (url.origin !== location.origin) return;
 
+    // A same-page fragment link -- the Matplotlib reference panel's own "Jump to" list
+    // (added after this file), or any heading's own ¶ permalink -- never triggers
+    // Material's instant-loading page-swap machinery in the first place; only an actual
+    // navigation to a *different* path does. Forcing one through window.location.href
+    // here anyway, instead of leaving it to the browser's own native, lightweight
+    // same-page scroll-to-anchor handling, risked more than it protected against:
+    // reported live as losing an in-progress block's unsaved text just from clicking a
+    // Jump to link while mid-edit.
+    if (url.pathname === location.pathname && url.search === location.search) return;
+
     const isAdminPath = (pathname) => pathname === "/admin" || pathname.startsWith("/admin/");
     if (!isAdminPath(location.pathname) && !isAdminPath(url.pathname)) return;
 
